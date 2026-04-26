@@ -1,0 +1,88 @@
+/* rubriques réglementaires */
+/* ajouter <img class=rr /> dans l'interface utilisateur pour faire apparaître l'icône */
+img.rr {
+    width:96px;
+    height:12px;
+    border:none;
+    padding:0;
+    margin:0;
+    display:inline-block;
+    overflow:hidden;
+    background-image: url('rr.png');
+    background-repeat: no-repeat;
+    text-indent: 96px;
+}
+
+table#registre_biens_affectes {
+    margin-top:40px;
+}
+#searchRefineBox span {
+    float: left;
+    width: 260px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #ddd;
+    margin-right: 10px;
+    text-decoration: none;
+    font-weight: normal;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.inventaire-object-display table {width:100%;}
+.inventaire-object-display td.photo {vertical-align: top;text-align: right;font-size: 10px;width:320px;}
+.inventaire-object-display td.label {background:#f0f0f0;color:#555555;font-size: 10px;width:420px;text-align:right;text-transform:lowercase;padding:1pt 3pt 1pt 3pt;}
+.inventaire-object-display td.content {font-size: 12px;width:100%; }
+.inventaire-object-display td.content b {font-size: 12px;font-weight: bold;}
+
+.form-button-gradient {
+    display:block;
+    border-top:1px solid #eeeeee;
+    margin:6px;
+    padding:4px 10px;
+}
+
+.searchNav #pager input.pagedisplay {
+    font:inherit;
+    margin:0;
+    padding:0;
+    border:none;
+    -webkit-box-shadow:none;
+    box-shadow:none;
+    width: 50px !important;
+    transition:none;
+}
+
+.searchNav.inventaireNav form {
+    width: 100%;
+    text-align: center;
+
+    padding: 5px;
+}
+.searchNav.inventaireNav .nav {
+    width: auto;
+}
+.searchNav.inventaireNav .parpage {
+    margin-top:-4px;
+}
+
+#searchRefineBox.inventaireRefineBox a {
+    width: auto;
+}
+
+#leftNav h2 a.sf-menu-selected {
+    height:auto !important;
+}
+
+.etatDesCollections_button {
+	margin-top: 20px;
+	text-align: center;
+	margin-bottom:30px;
+}
+
+#etatDesCollButton {
+	color:white;
+	background-color: #59b2c5;
+	border-radius: 5px;
+	padding:10px;
+	text-decoration: none;
+}
