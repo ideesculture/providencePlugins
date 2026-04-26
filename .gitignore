@@ -1,1 +1,8 @@
 .DS_Store
+
+# Per-instance plugin configuration (not versioned)
+conf/local/
+*/conf/local/
+
+# Notes de suivi locales (non versionnées)
+_suivi/
