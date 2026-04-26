@@ -63,7 +63,7 @@
 				);
 
 				$va_menu_items["Deconnexion"] = array(
-					'displayName' => _t('Log out'),
+					'displayName' => 'Déconnexion',
 					'default' => array(
 						'module' => 'system',
 						'controller' => 'auth',
@@ -79,8 +79,10 @@
 					MetaTagManager::addLink('stylesheet', __CA_URL_ROOT__."/app/plugins/providencePluginUserMenu/css/providencePluginUserMenuFooter.css", 'text/css');
 				}
 
+				// Single-character icon for the top menu bar (kept narrow on purpose).
+				// Alternatives if needed: ⏻ (power), ⎋ (escape), 🚪 (door), 👤 (user), ☰ (hamburger).
 				$pa_menu_bar['providencePluginUserMenu_menu'] = array(
-					'displayName' => _t('User'),
+					'displayName' => '👤',
 					'navigation' => $va_menu_items
 				);
 			}
