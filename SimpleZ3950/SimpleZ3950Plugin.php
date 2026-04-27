@@ -37,11 +37,10 @@
 			$this->ops_plugin_path = $ps_plugin_path;
 			$this->description = _t('Simple Z3950 import');
 			parent::__construct();
-			$conf_file = $ps_plugin_path.'/conf/SimpleZ3950.conf';
+			$conf_file       = $ps_plugin_path.'/conf/SimpleZ3950.conf';
+			$conf_file_local = $ps_plugin_path.'/conf/local/SimpleZ3950.conf';
+			if (file_exists($conf_file_local)) { $conf_file = $conf_file_local; }
 			$this->opo_config = Configuration::load($conf_file);
-			
-			// Note : simple import from conf
-			// $this->opo_config->getAssoc('associative_array')
 		}
 		# -------------------------------------------------------
 		/**
