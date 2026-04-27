@@ -32,7 +32,13 @@ php support/bin/caUtils load-import-mappings -f support/z3950_import_marc.xlsx
 
 ## Configuration
 
-Le fichier `conf/SimpleZ3950.conf` liste les serveurs Z39.50 disponibles. Format :
+Le fichier `conf/SimpleZ3950.conf` (ou `conf/local/SimpleZ3950.conf` qui prend la priorité s'il existe) liste les serveurs Z39.50 disponibles et règle quelques flags globaux :
+
+- `enabled` — `0` pour désactiver le plugin
+- `import_disabled` — `1` pour neutraliser l'action *Import* tant que le mapping `z3950_import_marc` n'est pas chargé. La recherche reste disponible et l'utilisateur final voit un bandeau explicatif. Défaut : `0` (import actif).
+- `servers` — voir format ci-dessous.
+
+Format des serveurs :
 
 ```
 servers = {

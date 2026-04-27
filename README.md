@@ -23,7 +23,7 @@ Certains plugins lisent un fichier `conf/<plugin>.conf` qui contient une cle `en
 
 Si `conf/local/<plugin>.conf` existe, il est utilise en lieu et place de `conf/<plugin>.conf`. Cela permet de versionner une configuration par defaut "off" tout en activant les plugins voulus instance par instance.
 
-Plugins concernes par ce mecanisme : `searchIdno`, `searchParent`, `frenchRevolutionaryCalendar`.
+Plugins concernes par ce mecanisme : `searchIdno`, `searchParent`, `frenchRevolutionaryCalendar`, `SimpleZ3950`.
 
 ## Plugins
 
@@ -69,6 +69,46 @@ Permet l'import de notices bibliographiques depuis **PubMed** (NCBI E-utilities)
 - `default_type` — type d'objet de repli si le type PubMed n'est pas mappe
 - `type_mapping` — correspondance entre types de publication PubMed et types `ca_objects`
 
+### SimpleGallica
+
+Permet l'import de notices depuis **Gallica** (BnF) directement dans CollectiveAccess. Une entree "Gallica" est ajoutee au menu Import du back-office. Deux modes : par ARK (un ou plusieurs ARK colles, appel `OAIRecord`) ou recherche textuelle plein-texte (SRU). Pour chaque notice retenue, cree un `ca_objects` avec `idno = ARK`, mappe les champs Dublin Core vers les attributs Cognitio-Fort (`auteurs`, `date`, `description`, `editeurs`, `source`, `droits`, `motscles`, `url_entry`, `objets_lies`) et attache automatiquement l'image haute resolution (`/f1.highres`) comme representation primaire (avec dedup MD5).
+
+**Hook utilise :** `hookRenderMenuBar`
+
+**Permission requise :** `can_use_simple_gallica_plugin`
+
+**Configuration (`conf/SimpleGallica.conf`) :**
+- `locale_id` — locale d'import
+- `max_results` — nombre max de notices via SRU (defaut 20)
+- `default_type` — type `ca_objects` de repli (defaut `iconographie`)
+- `type_mapping` — correspondance `dc:type` → type code `ca_objects` (test par sous-chaine)
+- `download_image` — telechargement auto de l'image haute resolution
+- `rate_limit_delay` — delai en secondes entre deux requetes Gallica (defaut 5, min 3)
+- `user_agent` — UA envoye a Gallica (UA navigateur requis pour `/f1.highres`)
+
+Voir [SimpleGallica/README.md](SimpleGallica/README.md).
+
+### SimpleSudoc
+
+<img src="documentation/icons/abes.svg" alt="ABES" height="60" align="right" />
+
+Permet l'import de notices depuis le **SUDOC** (catalogue ABES) directement dans CollectiveAccess. Une entree "SUDOC" est ajoutee au menu Import du back-office. Deux modes : par identifiant (PPN, ISBN ou ISSN, type detecte automatiquement par format) ou recherche textuelle (titre / auteur via les index `mti` et `aut`). Pour chaque notice retenue, cree un `ca_objects` avec `idno = PPN`, type par defaut `revue`, et mappe les champs UNIMARC vers les attributs Cognitio-Fort (`auteurs`, `date`, `description`, `editeurs`, `source`, `motscles`, `url_entry`). Le parsing est fait en UNIMARC car le schema Dublin Core SRU du SUDOC ne contient pas le PPN.
+
+**Hook utilise :** `hookRenderMenuBar`
+
+**Permission requise :** `can_use_simple_sudoc_plugin`
+
+**Configuration (`conf/SimpleSudoc.conf`) :**
+- `locale_id` — locale d'import (defaut `7` = `fr_FR` sur Cognitio-Fort)
+- `max_results` — nombre max de notices via SRU texte (defaut 20)
+- `default_type` — type `ca_objects` cree (defaut `revue`)
+- `rate_limit_delay` — delai en secondes entre deux requetes SUDOC (defaut 2)
+- `user_agent` — UA envoye a l'ABES
+
+Voir [SimpleSudoc/README.md](SimpleSudoc/README.md).
+
+> Le SUDOC est un reseau documentaire pilote par l'**ABES** (Agence bibliographique de l'enseignement superieur). Le logo ABES utilise ici est disponible sur la page officielle [Logo et ressources graphiques](https://abes.fr/l-abes/abes-pratique/logo-ressources-graphiques/).
+
 ### providencePluginUserMenu
 
 <img src="documentation/icons/usermenu.png" alt="providencePluginUserMenu" height="150" align="right" />
@@ -110,7 +150,25 @@ Ajoute un lien **"Rechercher les parents d'objets"** dans l'inspecteur d'un lot 
 
 **Activation :** copier `conf/searchParent.conf` vers `conf/local/searchParent.conf` et passer `enabled = 1`. Voir [searchParent/README.md](searchParent/README.md).
 
+### simpleList
+
+Editeur **leger de listes et vocabulaires** (`ca_lists`). Affiche un ensemble configurable de listes sous forme d'arbre hierarchique, permet le chargement progressif des items et l'**ajout en masse** de nouvelles valeurs depuis une zone de texte (un `idno` par ligne). Pensee comme une alternative plus rapide a l'editeur de listes natif quand un curateur doit parcourir ou enrichir plusieurs vocabulaires controles cote a cote.
+
+**Hook utilise :** `hookRenderMenuBar`
+
+**Controller :** `EditorController`
+
+**Permission requise :** `can_use_simplelist_plugin` (a accorder via *Manage → Access control → Roles*).
+
+**Configuration (`conf/simpleList.conf`) :**
+- `pages` — liste des *pages* a exposer ; chaque page regroupe plusieurs listes sous une seule entree de menu
+- chaque bloc de page definit `label` (intitule du menu / titre de page), `menu` (cle du menu de premier niveau : `find`, `edit`, `manage`, `import`...) et `lists` (tableau de `ca_lists.list_code` a afficher)
+
+Voir [simpleList/README.md](simpleList/README.md).
+
 ### exemplaires
+
+<img src="documentation/icons/exemplaires.png" alt="exemplaires" height="150" align="right" />
 
 Plugin metier **bibliotheque/serie**. Ajoute dans l'inspecteur de fiche d'objet, selon le type :
 - pour les types listes dans `TypesNoticesAvecExemplaires` (ex. `book`, `bibliotheques`) : un bouton **"Ajouter un exemplaire"** qui cree un objet enfant de type `750` (l'exemplaire physique). Si la fiche n'a pas encore de representation, tente de recuperer une couverture depuis **OpenLibrary** et **Google Books** a partir de l'ISBN (`idno`).

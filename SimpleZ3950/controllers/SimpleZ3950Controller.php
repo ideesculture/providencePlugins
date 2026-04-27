@@ -52,10 +52,10 @@ class SimpleZ3950Controller extends ActionController {
 //			return;
 //		}
 
-		$this->opo_config = Configuration::load(__CA_APP_DIR__.'/plugins/SimpleZ3950/conf/SimpleZ3950.conf');
-					
-		// Note : simple import from conf
-		// var_dump($this->opo_config->getAssoc('servers'));
+		$conf_file       = __CA_APP_DIR__.'/plugins/SimpleZ3950/conf/SimpleZ3950.conf';
+		$conf_file_local = __CA_APP_DIR__.'/plugins/SimpleZ3950/conf/local/SimpleZ3950.conf';
+		if (file_exists($conf_file_local)) { $conf_file = $conf_file_local; }
+		$this->opo_config = Configuration::load($conf_file);
 
 	}
 
@@ -175,12 +175,18 @@ class SimpleZ3950Controller extends ActionController {
 			$this->view->setVar("previews", $previews);
 			$this->view->setVar("raws", $raws);
 			$this->view->setVar("titles", $titles);
+			$this->view->setVar("import_disabled", (bool)$this->opo_config->get('import_disabled'));
 			$this->render('search_results_html.php');
 		}
 
 	}
 
 	public function Import() {
+		if ((bool)$this->opo_config->get('import_disabled')) {
+			$this->view->setVar('message', _t("L'import Z39.50 est désactivé sur cette instance (mapping z3950_import_marc non chargé). La recherche reste disponible."));
+			$this->render('error_html.php');
+			return;
+		}
 		$vn_results = $this->request->getParameter('nb_results', pInteger);
 		//var_dump($vn_results);
 		$files=[];
