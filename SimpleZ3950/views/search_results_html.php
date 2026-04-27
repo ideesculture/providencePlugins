@@ -3,11 +3,18 @@ $va_files        = $this->getVar('files');
 $previews        = $this->getVar('previews');
 $raws            = $this->getVar('raws');
 $titles          = $this->getVar('titles');
-$nb_results      = $this->getVar('nb_results');
+$nb_results      = (int)$this->getVar('nb_results');
+$nb_total_hits   = (int)$this->getVar('nb_total_hits');
 $import_disabled = (bool)$this->getVar('import_disabled');
-
-print "<h1>".$nb_results." résultat".($nb_results>1 ? "s" : "")."</h1>";
 ?>
+
+<h1><?php echo $nb_results . ' résultat' . ($nb_results > 1 ? 's' : ''); ?></h1>
+<?php if ($nb_total_hits > $nb_results): ?>
+	<p style="color:#666;font-size:12px;">
+		<?php echo $nb_total_hits; ?> notices correspondent dans le catalogue,
+		seuls les <?php echo $nb_results; ?> premiers sont affichés. Précisez la requête pour affiner.
+	</p>
+<?php endif; ?>
 
 <?php if ($import_disabled): ?>
 <div style="background:#fcf8e3;border-left:4px solid #8a6d3b;padding:10px 14px;border-radius:4px;margin-bottom:16px;font-size:13px;">
