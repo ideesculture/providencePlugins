@@ -71,6 +71,9 @@ Permet l'import de notices bibliographiques depuis **PubMed** (NCBI E-utilities)
 
 ### SimpleGallica
 
+<img src="documentation/icons/gallica.svg" alt="Gallica" height="150" align="right" />
+
+
 Permet l'import de notices depuis **Gallica** (BnF) directement dans CollectiveAccess. Une entree "Gallica" est ajoutee au menu Import du back-office. Deux modes : par ARK (un ou plusieurs ARK colles, appel `OAIRecord`) ou recherche textuelle plein-texte (SRU). Pour chaque notice retenue, cree un `ca_objects` avec `idno = ARK`, mappe les champs Dublin Core vers les attributs Cognitio-Fort (`auteurs`, `date`, `description`, `editeurs`, `source`, `droits`, `motscles`, `url_entry`, `objets_lies`) et attache automatiquement l'image haute resolution (`/f1.highres`) comme representation primaire (avec dedup MD5).
 
 **Hook utilise :** `hookRenderMenuBar`
@@ -85,6 +88,8 @@ Permet l'import de notices depuis **Gallica** (BnF) directement dans CollectiveA
 - `download_image` — telechargement auto de l'image haute resolution
 - `rate_limit_delay` — delai en secondes entre deux requetes Gallica (defaut 5, min 3)
 - `user_agent` — UA envoye a Gallica (UA navigateur requis pour `/f1.highres`)
+
+Logo Gallica utilise avec permission de la BnF — voir [Conditions d'utilisation de la marque Gallica](https://www.bnf.fr/fr/conditions-dutilisation-de-la-marque-gallica). Source du logo : https://fr.wikipedia.org/wiki/Fichier:Gallica_logo.svg ; auteurs : Mgioux et Sette-quattro
 
 Voir [SimpleGallica/README.md](SimpleGallica/README.md).
 
