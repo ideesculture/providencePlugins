@@ -22,7 +22,8 @@ class CatalogueController extends ActionController {
 	protected $ops_plugin_path;
 
 	// List IDs
-	const LIST_DOMAINE   = 157;  // domaine_logement (Objet/Mobilier/…)
+	const LIST_DOMAINE   = 157;  // domaine_logement (Catégorie)
+	const LIST_TYPE      = 168;  // denomination (Type)
 	const LIST_SITE      = 160;  // site_nom1
 	const LIST_BATIMENT  = 164;  // site_batiment1
 	const LIST_ETAGE     = 163;  // site_etage
@@ -32,6 +33,9 @@ class CatalogueController extends ActionController {
 	// Relationship type IDs for ca_objects_x_entities
 	const REL_DEPOSANT = 172;
 	const REL_AUTEUR   = 164;
+
+	// Déposant "MTE" : sa sélection affiche les catalogues spécifiques MTE (4 boutons au lieu de 2)
+	const MTE_DEPOSANT_ID = 1394; // Ministère de l'Écologie du Développement Durable
 
 	# -------------------------------------------------------
 	public function __construct(&$po_request, &$po_response, $pa_view_paths=null) {
@@ -58,6 +62,7 @@ class CatalogueController extends ActionController {
 	# -------------------------------------------------------
 	public function Standards() {
 		$this->_loadFilterLists();
+		$this->_loadJobVars();
 		$this->render('catalogue_standards_html.php');
 	}
 
@@ -66,7 +71,16 @@ class CatalogueController extends ActionController {
 	# -------------------------------------------------------
 	public function Specifiques() {
 		$this->_loadFilterLists();
+		$this->_loadJobVars();
 		$this->render('catalogue_specifiques_html.php');
+	}
+
+	# -------------------------------------------------------
+	private function _loadJobVars() {
+		$vs_job = $this->getRequest()->getParameter("job", pString);
+		$this->view->setVar('current_job', $vs_job);
+		$this->view->setVar('check_url', caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "CheckPDF"));
+		$this->view->setVar('check_all_url', caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "CheckAllPDF"));
 	}
 
 	# -------------------------------------------------------
@@ -75,12 +89,19 @@ class CatalogueController extends ActionController {
 		$this->view->setVar('sites', $this->_getListItems(self::LIST_SITE));
 		$this->view->setVar('batiments', $this->_getListItems(self::LIST_BATIMENT));
 		$this->view->setVar('etages', $this->_getListItems(self::LIST_ETAGE));
-		$this->view->setVar('types', $this->_getListItems(self::LIST_DOMAINE));
-		$this->view->setVar('constats', $this->_getListItems(self::LIST_CONSTAT));
+		$this->view->setVar('types', $this->_getListItems(self::LIST_DOMAINE));            // Catégorie (domaine_logement)
+		$this->view->setVar('denominations', $this->_getListItems(self::LIST_TYPE));      // Type (denomination)
+		// Constat présence du catalogue spécifique : limité à Vu (545) / Non vu (547) /
+		// Pièce inaccessible (3764). On exclut -- (546), Manquant (548) et Détruit (549)
+		// (ces derniers restent réservés au catalogue des biens disparus).
+		$va_constats = $this->_getListItems(self::LIST_CONSTAT);
+		$va_constats = array_intersect_key($va_constats, [545 => 1, 547 => 1, 3764 => 1]);
+		$this->view->setVar('constats', $va_constats);
+		$this->view->setVar('mte_deposant_id', self::MTE_DEPOSANT_ID);
 	}
 
 	# -------------------------------------------------------
-	# Generate — génération du catalogue PDF
+	# Generate — lance la génération du catalogue PDF en arrière-plan
 	# -------------------------------------------------------
 	public function Generate() {
 		$vs_catalogue_type = $this->getRequest()->getParameter("catalogue_type", pString);
@@ -89,338 +110,336 @@ class CatalogueController extends ActionController {
 		$vn_batiment_id    = $this->getRequest()->getParameter("batiment", pInteger);
 		$vn_etage_id       = $this->getRequest()->getParameter("etage", pInteger);
 		$vn_type_id        = $this->getRequest()->getParameter("type_domaine", pInteger);
+		$vn_denomination_id = $this->getRequest()->getParameter("denomination", pInteger);
 		$vn_constat_id     = $this->getRequest()->getParameter("constat", pInteger);
 		$vs_date_debut     = $this->getRequest()->getParameter("date_debut", pString);
 		$vs_date_fin       = $this->getRequest()->getParameter("date_fin", pString);
+		$vn_recole         = $this->getRequest()->getParameter("recole", pInteger);
+		$vn_inventorie     = $this->getRequest()->getParameter("inventorie", pInteger);
+		$vn_restitue       = $this->getRequest()->getParameter("restitue", pInteger);
+		$vn_restaure       = $this->getRequest()->getParameter("restaure", pInteger);
+		$vs_objet_mobilier = $this->getRequest()->getParameter("objet_mobilier", pString);
 
-		// Construction de la requête SQL
-		$va_wheres = ["o.deleted = 0"];
-		$va_joins = [];
-		$va_params = [];
-		$vs_titre = "Catalogue";
-		$vs_group_by_deposant = false;
-		$vs_group_by_site = false;
+		// Create a unique job ID
+		$vs_job_id = 'catalogue_' . date('Ymd_His') . '_' . substr(md5(uniqid(mt_rand(), true)), 0, 8);
 
-		switch($vs_catalogue_type) {
-			// ======= CATALOGUES STANDARDS =======
-			case 'deposant_tous_sites':
-				$vs_titre = "Catalogue par déposant – tous sites";
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				}
-				break;
-
-			case 'deposant_par_site':
-				$vs_titre = "Catalogue par déposant par site";
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				}
-				if ($vn_site_id) {
-					$va_joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-					$va_wheres[] = "av_site.item_id = ?";
-					$va_params[] = $vn_site_id;
-				}
-				break;
-
-			case 'biens_disparus':
-				$vs_titre = "Catalogue des biens disparus";
-				// Constat = "Manquant" (548) ou "Détruit" (549)
-				$va_joins[] = "JOIN ca_attributes a_inv ON o.object_id = a_inv.row_id AND a_inv.table_num = 57";
-				$va_joins[] = "JOIN ca_attribute_values av_inv ON a_inv.attribute_id = av_inv.attribute_id AND av_inv.element_id = 776";
-				$va_wheres[] = "av_inv.item_id IN (548, 549)";
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				}
-				break;
-
-			case 'mte_objets_par_site':
-				$vs_titre = "Catalogue MTE des objets par site";
-				if ($vn_site_id) {
-					$va_joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-					$va_wheres[] = "av_site.item_id = ?";
-					$va_params[] = $vn_site_id;
-				}
-				break;
-
-			case 'mte_mobiliers_par_site':
-				$vs_titre = "Catalogue MTE des mobiliers par site";
-				if ($vn_site_id) {
-					$va_joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-					$va_wheres[] = "av_site.item_id = ?";
-					$va_params[] = $vn_site_id;
-				}
-				break;
-
-			// ======= CATALOGUES SPÉCIFIQUES =======
-			case 'specifique_deposant_site_batiment_etage':
-				$vs_titre = "Catalogue par déposant + site + bâtiment + étage";
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				}
-				if ($vn_site_id) {
-					$va_joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-					$va_wheres[] = "av_site.item_id = ?";
-					$va_params[] = $vn_site_id;
-				}
-				if ($vn_batiment_id) {
-					$va_joins[] = "JOIN ca_attributes a_bat ON o.object_id = a_bat.row_id AND a_bat.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_bat ON a_bat.attribute_id = av_bat.attribute_id AND av_bat.element_id = 800";
-					$va_wheres[] = "av_bat.item_id = ?";
-					$va_params[] = $vn_batiment_id;
-				}
-				if ($vn_etage_id) {
-					$va_joins[] = "JOIN ca_attributes a_et ON o.object_id = a_et.row_id AND a_et.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_et ON a_et.attribute_id = av_et.attribute_id AND av_et.element_id = 712";
-					$va_wheres[] = "av_et.item_id = ?";
-					$va_params[] = $vn_etage_id;
-				}
-				break;
-
-			case 'specifique_par_type':
-				$vs_titre = "Catalogue par type";
-				if ($vn_type_id) {
-					$va_joins[] = "JOIN ca_attributes a_dom ON o.object_id = a_dom.row_id AND a_dom.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_dom ON a_dom.attribute_id = av_dom.attribute_id AND av_dom.element_id = (SELECT element_id FROM ca_metadata_elements WHERE element_code='domaine_logement')";
-					$va_wheres[] = "av_dom.item_id = ?";
-					$va_params[] = $vn_type_id;
-				}
-				$vs_group_by_site = true;
-				$vs_group_by_deposant = true;
-				break;
-
-			case 'specifique_vu_non_vu':
-				$vs_titre = "Catalogue des biens VU/NON VU";
-				if ($vn_constat_id) {
-					$va_joins[] = "JOIN ca_attributes a_cst ON o.object_id = a_cst.row_id AND a_cst.table_num = 57";
-					$va_joins[] = "JOIN ca_attribute_values av_cst ON a_cst.attribute_id = av_cst.attribute_id AND av_cst.element_id = 776";
-					$va_wheres[] = "av_cst.item_id = ?";
-					$va_params[] = $vn_constat_id;
-				}
-				$vs_group_by_site = true;
-				$vs_group_by_deposant = true;
-				break;
-
-			case 'specifique_recoles_periode':
-				$vs_titre = "Catalogue des biens récolés sur une période";
-				$va_joins[] = "JOIN ca_attributes a_rec ON o.object_id = a_rec.row_id AND a_rec.table_num = 57";
-				$va_joins[] = "JOIN ca_attribute_values av_rec ON a_rec.attribute_id = av_rec.attribute_id AND av_rec.element_id = 659";
-				if ($vs_date_debut) {
-					$va_wheres[] = "av_rec.value_decimal1 >= ?";
-					$va_params[] = $this->_dateToJulian($vs_date_debut);
-				}
-				if ($vs_date_fin) {
-					$va_wheres[] = "av_rec.value_decimal1 <= ?";
-					$va_params[] = $this->_dateToJulian($vs_date_fin);
-				}
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				} else {
-					$vs_group_by_deposant = true;
-				}
-				$vs_group_by_site = true;
-				break;
-
-			case 'specifique_inventories_periode':
-				$vs_titre = "Catalogue des biens inventoriés sur une période";
-				$va_joins[] = "JOIN ca_attributes a_invent ON o.object_id = a_invent.row_id AND a_invent.table_num = 57";
-				$va_joins[] = "JOIN ca_attribute_values av_invent ON a_invent.attribute_id = av_invent.attribute_id AND av_invent.element_id = 775";
-				if ($vs_date_debut) {
-					$va_wheres[] = "av_invent.value_decimal1 >= ?";
-					$va_params[] = $this->_dateToJulian($vs_date_debut);
-				}
-				if ($vs_date_fin) {
-					$va_wheres[] = "av_invent.value_decimal1 <= ?";
-					$va_params[] = $this->_dateToJulian($vs_date_fin);
-				}
-				if ($vn_deposant_id) {
-					$va_joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = ".self::REL_DEPOSANT;
-					$va_wheres[] = "oxe.entity_id = ?";
-					$va_params[] = $vn_deposant_id;
-				} else {
-					$vs_group_by_deposant = true;
-				}
-				$vs_group_by_site = true;
-				break;
-
-			default:
-				$this->view->setVar("message", "Type de catalogue inconnu.");
-				return $this->render("error_html.php");
+		// Job output directory
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		if (!is_dir($vs_job_dir)) {
+			@mkdir($vs_job_dir, 0775, true);
 		}
 
-		// Exécution de la requête
-		$vs_sql = "SELECT DISTINCT o.object_id FROM ca_objects o " . implode(" ", $va_joins) . " WHERE " . implode(" AND ", $va_wheres) . " ORDER BY o.idno";
-		$o_db = new Db();
-		$qr_result = $o_db->query($vs_sql, $va_params);
-
-		$va_object_ids = [];
-		while($qr_result->nextRow()) {
-			$va_object_ids[] = $qr_result->get("object_id");
-		}
-
-		if (empty($va_object_ids)) {
-			$this->view->setVar("message", "Aucun objet trouvé pour les critères sélectionnés.");
-			return $this->render("error_html.php");
-		}
-
-		// Charger les objets et préparer les fiches
-		$va_fiches = [];
-		foreach ($va_object_ids as $vn_object_id) {
-			$va_fiches[] = $this->_buildFicheObjet($vn_object_id);
-		}
-
-		// Regroupement si nécessaire
-		if ($vs_group_by_site || $vs_group_by_deposant) {
-			$va_fiches_grouped = [];
-			foreach ($va_fiches as $fiche) {
-				$group_key = "";
-				if ($vs_group_by_site) {
-					$group_key .= ($fiche['site'] ?: 'Sans site');
-				}
-				if ($vs_group_by_deposant) {
-					$group_key .= ($group_key ? ' — ' : '') . ($fiche['deposant'] ?: 'Sans déposant');
-				}
-				$va_fiches_grouped[$group_key][] = $fiche;
-			}
-			$this->view->setVar('fiches_grouped', $va_fiches_grouped);
-		}
-
-		$this->view->setVar('fiches', $va_fiches);
-		$this->view->setVar('titre', $vs_titre);
-		$this->view->setVar('group_by_site', $vs_group_by_site);
-		$this->view->setVar('group_by_deposant', $vs_group_by_deposant);
-		$this->view->setVar('nb_objets', count($va_object_ids));
-
-		$vs_output = $this->getRequest()->getParameter("output", pString);
-		if ($vs_output === 'pdf') {
-			return $this->_renderPDF();
-		}
-
-		$this->render('catalogue_results_html.php');
-	}
-
-	# -------------------------------------------------------
-	# Private helper: construire une fiche objet
-	# -------------------------------------------------------
-	private function _buildFicheObjet($pn_object_id) {
-		$obj = new ca_objects($pn_object_id);
-
-		// Dimensions formatées
-		$vs_dim = $obj->getWithTemplate(
-			"^ca_objects.dimensions.dimensions_height" .
-			"<ifdef code='ca_objects.dimensions.dimensions_height'> (h) x </ifdef>" .
-			"^ca_objects.dimensions.dimensions_width" .
-			"<ifdef code='ca_objects.dimensions.dimensions_width'> (l) x </ifdef>" .
-			"^ca_objects.dimensions.dimensions_depth" .
-			"<ifdef code='ca_objects.dimensions.dimensions_depth'> (p)</ifdef>" .
-			" ^ca_objects.dimensions.type_dimensions"
-		);
-
-		// Photo
-		$va_reps = $obj->getRepresentations(['medium', 'thumbnail']);
-		$vs_photo_tag = '';
-		if (!empty($va_reps)) {
-			$rep = reset($va_reps);
-			$vs_photo_tag = isset($rep['tags']['medium']) ? $rep['tags']['medium'] : (isset($rep['tags']['thumbnail']) ? $rep['tags']['thumbnail'] : '');
-			$vs_photo_tag = preg_replace('/width="\d+"/', 'width="125"', $vs_photo_tag);
-			$vs_photo_tag = preg_replace('/height="\d+"/', '', $vs_photo_tag);
-		}
-
-		// Photo path (for PDF)
-		$vs_photo_path = '';
-		if (!empty($va_reps)) {
-			$rep = reset($va_reps);
-			if (isset($rep['paths']['medium'])) {
-				$vs_photo_path = $rep['paths']['medium'];
-			}
-		}
-
-		return [
-			'object_id'      => $pn_object_id,
-			'idno'           => $obj->get('ca_objects.idno'),
-			'photo_tag'      => $vs_photo_tag,
-			'photo_path'     => $vs_photo_path,
-			'deposant'       => $obj->getWithTemplate('<unit relativeTo="ca_entities" restrictToRelationshipTypes="depositaire">^ca_entities.preferred_labels.displayname</unit>'),
-			'numero_depot'   => $obj->get('ca_objects.numero_depot'),
-			'date_depot'     => $obj->get('ca_objects.date_depot'),
-			'categorie'      => $obj->get('ca_objects.domaine_logement'),
-			'type'           => $obj->get('ca_objects.denomination'),
-			'titre'          => $obj->get('ca_objects.preferred_labels.name'),
-			'auteur'         => $obj->getWithTemplate('<unit relativeTo="ca_entities" restrictToRelationshipTypes="creation_auteur">^ca_entities.preferred_labels.displayname</unit>'),
-			'style'          => $obj->get('ca_objects.style'),
-			'dimensions'     => $vs_dim,
-			'quantite'       => $obj->getWithTemplate('^ca_objects.appartenances_lot.lot_quantite'),
-			'valeur_assurance' => '',
-			'site'           => $obj->getWithTemplate('^ca_objects.site.site_nom1'),
-			'adresse'        => $obj->getWithTemplate('^ca_objects.site.site_adresse1'),
-			'batiment'       => $obj->getWithTemplate('^ca_objects.site.site_batiment1'),
-			'etage'          => $obj->getWithTemplate('^ca_objects.site.site_etage'),
-			'piece'          => $obj->getWithTemplate('^ca_objects.site.site_piece'),
-			'situation'      => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_site > ^ca_objects.inventaire_cont.inv_etage > ^ca_objects.inventaire_cont.inv_piece'),
-			'inv_date'       => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_date'),
-			'inv_constat'    => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_constat'),
-			'inv_observations' => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_comm_disparition'),
-			'recol_date'     => $obj->getWithTemplate('^ca_objects.recolement_inv.der_date_reco'),
-			'recol_fait'     => $obj->getWithTemplate('^ca_objects.recolement_inv.real_O_N'),
-		];
-	}
-
-	# -------------------------------------------------------
-	# Private: rendu PDF
-	# -------------------------------------------------------
-	private function _renderPDF() {
-		$va_template_info = [
-			"name"            => "Catalogue MTE",
-			"type"            => "page",
-			"pageSize"        => "A4",
-			"pageOrientation" => "portrait",
-			"marginLeft"      => "1.5cm",
-			"marginRight"     => "1.5cm",
-			"marginTop"       => "1.5cm",
-			"marginBottom"    => "1cm",
+		// Write job parameters to JSON file
+		$va_job = [
+			'job_id'         => $vs_job_id,
+			'ca_base_dir'    => __CA_BASE_DIR__,
+			'catalogue_type' => $vs_catalogue_type,
+			'deposant'       => $vn_deposant_id,
+			'site'           => $vn_site_id,
+			'batiment'       => $vn_batiment_id,
+			'etage'          => $vn_etage_id,
+			'type_domaine'   => $vn_type_id,
+			'denomination'   => $vn_denomination_id,
+			'constat'        => $vn_constat_id,
+			'date_debut'     => $vs_date_debut,
+			'date_fin'       => $vs_date_fin,
+			'recole'         => $vn_recole,
+			'inventorie'     => $vn_inventorie,
+			'restitue'       => $vn_restitue,
+			'restaure'       => $vn_restaure,
+			'objet_mobilier' => $vs_objet_mobilier,
 		];
 
-		try {
-			$vs_base_path = $this->ops_plugin_path.'/views';
-			$this->view->addViewPath([$vs_base_path]);
+		$vs_job_file = $vs_job_dir . '/' . $vs_job_id . '.json';
+		file_put_contents($vs_job_file, json_encode($va_job));
 
-			$o_pdf = new PDFRenderer();
-			$this->view->setVar('PDFRenderer', $o_pdf->getCurrentRendererCode());
+		// Launch background process
+		$vs_script = $this->ops_plugin_path . '/generate_pdf.php';
+		$vs_log_file = $vs_job_dir . '/' . $vs_job_id . '.log';
+		$vs_cmd = 'php ' . escapeshellarg($vs_script) . ' ' . escapeshellarg($vs_job_file) . ' > ' . escapeshellarg($vs_log_file) . ' 2>&1 &';
+		exec($vs_cmd);
 
-			$vs_content = $this->render($this->ops_plugin_path.'/views/catalogue_pdf.php');
+		// Store the job_id in session for the user
+		$va_jobs = isset($_SESSION['etatsMTE_pdf_jobs']) ? $_SESSION['etatsMTE_pdf_jobs'] : [];
+		$va_jobs[] = $vs_job_id;
+		$_SESSION['etatsMTE_pdf_jobs'] = $va_jobs;
 
-			$o_pdf->setPage(
-				caGetOption('pageSize', $va_template_info, 'A4'),
-				caGetOption('pageOrientation', $va_template_info, 'portrait'),
-				caGetOption('marginTop', $va_template_info, '1.5cm'),
-				caGetOption('marginRight', $va_template_info, '1.5cm'),
-				caGetOption('marginBottom', $va_template_info, '1cm'),
-				caGetOption('marginLeft', $va_template_info, '1.5cm')
-			);
-
-			$o_pdf->render($vs_content, [
-				'stream'   => true,
-				'filename' => 'catalogue_mte.pdf'
-			]);
-
+		// Return JSON for AJAX calls
+		if ($this->getRequest()->isAjax() || $this->getRequest()->getParameter("ajax", pInteger) || isset($_REQUEST['ajax'])) {
+			header('Content-Type: application/json');
+			echo json_encode(['status' => 'launched', 'job_id' => $vs_job_id]);
 			exit;
-		} catch (Exception $e) {
-			$this->view->setVar("message", "Erreur lors de la génération du PDF : " . $e->getMessage());
+		}
+
+		// Fallback: redirect for non-AJAX
+		$vs_redirect = 'Standards';
+		if (strpos($vs_catalogue_type, 'specifique') === 0) {
+			$vs_redirect = 'Specifiques';
+		}
+
+		header("Location: " . caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", $vs_redirect, ['job' => $vs_job_id]));
+		exit;
+	}
+
+	# -------------------------------------------------------
+	# CheckPDF — AJAX endpoint, returns JSON status of a job
+	# -------------------------------------------------------
+	public function CheckPDF() {
+		$vs_job_id = $this->getRequest()->getParameter("job_id", pString);
+
+		// Sanitize job_id to prevent path traversal
+		$vs_job_id = preg_replace('/[^a-zA-Z0-9_]/', '', $vs_job_id);
+
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		$vs_status_file = $vs_job_dir . '/' . $vs_job_id . '.status';
+
+		header('Content-Type: application/json');
+
+		if (!file_exists($vs_status_file)) {
+			echo json_encode(['status' => 'unknown']);
+		} else {
+			$va_status = json_decode(file_get_contents($vs_status_file), true);
+			if ($va_status['status'] === 'done') {
+				$va_status['download_url'] = caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DownloadPDF", ['job_id' => $vs_job_id]);
+			}
+			echo json_encode($va_status);
+		}
+		exit;
+	}
+
+	# -------------------------------------------------------
+	# CheckAllPDF — AJAX endpoint, returns JSON status of all active jobs
+	# -------------------------------------------------------
+	public function CheckAllPDF() {
+		$va_jobs = isset($_SESSION['etatsMTE_pdf_jobs']) ? $_SESSION['etatsMTE_pdf_jobs'] : [];
+
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		$va_results = [];
+
+		$va_jobs_to_keep = [];
+		foreach ($va_jobs as $vs_job_id) {
+			$vs_job_id_safe = preg_replace('/[^a-zA-Z0-9_]/', '', $vs_job_id);
+			$vs_status_file = $vs_job_dir . '/' . $vs_job_id_safe . '.status';
+			$vs_job_file = $vs_job_dir . '/' . $vs_job_id_safe . '.json';
+
+			if (file_exists($vs_status_file)) {
+				$va_status = json_decode(file_get_contents($vs_status_file), true);
+				if ($va_status['status'] === 'done') {
+					$va_status['download_url'] = caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DownloadPDF", ['job_id' => $vs_job_id_safe]);
+				}
+				$va_status['job_id'] = $vs_job_id_safe;
+				$va_results[] = $va_status;
+				$va_jobs_to_keep[] = $vs_job_id;
+			} elseif (file_exists($vs_job_file)) {
+				// Job file exists but status not yet created — process is starting
+				$va_results[] = ['job_id' => $vs_job_id_safe, 'status' => 'pending'];
+				$va_jobs_to_keep[] = $vs_job_id;
+			}
+			// If neither file exists, drop from session (stale job)
+		}
+
+		// Clean up stale jobs from session
+		$_SESSION['etatsMTE_pdf_jobs'] = $va_jobs_to_keep;
+
+		header('Content-Type: application/json');
+		echo json_encode($va_results);
+		exit;
+	}
+
+	# -------------------------------------------------------
+	# DownloadPDF — serve a generated PDF file
+	# -------------------------------------------------------
+	public function DownloadPDF() {
+		$vs_job_id = $this->getRequest()->getParameter("job_id", pString);
+		$vs_job_id = preg_replace('/[^a-zA-Z0-9_]/', '', $vs_job_id);
+
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		$vs_pdf_file = $vs_job_dir . '/' . $vs_job_id . '.pdf';
+		$vs_status_file = $vs_job_dir . '/' . $vs_job_id . '.status';
+
+		if (!file_exists($vs_pdf_file)) {
+			$this->view->setVar("message", "Le fichier PDF n'existe pas ou a expiré.");
 			return $this->render("error_html.php");
 		}
+
+		// Read titre from status
+		$vs_filename = 'catalogue_mte.pdf';
+		if (file_exists($vs_status_file)) {
+			$va_status = json_decode(file_get_contents($vs_status_file), true);
+			if (!empty($va_status['titre'])) {
+				$vs_filename = preg_replace('/[^a-zA-Z0-9àâäéèêëïîôùûüÿçœæ _-]/u', '', $va_status['titre']) . '.pdf';
+			}
+		}
+
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="' . $vs_filename . '"');
+		header('Content-Length: ' . filesize($vs_pdf_file));
+		readfile($vs_pdf_file);
+
+		// Clean up: remove job files after download
+		@unlink($vs_pdf_file);
+		@unlink($vs_status_file);
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.json');
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.log');
+
+		// Remove from session
+		if (isset($_SESSION['etatsMTE_pdf_jobs'])) {
+			$_SESSION['etatsMTE_pdf_jobs'] = array_diff($_SESSION['etatsMTE_pdf_jobs'], [$vs_job_id]);
+		}
+
+		exit;
+	}
+
+	# -------------------------------------------------------
+	# Telechargements — liste des catalogues générés
+	# -------------------------------------------------------
+	public function Telechargements() {
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		$va_catalogues = [];
+
+		if (is_dir($vs_job_dir)) {
+			$va_status_files = glob($vs_job_dir . '/*.status');
+			foreach ($va_status_files as $vs_status_file) {
+				$vs_job_id = basename($vs_status_file, '.status');
+				$va_status = json_decode(file_get_contents($vs_status_file), true);
+				if (!$va_status) continue;
+
+				$vs_json_file = $vs_job_dir . '/' . $vs_job_id . '.json';
+				$va_params = file_exists($vs_json_file) ? json_decode(file_get_contents($vs_json_file), true) : [];
+
+				$vs_log_file = $vs_job_dir . '/' . $vs_job_id . '.log';
+				$vs_log = file_exists($vs_log_file) ? file_get_contents($vs_log_file) : '';
+
+				$vs_pdf_file = $vs_job_dir . '/' . $vs_job_id . '.pdf';
+				$vn_pdf_size = file_exists($vs_pdf_file) ? filesize($vs_pdf_file) : 0;
+
+				$va_catalogues[] = [
+					'job_id'     => $vs_job_id,
+					'status'     => $va_status['status'],
+					'titre'      => $va_status['titre'] ?? $va_params['catalogue_type'] ?? $vs_job_id,
+					'total'      => $va_status['total'] ?? null,
+					'processed'  => $va_status['processed'] ?? null,
+					'finished'   => $va_status['finished'] ?? null,
+					'started'    => $va_status['started'] ?? null,
+					'message'    => $va_status['message'] ?? null,
+					'pdf_size'   => $vn_pdf_size,
+					'log'        => $vs_log,
+					'params'     => $va_params,
+					'download_url' => ($va_status['status'] === 'done' && $vn_pdf_size > 0)
+						? caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DownloadPDF", ['job_id' => $vs_job_id])
+						: null,
+					'delete_url' => caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DeletePDF", ['job_id' => $vs_job_id]),
+				];
+			}
+
+			// Sort by job_id descending (most recent first — job_id contains timestamp)
+			usort($va_catalogues, function($a, $b) {
+				return strcmp($b['job_id'], $a['job_id']);
+			});
+		}
+
+		$this->view->setVar('catalogues', $va_catalogues);
+		$this->render('catalogue_telechargements_html.php');
+	}
+
+	# -------------------------------------------------------
+	# TelechargementsList — JSON endpoint for AJAX polling
+	# -------------------------------------------------------
+	public function TelechargementsList() {
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		$va_catalogues = [];
+
+		if (is_dir($vs_job_dir)) {
+			$va_status_files = glob($vs_job_dir . '/*.status');
+			foreach ($va_status_files as $vs_status_file) {
+				$vs_job_id = basename($vs_status_file, '.status');
+				$va_status = json_decode(file_get_contents($vs_status_file), true);
+				if (!$va_status) continue;
+
+				$vs_json_file = $vs_job_dir . '/' . $vs_job_id . '.json';
+				$va_params = file_exists($vs_json_file) ? json_decode(file_get_contents($vs_json_file), true) : [];
+
+				$vs_pdf_file = $vs_job_dir . '/' . $vs_job_id . '.pdf';
+				$vn_pdf_size = file_exists($vs_pdf_file) ? filesize($vs_pdf_file) : 0;
+
+				$va_catalogues[] = [
+					'job_id'     => $vs_job_id,
+					'status'     => $va_status['status'],
+					'titre'      => $va_status['titre'] ?? $va_params['catalogue_type'] ?? $vs_job_id,
+					'total'      => $va_status['total'] ?? null,
+					'processed'  => $va_status['processed'] ?? null,
+					'finished'   => $va_status['finished'] ?? null,
+					'started'    => $va_status['started'] ?? null,
+					'message'    => $va_status['message'] ?? null,
+					'pdf_size'   => $vn_pdf_size,
+					'download_url' => ($va_status['status'] === 'done' && $vn_pdf_size > 0)
+						? caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DownloadPDF", ['job_id' => $vs_job_id])
+						: null,
+					'delete_url' => caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "DeletePDF", ['job_id' => $vs_job_id]),
+				];
+			}
+
+			usort($va_catalogues, function($a, $b) {
+				return strcmp($b['job_id'], $a['job_id']);
+			});
+		}
+
+		header('Content-Type: application/json');
+		echo json_encode($va_catalogues);
+		exit;
+	}
+
+	# -------------------------------------------------------
+	# DeletePDF — supprimer un catalogue généré
+	# -------------------------------------------------------
+	public function DeletePDF() {
+		$vs_job_id = $this->getRequest()->getParameter("job_id", pString);
+		$vs_job_id = preg_replace('/[^a-zA-Z0-9_]/', '', $vs_job_id);
+
+		$vs_job_dir = __CA_APP_DIR__ . '/tmp/catalogues';
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.pdf');
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.status');
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.json');
+		@unlink($vs_job_dir . '/' . $vs_job_id . '.log');
+
+		// Remove from session
+		if (isset($_SESSION['etatsMTE_pdf_jobs'])) {
+			$_SESSION['etatsMTE_pdf_jobs'] = array_values(array_diff($_SESSION['etatsMTE_pdf_jobs'], [$vs_job_id]));
+		}
+
+		if ($this->getRequest()->isAjax() || $this->getRequest()->getParameter("ajax", pInteger)) {
+			header('Content-Type: application/json');
+			echo json_encode(['status' => 'deleted', 'job_id' => $vs_job_id]);
+			exit;
+		}
+
+		$this->getResponse()->addHeader("Location", caNavUrl($this->getRequest(), "etatsMTE", "Catalogue", "Telechargements"));
+	}
+
+	# -------------------------------------------------------
+	# NextDeposantNum — AJAX : renvoie le prochain numéro d'inventaire déposant
+	#   (max des numinv_deposant de forme <PREFIX>_<n> + 1). Défaut prefix = MTE.
+	# -------------------------------------------------------
+	public function NextDeposantNum() {
+		$ps_prefix = $this->getRequest()->getParameter("prefix", pString);
+		if (!$ps_prefix) { $ps_prefix = 'MTE'; }
+		$ps_prefix = preg_replace('/[^A-Za-z0-9]/', '', $ps_prefix);
+
+		$o_db = new Db();
+		$qr = $o_db->query(
+			"SELECT MAX(CAST(SUBSTRING(av.value_longtext1, ".(strlen($ps_prefix) + 2).") AS UNSIGNED)) mx
+			 FROM ca_attribute_values av
+			 JOIN ca_metadata_elements e ON e.element_id = av.element_id
+			 WHERE e.element_code = 'numinv_deposant' AND av.value_longtext1 REGEXP ?",
+			['^'.$ps_prefix.'_[0-9]+$']
+		);
+		$vn_max = 0;
+		if ($qr->nextRow()) { $vn_max = (int)$qr->get('mx'); }
+		$vn_next = $vn_max + 1;
+
+		header('Content-Type: application/json');
+		echo json_encode(['prefix' => $ps_prefix, 'next_int' => $vn_next, 'next' => $ps_prefix.'_'.$vn_next]);
+		exit;
 	}
 
 	# -------------------------------------------------------

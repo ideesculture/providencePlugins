@@ -1,12 +1,20 @@
 <?php
 $deposants = $this->getVar('deposants');
 $sites     = $this->getVar('sites');
+$mte_deposant_id = (int)$this->getVar('mte_deposant_id');
 
-$generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
+$generate_url  = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
+$telechargements_url = caNavUrl($this->request, "etatsMTE", "Catalogue", "Telechargements");
 ?>
 <div style="position:absolute;margin-left:-234px;background-color:white;border:1px solid #DDDDDD;padding:20px 30px 60px 30px;margin-top:-10px;min-height:100%;width:calc(100% + 234px);">
 
 <h1>Catalogue standard</h1>
+
+<!-- Notification masquée -->
+<div id="notif-generation" style="display:none;" class="notif-box">
+	Génération en cours. Le fichier sera disponible dans
+	<a href="<?= $telechargements_url ?>">Téléchargements</a>.
+</div>
 
 <!-- Filtres communs -->
 <div class="filtres-communs">
@@ -31,57 +39,28 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 </div>
 
 <!-- Catalogues -->
+<!-- Par défaut : 2 boutons (par déposant par site + biens disparus).
+     Si le déposant MTE est sélectionné : 4 boutons (les 2 précédents + les 2 catalogues MTE). -->
 <div class="catalogue-list">
-
-	<div class="catalogue-item" id="cat-deposant-tous-sites">
-		<div class="catalogue-name">Catalogue par déposant – tous sites</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="deposant_tous_sites" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
 
 	<div class="catalogue-item">
 		<div class="catalogue-name">Catalogue par déposant par site</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="deposant_par_site" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
+		<button type="button" class="btn-generer" onclick="lancerCatalogue(this, 'deposant_par_site')">Générer le catalogue</button>
 	</div>
 
 	<div class="catalogue-item">
 		<div class="catalogue-name">Catalogue des biens disparus</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="biens_disparus" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
+		<button type="button" class="btn-generer" onclick="lancerCatalogue(this, 'biens_disparus')">Générer le catalogue</button>
 	</div>
 
-	<div class="catalogue-item">
+	<div class="catalogue-item cat-mte-only" style="display:none;">
 		<div class="catalogue-name">Catalogue MTE des objets par site</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="mte_objets_par_site" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="site" class="inject-site" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
+		<button type="button" class="btn-generer" onclick="lancerCatalogue(this, 'mte_objets_par_site')">Générer le catalogue</button>
 	</div>
 
-	<div class="catalogue-item">
+	<div class="catalogue-item cat-mte-only" style="display:none;">
 		<div class="catalogue-name">Catalogue MTE des mobiliers par site</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="mte_mobiliers_par_site" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="site" class="inject-site" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
+		<button type="button" class="btn-generer" onclick="lancerCatalogue(this, 'mte_mobiliers_par_site')">Générer le catalogue</button>
 	</div>
 
 </div>
@@ -89,6 +68,21 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 </div>
 
 <style>
+.notif-box {
+	background: #fff3cd;
+	border: 1px solid #ffc107;
+	border-radius: 6px;
+	padding: 14px 20px;
+	margin-bottom: 20px;
+	font-size: 14px;
+	color: #856404;
+	font-family: 'Marianne', 'Marianne-Light', sans-serif;
+}
+.notif-box a {
+	color: #1c4792;
+	font-weight: bold;
+	text-decoration: underline;
+}
 .filtres-communs {
 	background: #f8f9fa;
 	border: 1px solid #dee2e6;
@@ -148,31 +142,83 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 .btn-generer:hover {
 	background-color: #143670;
 }
+.btn-generer:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
 </style>
 
 <script>
-jQuery(document).ready(function() {
-	function syncFilters() {
-		var deposant = jQuery('#filtre-deposant').val();
-		var site = jQuery('#filtre-site').val();
-		jQuery('.inject-deposant').val(deposant);
-		jQuery('.inject-site').val(site);
+var catGenerateUrl = '<?= $generate_url ?>';
+var catCheckUrl = '<?= __CA_URL_ROOT__ ?>/index.php/etatsMTE/Catalogue/CheckPDF';
 
-		if (site) {
-			jQuery('#cat-deposant-tous-sites').hide();
-		} else {
-			jQuery('#cat-deposant-tous-sites').show();
-		}
+function lancerCatalogue(btn, catalogueType) {
+	if (!confirm('La génération d\'un catalogue peut prendre plusieurs minutes. Continuer ?')) return;
+
+	var notif = document.getElementById('notif-generation');
+	notif.innerHTML = 'Génération en cours… le téléchargement démarrera automatiquement dès que le catalogue est prêt.';
+	notif.style.display = 'block';
+	btn.disabled = true;
+
+	var params = 'catalogue_type=' + encodeURIComponent(catalogueType)
+		+ '&output=pdf'
+		+ '&deposant=' + encodeURIComponent(jQuery('#filtre-deposant').val() || '')
+		+ '&site=' + encodeURIComponent(jQuery('#filtre-site').val() || '')
+		+ '&ajax=1';
+
+	fetch(catGenerateUrl + '?' + params, {
+		method: 'GET',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	})
+	.then(function(r){ return r.json(); })
+	.then(function(data){
+		if (!data || !data.job_id) { notif.innerHTML = 'Erreur au lancement de la génération.'; btn.disabled = false; return; }
+		pollCatalogueJob(data.job_id, notif, btn);
+	})
+	.catch(function(){ notif.innerHTML = 'Erreur au lancement de la génération.'; btn.disabled = false; });
+}
+
+// C2 (recette 22/04) : poll le statut et déclenche le téléchargement automatiquement
+function pollCatalogueJob(jobId, notif, btn) {
+	var iv = setInterval(function() {
+		fetch(catCheckUrl + '?job_id=' + encodeURIComponent(jobId), {
+			headers: {'X-Requested-With': 'XMLHttpRequest'}
+		})
+		.then(function(r){ return r.json(); })
+		.then(function(st){
+			if (!st) { return; }
+			if (st.status === 'done' && st.download_url) {
+				clearInterval(iv);
+				var nb = (st.total != null) ? st.total : '?';
+				var s = (st.total > 1) ? 's' : '';
+				notif.innerHTML = 'Catalogue prêt — <strong>' + nb + ' fiche' + s + '</strong>. Le téléchargement démarre…';
+				window.location = st.download_url;
+				btn.disabled = false;
+				setTimeout(function(){ notif.style.display = 'none'; }, 15000);
+			} else if (st.status === 'error') {
+				clearInterval(iv);
+				notif.innerHTML = 'Erreur : ' + (st.message || 'la génération a échoué.');
+				btn.disabled = false;
+			} else if (st.total) {
+				// running / rendering : afficher le nombre total de fiches concernées
+				notif.innerHTML = 'Génération en cours… <strong>' + st.total + ' fiche' + ((st.total > 1) ? 's' : '') + '</strong> concernée' + ((st.total > 1) ? 's' : '') + ' (' + (st.processed || 0) + ' / ' + st.total + ' traitées).';
+			}
+		})
+		.catch(function(){ /* transitoire, on retente */ });
+	}, 3000);
+}
+
+// Affichage des catalogues spécifiques MTE : uniquement si le déposant MTE est sélectionné (4 boutons au lieu de 2)
+var mteDeposantId = '<?= $mte_deposant_id ?>';
+function majCataloguesMTE() {
+	if (jQuery('#filtre-deposant').val() === mteDeposantId) {
+		jQuery('.cat-mte-only').show();
+	} else {
+		jQuery('.cat-mte-only').hide();
 	}
-	jQuery('#filtre-deposant, #filtre-site').on('change', syncFilters);
-	syncFilters();
-
-	jQuery('.catalogue-list').on('submit', 'form', function(e) {
-		if (!confirm('La génération d\'un catalogue peut prendre plusieurs minutes. Êtes-vous sûr de vouloir continuer ?')) {
-			e.preventDefault();
-			return false;
-		}
-		jQuery('.btn-generer').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed');
-	});
+}
+jQuery(document).ready(function() {
+	jQuery('#filtre-deposant').on('change', majCataloguesMTE);
+	majCataloguesMTE();
 });
 </script>

@@ -3,14 +3,22 @@ $deposants = $this->getVar('deposants');
 $sites     = $this->getVar('sites');
 $batiments = $this->getVar('batiments');
 $etages    = $this->getVar('etages');
-$types     = $this->getVar('types');
+$types     = $this->getVar('types');          // Catégorie (domaine_logement)
+$denominations = $this->getVar('denominations'); // Type (denomination)
 $constats  = $this->getVar('constats');
 
-$generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
+$generate_url  = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
+$telechargements_url = caNavUrl($this->request, "etatsMTE", "Catalogue", "Telechargements");
 ?>
 <div style="position:absolute;margin-left:-234px;background-color:white;border:1px solid #DDDDDD;padding:20px 30px 60px 30px;margin-top:-10px;min-height:100%;width:calc(100% + 234px);">
 
 <h1>Catalogue spécifique</h1>
+
+<!-- Notification masquée -->
+<div id="notif-generation" style="display:none;" class="notif-box">
+	Génération en cours. Le fichier sera disponible dans
+	<a href="<?= $telechargements_url ?>">Téléchargements</a>.
+</div>
 
 <!-- Filtres communs -->
 <div class="filtres-communs">
@@ -56,12 +64,29 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 	</div>
 	<div class="filtre-ligne">
 		<div class="filtre">
-			<label>Type :</label>
+			<label>Catégorie :</label>
 			<select id="filtre-type">
-				<option value="">-- Tous --</option>
+				<option value="">-- Toutes --</option>
 				<?php foreach($types as $id => $name): ?>
 				<option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
 				<?php endforeach; ?>
+			</select>
+		</div>
+		<div class="filtre">
+			<label>Type :</label>
+			<select id="filtre-denomination">
+				<option value="">-- Tous --</option>
+				<?php foreach($denominations as $id => $name): ?>
+				<option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
+				<?php endforeach; ?>
+			</select>
+		</div>
+		<div class="filtre">
+			<label>Objet / Mobilier :</label>
+			<select id="filtre-objet-mobilier">
+				<option value="">-- Tous --</option>
+				<option value="objet">Objet</option>
+				<option value="mobilier">Mobilier</option>
 			</select>
 		</div>
 		<div class="filtre">
@@ -84,83 +109,39 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 			<input type="date" id="filtre-date-fin" />
 		</div>
 	</div>
+	<div class="filtre-ligne filtre-ligne-etats">
+		<label class="filtre-etat"><input type="checkbox" id="filtre-recole" value="1" /> Bien récolé</label>
+		<label class="filtre-etat"><input type="checkbox" id="filtre-inventorie" value="1" /> Bien inventorié</label>
+		<label class="filtre-etat"><input type="checkbox" id="filtre-restitue" value="1" /> Bien restitué</label>
+		<label class="filtre-etat"><input type="checkbox" id="filtre-restaure" value="1" /> Bien restauré</label>
+	</div>
 </div>
 
-<!-- Catalogues -->
-<div class="catalogue-list">
+<!-- Un seul catalogue, piloté par les filtres ci-dessus -->
+<p class="catalogue-hint">Le catalogue est généré selon les filtres sélectionnés ci-dessus. Résultat regroupé par site, et par déposant si aucun déposant n'est sélectionné.</p>
 
-	<div class="catalogue-item cat-no-periode">
-		<div class="catalogue-name">Par déposant + site + bâtiment + étage</div>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="specifique_deposant_site_batiment_etage" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<input type="hidden" name="batiment" class="inject-batiment" />
-			<input type="hidden" name="etage" class="inject-etage" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
-
-	<div class="catalogue-item cat-no-periode">
-		<div class="catalogue-name">Par type (Objet ou Mobilier)</div>
-		<p class="catalogue-info">Résultat regroupé par site et déposant</p>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="specifique_par_type" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<input type="hidden" name="type_domaine" class="inject-type" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
-
-	<div class="catalogue-item cat-no-periode">
-		<div class="catalogue-name">Biens VU / NON VU (Constat présence)</div>
-		<p class="catalogue-info">Résultat regroupé par site et déposant</p>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="specifique_vu_non_vu" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<input type="hidden" name="constat" class="inject-constat" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
-
-	<div class="catalogue-item">
-		<div class="catalogue-name">Biens récolés sur une période</div>
-		<p class="catalogue-info">Tous déposants (regroupé par site + déposant) ou sélection d'un déposant (regroupé par site)</p>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="specifique_recoles_periode" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<input type="hidden" name="date_debut" class="inject-date-debut" />
-			<input type="hidden" name="date_fin" class="inject-date-fin" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
-
-	<div class="catalogue-item">
-		<div class="catalogue-name">Biens inventoriés sur une période</div>
-		<p class="catalogue-info">Tous déposants (regroupé par site + déposant) ou sélection d'un déposant (regroupé par site)</p>
-		<form method="get" action="<?= $generate_url ?>">
-			<input type="hidden" name="catalogue_type" value="specifique_inventories_periode" />
-			<input type="hidden" name="output" value="pdf" />
-			<input type="hidden" name="deposant" class="inject-deposant" />
-			<input type="hidden" name="site" class="inject-site" />
-			<input type="hidden" name="date_debut" class="inject-date-debut" />
-			<input type="hidden" name="date_fin" class="inject-date-fin" />
-			<button type="submit" class="btn-generer">Générer le catalogue</button>
-		</form>
-	</div>
-
+<div class="catalogue-generate-bar">
+	<button type="button" class="btn-generer" onclick="lancerCatalogueSpecifique()">Générer le catalogue</button>
 </div>
 
 </div>
 
 <style>
+.notif-box {
+	background: #fff3cd;
+	border: 1px solid #ffc107;
+	border-radius: 6px;
+	padding: 14px 20px;
+	margin-bottom: 20px;
+	font-size: 14px;
+	color: #856404;
+	font-family: 'Marianne', 'Marianne-Light', sans-serif;
+}
+.notif-box a {
+	color: #1c4792;
+	font-weight: bold;
+	text-decoration: underline;
+}
 .filtres-communs {
 	background: #f8f9fa;
 	border: 1px solid #dee2e6;
@@ -196,6 +177,25 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 	font-size: 13px;
 	min-width: 180px;
 	font-family: 'Marianne', 'Marianne-Light', sans-serif;
+}
+.filtre-ligne-etats {
+	gap: 24px;
+	padding-top: 4px;
+}
+.filtre-etat {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	font-weight: bold;
+	color: #555;
+	white-space: nowrap;
+	cursor: pointer;
+}
+.filtre-etat input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
 }
 .catalogue-list {
 	display: flex;
@@ -233,44 +233,105 @@ $generate_url = __CA_URL_ROOT__."/index.php/etatsMTE/Catalogue/Generate";
 .btn-generer:hover {
 	background-color: #143670;
 }
+.btn-generer:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+/* C5 : choix par radio + un seul bouton Générer */
+.catalogue-list .catalogue-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	cursor: pointer;
+}
+.catalogue-list .catalogue-item input[type="radio"] {
+	margin-top: 4px;
+	flex: 0 0 auto;
+}
+.catalogue-generate-bar {
+	margin-top: 22px;
+}
+.catalogue-hint {
+	font-size: 13px;
+	color: #555;
+	font-style: italic;
+	margin: 4px 0 0 0;
+}
 </style>
 
 <script>
-jQuery(document).ready(function() {
-	function syncFilters() {
-		var deposant = jQuery('#filtre-deposant').val();
-		var site = jQuery('#filtre-site').val();
-		var batiment = jQuery('#filtre-batiment').val();
-		var etage = jQuery('#filtre-etage').val();
-		var type = jQuery('#filtre-type').val();
-		var constat = jQuery('#filtre-constat').val();
-		var dateDebut = jQuery('#filtre-date-debut').val();
-		var dateFin = jQuery('#filtre-date-fin').val();
+var catGenerateUrl = '<?= $generate_url ?>';
+var catCheckUrl = '<?= __CA_URL_ROOT__ ?>/index.php/etatsMTE/Catalogue/CheckPDF';
 
-		jQuery('.inject-deposant').val(deposant);
-		jQuery('.inject-site').val(site);
-		jQuery('.inject-batiment').val(batiment);
-		jQuery('.inject-etage').val(etage);
-		jQuery('.inject-type').val(type);
-		jQuery('.inject-constat').val(constat);
-		jQuery('.inject-date-debut').val(dateDebut);
-		jQuery('.inject-date-fin').val(dateFin);
+// Catalogue spécifique unifié : un seul type, piloté par les filtres
+function lancerCatalogueSpecifique() {
+	lancerCatalogue('specifique');
+}
 
-		if (dateDebut || dateFin) {
-			jQuery('.cat-no-periode').hide();
-		} else {
-			jQuery('.cat-no-periode').show();
-		}
-	}
-	jQuery('#filtre-deposant, #filtre-site, #filtre-batiment, #filtre-etage, #filtre-type, #filtre-constat, #filtre-date-debut, #filtre-date-fin').on('change', syncFilters);
-	syncFilters();
+function lancerCatalogue(catalogueType) {
+	if (!confirm('La génération d\'un catalogue peut prendre plusieurs minutes. Continuer ?')) return;
 
-	jQuery('.catalogue-list').on('submit', 'form', function(e) {
-		if (!confirm('La génération d\'un catalogue peut prendre plusieurs minutes. Êtes-vous sûr de vouloir continuer ?')) {
-			e.preventDefault();
-			return false;
-		}
-		jQuery('.btn-generer').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed');
-	});
-});
+	var notif = document.getElementById('notif-generation');
+	notif.innerHTML = 'Génération en cours… le téléchargement démarrera automatiquement dès que le catalogue est prêt.';
+	notif.style.display = 'block';
+
+	// Gather all filter values
+	var params = 'catalogue_type=' + encodeURIComponent(catalogueType)
+		+ '&output=pdf'
+		+ '&deposant=' + encodeURIComponent(jQuery('#filtre-deposant').val() || '')
+		+ '&site=' + encodeURIComponent(jQuery('#filtre-site').val() || '')
+		+ '&batiment=' + encodeURIComponent(jQuery('#filtre-batiment').val() || '')
+		+ '&etage=' + encodeURIComponent(jQuery('#filtre-etage').val() || '')
+		+ '&type_domaine=' + encodeURIComponent(jQuery('#filtre-type').val() || '')
+		+ '&denomination=' + encodeURIComponent(jQuery('#filtre-denomination').val() || '')
+		+ '&objet_mobilier=' + encodeURIComponent(jQuery('#filtre-objet-mobilier').val() || '')
+		+ '&constat=' + encodeURIComponent(jQuery('#filtre-constat').val() || '')
+		+ '&date_debut=' + encodeURIComponent(jQuery('#filtre-date-debut').val() || '')
+		+ '&date_fin=' + encodeURIComponent(jQuery('#filtre-date-fin').val() || '')
+		+ '&recole=' + (jQuery('#filtre-recole').is(':checked') ? '1' : '0')
+		+ '&inventorie=' + (jQuery('#filtre-inventorie').is(':checked') ? '1' : '0')
+		+ '&restitue=' + (jQuery('#filtre-restitue').is(':checked') ? '1' : '0')
+		+ '&restaure=' + (jQuery('#filtre-restaure').is(':checked') ? '1' : '0')
+		+ '&ajax=1';
+
+	fetch(catGenerateUrl + '?' + params, {
+		method: 'GET',
+		headers: {'X-Requested-With': 'XMLHttpRequest'}
+	})
+	.then(function(r){ return r.json(); })
+	.then(function(data){
+		if (!data || !data.job_id) { notif.innerHTML = 'Erreur au lancement de la génération.'; return; }
+		pollCatalogueJob(data.job_id, notif);
+	})
+	.catch(function(){ notif.innerHTML = 'Erreur au lancement de la génération.'; });
+}
+
+// C2 (recette 22/04) : poll le statut et déclenche le téléchargement automatiquement
+function pollCatalogueJob(jobId, notif) {
+	var iv = setInterval(function() {
+		fetch(catCheckUrl + '?job_id=' + encodeURIComponent(jobId), {
+			headers: {'X-Requested-With': 'XMLHttpRequest'}
+		})
+		.then(function(r){ return r.json(); })
+		.then(function(st){
+			if (!st) { return; }
+			if (st.status === 'done' && st.download_url) {
+				clearInterval(iv);
+				var nb = (st.total != null) ? st.total : '?';
+				var s = (st.total > 1) ? 's' : '';
+				notif.innerHTML = 'Catalogue prêt — <strong>' + nb + ' fiche' + s + '</strong>. Le téléchargement démarre…';
+				window.location = st.download_url;
+				setTimeout(function(){ notif.style.display = 'none'; }, 15000);
+			} else if (st.status === 'error') {
+				clearInterval(iv);
+				notif.innerHTML = 'Erreur : ' + (st.message || 'la génération a échoué.');
+			} else if (st.total) {
+				// running / rendering : afficher le nombre total de fiches concernées
+				notif.innerHTML = 'Génération en cours… <strong>' + st.total + ' fiche' + ((st.total > 1) ? 's' : '') + '</strong> concernée' + ((st.total > 1) ? 's' : '') + ' (' + (st.processed || 0) + ' / ' + st.total + ' traitées).';
+			}
+		})
+		.catch(function(){ /* transitoire */ });
+	}, 3000);
+}
+
 </script>
