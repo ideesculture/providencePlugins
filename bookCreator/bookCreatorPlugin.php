@@ -42,7 +42,13 @@
 		 */
 		public function hookRenderMenuBar($pa_menu_bar) {
 			if ($o_req = $this->getRequest()) {
-				//if (!$o_req->user->canDoAction('can_use_media_import_plugin')) { return true; }
+				// Hide the menu entry from users the controller would turn away,
+				// rather than letting them click through to an access error. Same
+				// rule as the controllers: an explicit role grant, or default_access.
+				if (!$o_req->user->canDoAction('can_use_book_editor_plugin')
+					&& !(bool)$this->opo_config->get('default_access')) {
+					return $pa_menu_bar;
+				}
 
 				$default_menu_action = array(
 					'displayName' => _t('Book'),
@@ -53,7 +59,7 @@
 					),
 					'navigation' => array(
 						"Editor"=> array(
-							'displayName' => "Editor",
+							'displayName' => _t('Editor'),
 							"default" => array(
 								'module' => 'bookCreator',
 								'controller' => 'Editor',

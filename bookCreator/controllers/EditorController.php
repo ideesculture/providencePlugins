@@ -154,7 +154,7 @@
 			if(is_array($result)) {
 				$this->view->setVar("error", implode(" – ", $result));
 			} else {
-				$this->view->setVar("notification", "Section saved.");
+				$this->view->setVar("notification", _t("Section saved."));
 			}
 	        $va_section_info = $vt_book->getSection($section_id);
 
@@ -172,7 +172,7 @@
 	        if(is_array($result)) {
 		        $this->view->setVar("error", implode(" – ", $result));
 	        } else {
-		        $this->view->setVar("notification", "Section added.");
+		        $this->view->setVar("notification", _t("Section added."));
 	        }
 
 	        $va_sections = $vt_book->getSections();
@@ -197,7 +197,7 @@
 		        if(is_array($result)) {
 			        $this->view->setVar("error", implode(" – ", $result));
 		        } else {
-			        $this->view->setVar("notification", "Section saved.");
+			        $this->view->setVar("notification", _t("Section deleted."));
 		        }
 		        $this->view->setVar("book", $book_id);
 		        $this->view->setVar("section", $section_id);
@@ -383,7 +383,7 @@
 			        $this->render('view_pdf_html.php');
 		        } else {
 			        var_dump($output);
-			        die("hein ?");
+			        die(_t("PDF assembly failed."));
 		        }
 		        die();
 	        }
@@ -416,7 +416,7 @@
 				    if((time() - filemtime($file)) > 1800) {
 					    $this->renderSectionPDF($book_id, $section_id, 1);
 				    }
-				    echo "Section $section_id traitée<br/>\n";
+				    echo _t("Section %1 processed", $section_id)."<br/>\n";
 					ob_flush();
 					flush();
 				    if($vn_limit>0 && $i==$vn_limit) {
@@ -429,44 +429,44 @@
 			$target_file = $this->dir."tmp/book_".$book_id.".pdf";
 		    $file_deleted = unlink($target_file);
 		    if(is_file($target_file) && !$file_deleted) {
-			    print "Impossible de supprimer la dernière génération.\n";
+			    print _t("Unable to delete the previous output file.")."\n";
 			    die();
 			};
 
 	        $cmd1 = "/usr/local/bin/pdftk ".implode(" ",$files)." cat output ".$target_file;
 			$result = exec($cmd1, $output);
-			echo "Contenu généré<br/>\n";
+			echo _t("Content generated")."<br/>\n";
 			ob_flush();
 			flush();
 			
 			$target_paged_file = $this->dir."tmp/book_".$book_id."_paged.pdf";
 		    $file_deleted = unlink($target_paged_file);
 		    if(is_file($target_paged_file) && !$file_deleted) {
-			    print "Impossible de supprimer la dernière génération (avec pagination).\n";
+			    print _t("Unable to delete the previous paginated output file.")."\n";
 			    die();
 			};
 			
 			$cmd2 = 'cd '.__CA_APP_DIR__.'/plugins/bookCreator/tmp && ../lib/cpdf/cpdf -add-text "%Page" -bottom 20pt -font "Times-Roman" -font-size 10 '.$target_file.' -o '.$target_paged_file;
 			$result = exec($cmd2, $output);
-			echo "Pagination ajoutée<br/>\n";
+			echo _t("Page numbers added")."<br/>\n";
 			ob_flush();
 			flush();
 					    
 		    $target_file_with_cover = $this->dir."tmp/book_".$book_id."_with_cover.pdf";
 		    $file_deleted = unlink($target_file_with_cover);
 		    if(is_file($target_file_with_cover) && !$file_deleted) {
-			    print "Impossible de supprimer la dernière génération (avec couvertures).\n";
+			    print _t("Unable to delete the previous output file with covers.")."\n";
 			    die();
 			};
 		    
 	        $cmd3 = "/usr/local/bin/pdftk ".$this->dir."assets/covers/couverture.pdf ".$target_paged_file." ".$this->dir."assets/covers/4e-couverture.pdf cat output ".$target_file_with_cover;
-			echo "Couverture ajoutée<br/>\n";
+			echo _t("Covers added")."<br/>\n";
 			ob_flush();
 	        flush();
 	        
 	        $result = exec($cmd3, $output);
 	        //$target_file = $this->dir."tmp/book_".$book_id.".pdf";
-	        print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf'>Le livre a été généré</a>";
+	        print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf'>"._t("The book has been generated")."</a>";
 	        die();
 		}
 
@@ -546,7 +546,7 @@
 	        } else {
 		        var_dump($cmd);
 		        var_dump($result);
-		        die("dough");
+		        die(_t("PDF rendering failed."));
 	        }
 	        die();
         }
