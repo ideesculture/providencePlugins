@@ -17,6 +17,7 @@
  	require_once(__CA_MODELS_DIR__.'/ca_sets.php');
  	require_once(__CA_MODELS_DIR__.'/ca_locales.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
+	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
 
 	// Lib : parsedown, markdown parser
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/parsedown/Parsedown.php');
@@ -39,21 +40,39 @@
  		# -------------------------------------------------------
 
  		public function __construct(&$po_request, &$po_response, $pa_view_paths=null) {
- 			global $allowed_universes;
- 			
  			parent::__construct($po_request, $po_response, $pa_view_paths);
- 			
-// 			if (!$this->request->user->canDoAction('can_use_book_editor_plugin')) {
-// 				$this->response->setRedirect($this->request->config->get('error_display_url').'/n/3000?r='.urlencode($this->request->getFullUrlPath()));
-// 				return;
-// 			}
 
 		    // We need the entire full path for PDF rendering
 		    $this->path = "https://".__CA_SITE_HOSTNAME__.__CA_URL_ROOT__."/app/plugins/bookCreator/";
 		    $this->dir = __CA_BASE_DIR__."/app/plugins/bookCreator/";
 
-		    $this->opo_config = Configuration::load($this->dir.'conf/bookEditor.conf');
+		    $this->opo_config = Configuration::load($this->dir.'conf/bookCreator.conf');
 
+			if (!$this->userCanUsePlugin()) {
+				$this->response->setRedirect(
+					$this->request->config->get('error_display_url')
+					.'/n/3000?r='.urlencode($this->request->getFullUrlPath())
+				);
+				return;
+			}
+
+			// The plugin owns its tables and installs them itself: send the user
+			// to the installer rather than failing later on a missing column.
+			$o_schema = new BookSchemaManager();
+			if (!$o_schema->isUsable()) {
+				$this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Install', 'Index'));
+				return;
+			}
+ 		}
+
+ 		/**
+ 		 * Access check. The role action is granted when a role carries it; when
+ 		 * no role does, default_access in bookCreator.conf decides. Shipped at 1,
+ 		 * so a fresh install is usable without configuring roles first.
+ 		 */
+ 		private function userCanUsePlugin() {
+ 			if ($this->request->user->canDoAction('can_use_book_editor_plugin')) { return true; }
+ 			return (bool)$this->opo_config->get('default_access');
  		}
 
  		# -------------------------------------------------------
