@@ -1,0 +1,227 @@
+<?php
+/* Book Creator plugin for CollectiveAccess
+ *
+ * Plugin by idéesculture – Gautier MICHELIN
+ *
+ * This source code is free and modifiable under the terms of
+ * GNU General Public License v3. (http://www.gnu.org/copyleft/gpl.html). See
+ * the "license.txt" file for details, or visit the CollectiveAccess web site at
+ * http://www.CollectiveAccess.org
+ *
+ * ----------------------------------------------------------------------
+ */
+
+require_once(__CA_MODELS_DIR__.'/ca_sets.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/ThemeRegistry.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/TemplateRegistry.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/RecordLoader.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/MarkdownRenderer.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
+
+/**
+ * Builds the HTML of a book, or of a single section.
+ *
+ * Replaces generateHTML(), whose layout logic was a chain of strpos() on the
+ * layout name with the Floutier field names written into the PHP. Here the
+ * layout drives the rendering through its manifest, and the field mapping is a
+ * CollectiveAccess display template resolved by TemplateRegistry — so adapting
+ * the module to another client's profile is configuration.
+ *
+ * The output is the same document for the PDF chain and for the Paged.js
+ * preview: same markup, same stylesheets, same injected custom properties.
+ * That identity is the whole point — a preview rendered from anything else
+ * would prove nothing about the printed result. Nothing that is not headed for
+ * the PDF is emitted here; interface chrome belongs to the page that embeds
+ * this document in an iframe.
+ */
+class BookHtmlBuilder {
+
+	/** @var ThemeRegistry */
+	private $theme;
+
+	/** @var TemplateRegistry */
+	private $templates;
+
+	/** @var RecordLoader */
+	private $loader;
+
+	/** @var MarkdownRenderer */
+	private $markdown;
+
+	/** @var string page format code of the book being rendered */
+	private $format;
+
+	/** @var string font pair code of the book being rendered */
+	private $font_pair;
+
+	public function __construct($theme_code = 'default', $format = 'a4-landscape', $font_pair = 'default', $parser = null) {
+		$this->theme     = new ThemeRegistry($theme_code);
+		$this->templates = new TemplateRegistry($theme_code);
+		$this->loader    = new RecordLoader();
+		$this->markdown  = new MarkdownRenderer($parser);
+		$this->format    = $format;
+		$this->font_pair = $font_pair;
+	}
+
+	# -------------------------------------------------------
+	# Documents
+	# -------------------------------------------------------
+
+	/**
+	 * Full document for a book, or for one of its sections.
+	 *
+	 * @param int      $book_id
+	 * @param int|null $section_id  restricts output to a single section
+	 * @param array    $options     first_page => int  start the page counter there,
+	 *                              which is how a section rendered on its own keeps
+	 *                              the numbering of the whole book;
+	 *                              bleed => bool  printer-ready output.
+	 */
+	public function buildDocument($book_id, $section_id = null, $options = []) {
+		$book = new plugin_books($book_id);
+
+		$body = '';
+		foreach ($book->getSections() as $section) {
+			if ($section_id !== null && (int)$section['booksection_id'] !== (int)$section_id) { continue; }
+			$body .= $this->buildSection($section);
+		}
+
+		return $this->wrapDocument($body, $options);
+	}
+
+	/**
+	 * Wraps rendered sections into a standalone HTML document.
+	 *
+	 * The generated :root block comes first, then the theme stylesheets, so a
+	 * stylesheet can always override a token but never the other way round.
+	 */
+	private function wrapDocument($body, $options = []) {
+		$css = $this->theme->buildRootCss($this->format, $this->font_pair, $options);
+
+		// A section rendered alone still has to carry the page number it holds
+		// in the finished book: nb_pages and first_page are written by the
+		// worker as it goes, and injected back here.
+		if (isset($options['first_page']) && (int)$options['first_page'] > 0) {
+			$css .= "@page { counter-reset: page ".((int)$options['first_page'] - 1)."; }\n";
+		}
+
+		$html  = "<!DOCTYPE html>\n<html><head>\n";
+		$html .= "<meta charset=\"UTF-8\" />\n";
+		$html .= "<style>\n".$css."</style>\n";
+
+		foreach ($this->theme->getStylesheets() as $sheet) {
+			$html .= "<link rel=\"stylesheet\" href=\"".htmlspecialchars($sheet, ENT_QUOTES, 'UTF-8')."\" />\n";
+		}
+
+		$html .= "</head>\n<body>\n".$body."</body>\n</html>\n";
+		return $html;
+	}
+
+	# -------------------------------------------------------
+	# Sections
+	# -------------------------------------------------------
+
+	/** One section, wrapped in a div carrying its layout code as a class. */
+	public function buildSection($section) {
+		$code = $section['style'];
+		$manifest = $this->templates->getTemplate($code);
+
+		// An unknown layout still renders its text rather than disappearing:
+		// losing a page silently is worse than losing its layout.
+		$type = $manifest ? $manifest['section_type'] : 'text';
+
+		switch ($type) {
+			case 'set':
+				$content = $this->buildSetSection($section, $code);
+				break;
+			case 'mixed':
+				$content = $this->buildTextContent($section).$this->buildSetSection($section, $code);
+				break;
+			default:
+				$content = $this->buildTextContent($section);
+		}
+
+		return "<div class=\"".htmlspecialchars($code, ENT_QUOTES, 'UTF-8')."\">\n".$content."</div>\n";
+	}
+
+	/** Editorial content: the title when the layout shows one, plus Markdown. */
+	private function buildTextContent($section) {
+		$html = '';
+		if (strlen((string)$section['title'])) {
+			$html .= "<h1>".htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8')."</h1>\n";
+		}
+		if (strlen((string)$section['intro'])) {
+			$html .= "<div class=\"intro\">".$this->markdown->render($section['intro'])."</div>\n";
+		}
+		$html .= "<div class=\"content\">".$this->markdown->render($section['content'])."</div>\n";
+
+		// A layout may also pin a single representation, independently of a set.
+		$html .= $this->buildRepresentationBlock($section);
+
+		return $html;
+	}
+
+	/**
+	 * The works of a set, each rendered through the merge template declared by
+	 * the layout.
+	 */
+	private function buildSetSection($section, $code) {
+		$context = _t('section %1', $section['booksection_id']);
+		$object_template = $this->templates->getMergeTemplate($code, 'object_block');
+		$caption_template = $this->templates->getMergeTemplate($code, 'caption');
+
+		$html = '';
+		foreach ($this->loader->loadSetItemIDs($section['set_id'], $context) as $object_id) {
+			$object = $this->loader->load('ca_objects', $object_id, $context);
+			if (!$object) { continue; }
+
+			$representation = $this->loader->loadPrimaryRepresentation($object, $context);
+
+			$html .= "<div class=\"media\">\n";
+			if ($representation) {
+				$url = $representation->getMediaUrl('media', 'page');
+				if ($url) {
+					$html .= "<div class=\"image\" style=\"background-image:url('".htmlspecialchars($url, ENT_QUOTES, 'UTF-8')."');\"></div>\n";
+				}
+				if ($caption_template) {
+					$html .= "<p class=\"caption\">".$representation->getWithTemplate($caption_template)."</p>\n";
+				}
+			}
+			if ($object_template) {
+				$html .= $object->getWithTemplate($object_template)."\n";
+			}
+			$html .= "</div>\n";
+		}
+		return $html;
+	}
+
+	/** Single representation pinned on a section, when the layout uses one. */
+	private function buildRepresentationBlock($section) {
+		if (!$section['representation_id']) { return ''; }
+
+		$context = _t('section %1', $section['booksection_id']);
+		$representation = $this->loader->load('ca_object_representations', $section['representation_id'], $context);
+		if (!$representation) { return ''; }
+
+		$url = $representation->getMediaUrl('media', 'page');
+		if (!$url) { return ''; }
+
+		$html  = "<div class=\"media\">\n";
+		$html .= "<img src=\"".htmlspecialchars($url, ENT_QUOTES, 'UTF-8')."\" alt=\"\" />\n";
+		$html .= "<p class=\"caption\">".$representation->get('preferred_labels')."</p>\n";
+		$html .= "</div>\n";
+		return $html;
+	}
+
+	# -------------------------------------------------------
+	# Reporting
+	# -------------------------------------------------------
+
+	/**
+	 * Records left out of the rendering, to be shown beside the preview and at
+	 * the end of the generation job — never inside the paginated document.
+	 */
+	public function getSkippedMessages() { return $this->loader->getSkippedMessages(); }
+
+	public function countSkipped() { return $this->loader->countSkipped(); }
+}
