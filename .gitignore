@@ -12,3 +12,8 @@ _suivi/
 # écrit dedans sans le créer) via .gitkeep.
 bookCreator/tmp/*
 !bookCreator/tmp/.gitkeep
+
+# Plans de cadrage bookCreator v2 : documents de travail locaux, non versionnés.
+# Listés unitairement pour ne pas ignorer d'autres .md du plugin par erreur.
+bookCreator/plan-1-refonte-bookcreator.md
+bookCreator/plan-2-chaine-html-pdf.md
