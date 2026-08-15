@@ -27,19 +27,6 @@
 	use H2P\Converter\PhantomJS;
 	use H2P\TempFile;
 
-	// Lib : phpOffice phpPresentation
-	require_once __CA_APP_DIR__.'/plugins/bookCreator/lib/PHPPresentation-master/src/PhpPresentation/Autoloader.php';
-	\PhpOffice\PhpPresentation\Autoloader::register();
-
-	require_once __CA_APP_DIR__.'/plugins/bookCreator/lib/Common-master/src/Common/Autoloader.php';
-	\PhpOffice\Common\Autoloader::register();
-
-	define("__CA_BOOKEDITOR__SECTION_TEXT__", 1);
-	define("__CA_BOOKEDITOR__SECTION_SET__", 2);
-
-//error_reporting(E_ALL);
-//ini_set("display_errors",true);
-
  	class EditorController extends ActionController {
  		# -------------------------------------------------------
   		protected $opo_config;		// plugin configuration file
@@ -78,22 +65,9 @@
  		# Functions to render views
  		# -------------------------------------------------------
  		public function Index($type="") {
-
-		    $o_data = new Db();
-		    $qr_result = $o_data->query("
-			    SELECT * 
-			    FROM plugin_books 
-			 ");
-		    $va_search_result = array();
-
-
-		    $vt_book = new plugin_books(1);
 			$this->render('index_html.php');
  		}
 
- 		public function ListBooks() {
-
-	    }
  		# -------------------------------------------------------
 	    public function BookSections() {
 		    $book_id = ($this->request->getParameter("book", pInteger));
@@ -149,14 +123,9 @@
 		    $this->view->setVar("book", $book_id);
 		    $this->view->setVar("section", $section_id);
 		    $this->view->setVar("section_details", $va_section_info);
-		    switch($va_section_info["sectiontype"]) {
-			    case __CA_BOOKEDITOR__SECTION_TEXT__:
-				    $this->render('section_text_editor_html.php');
-				    break;
-			    case __CA_BOOKEDITOR__SECTION_SET__:
-				    $this->render('section_set_editor_html.php');
-				    break;
-		    }
+		    // Single editor for every section type: it carries the set_id and
+		    // representation_id fields used by the "set" layouts.
+		    $this->render('section_text_editor_html.php');
 	    }
         public function SaveSection() {
         	$book_id = $this->request->getParameter("book", pInteger);
@@ -173,14 +142,7 @@
 	        $this->view->setVar("book", $book_id);
 	        $this->view->setVar("section", $section_id);
 	        $this->view->setVar("section_details", $va_section_info);
-	        switch($va_section_info["sectiontype"]) {
-		        case __CA_BOOKEDITOR__SECTION_TEXT__:
-			        $this->render('section_text_editor_html.php');
-			        break;
-		        case __CA_BOOKEDITOR__SECTION_SET__:
-			        $this->render('section_set_editor_html.php');
-			        break;
-	        }
+	        $this->render('section_text_editor_html.php');
         }
 
         public function addSection() {
@@ -288,9 +250,7 @@
 							    $vt_representation = new ca_object_representations($vt_object->getPrimaryRepresentationID());
 								
 							    $vs_media_url = $vt_representation->getMediaUrl("media","page");
-							    $vs_media_filename = $vt_representation->get("ca_object_representations.original_filename");
 
-								$vt_block_type = "normal";
 
 								$width = $vt_object->get("ca_objects.work_dimensions.dimensions_width");
 							    $depth = $vt_object->get("ca_objects.work_dimensions.dimensions_depth");
@@ -305,49 +265,12 @@
 							    $inner_content .= "<p class='description'>".ucfirst($vt_object->get("ca_objects.description"))."</p>";
 															    
 															
-								/*if($vs_media_filename == "Illustration-Photo-manquante2.jpg") {
-									$vt_block_type = "no-image";
-							    	$next_object_id = $va_row_ids[$i+1];
-									$vt_next_object = new ca_objects($next_object_id);
-								    $vt_next_representation = new ca_object_representations($vt_next_object->getPrimaryRepresentationID());
-								    $vs_next_media_url = $vt_next_representation->getMediaUrl("media","page");
-								    $vs_next_media_filename = $vt_next_representation->get("ca_object_representations.original_filename");
-								    
-								    if($vs_next_media_filename=="Illustration-Photo-manquante2.jpg") {
-									    $vt_block_type = "twin-block-no-image";
-									    
-									    // TODO : factorize !!!
-										$width2 = $vt_next_object->get("ca_objects.work_dimensions.dimensions_width");
-									    $depth2 = $vt_next_object->get("ca_objects.work_dimensions.dimensions_depth");
-									    $height2 = $vt_next_object->get("ca_objects.work_dimensions.dimensions_height");
-									    $inner_content2 = "<p class='paragraph-titre'><span class='idno'>".ucfirst($vt_next_object->get("ca_objects.idno"))."</span> <span class='name'>".$vt_next_object->get("ca_objects.preferred_labels.name")."</span></p>
-									    <p class='mat_et_techniques'>".ucfirst($vt_next_object->get("ca_objects.mat_et_techniques_txt"))."</p>
-									    <p class='inscriptions'>".ucfirst($vt_next_object->getWithTemplate("^ca_objects.inscriptions.inscription_type ^ca_objects.inscriptions.inscription_transcription ^ca_objects.inscriptions.inscription_place "))."</p>";
-									    if($width2 || $height2 || $depth2) {
-										    $inner_content2 .= "<p class='dimensions'>"."L ".$width2." x H ".$height2.($depth2 ? " x P ".$depth2 : "")."</p>";
-									    }
-									    $inner_content2 .= "<p class='description'>".ucfirst($vt_next_object->get("ca_objects.description"))."</p>";
-		
-
-								    }
-							    }*/
 
 
-							    // We have an image content
-							    if($vt_block_type =="normal") {
-								    $content .= "<div class='media'>";
-								    $content .= "<div class='image' style='background-image:url(\"".$vs_media_url."\");'></div>";
-									$content .= $inner_content."</div>";
-							    } elseif($vt_block_type == "twin-block-no-image") {
-								    // We have 2 non-image contents
-								    $content .= "<div class='media'><div style='margin-top:10mm;'>";
-									$content .= $inner_content."</div><div style='margin-top:6mm;'>".$inner_content2."</div></div>";
-									$i++;
-							    } else {
-								    // We have a non-image content
-								    $content .= "<div class='media'>";
-									$content .= $inner_content."</div>";
-							    }
+							    // Image block: media thumbnail plus the object description
+							    $content .= "<div class='media'>";
+							    $content .= "<div class='image' style='background-image:url(\"".$vs_media_url."\");'></div>";
+								$content .= $inner_content."</div>";
 						    }
 					    }
 				    }
@@ -526,15 +449,6 @@
 	        //$target_file = $this->dir."tmp/book_".$book_id.".pdf";
 	        print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf'>Le livre a été généré</a>";
 	        die();
-	        /*if($output === array() or is_null($output)) {
-		        $this->view->setVar("book", $book_id);
-		        $this->view->setVar("file", __CA_APP_DIR__.'/plugins/bookCreator/tmp/book_'.$book_id.'.pdf');
-				$this->view->setVar("filename", 'book_'.$book_id.'.pdf');
-		        $this->render('view_pdf_html.php');
-	        } else {
-		        var_dump($output);
-		        die("hein ?");
-	        }*/
 		}
 
         public function renderSectionPDF($book_id=null, $section_id=null, $dont_show=null) {
