@@ -19,9 +19,8 @@
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
 
-	// Lib : parsedown, markdown parser
-	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/parsedown/Parsedown.php');
-	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/parsedown-extra/ParsedownExtra.php');
+	// Lib : markdown rendering, parser selected in bookCreator.conf
+	require_once(__CA_APP_DIR__."/plugins/bookCreator/lib/MarkdownRenderer.php");
 
 	// Lib : h2p (phantomjs)
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/h2p/autoloader.php');
@@ -209,7 +208,7 @@
         }
 	    private function generateHTML($book_id, $section_id=null, $is_for_pdf=false) {
 		    // Initialize Markdown parser
-		    $Parsedown = new ParsedownExtra();
+		    $o_markdown = new MarkdownRenderer();
 
 		    // Load book informations
 		    $vt_book = new plugin_books($book_id);
@@ -229,7 +228,7 @@
 		    foreach($vt_book->getSections() as $section) {
 			    if(($section_id === null) || ($section_id == $section["booksection_id"])) {
 					    
-				    $content = $Parsedown->text($section["content"]);
+				    $content = $o_markdown->render($section["content"]);
 				    if (strpos($section["style"],"chapter") > -1 ) {
 					    $content = "<h1>".$section["title"]."</h1><div class='content'>".$content."</div>";
 				    }

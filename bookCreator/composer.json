@@ -1,0 +1,54 @@
+{
+    "name": "ideesculture/bookcreator",
+    "description": "CollectiveAccess Providence plugin: builds a print-ready catalogue raisonne (HTML + PDF) from Markdown sections stored in the database.",
+    "type": "library",
+    "license": "GPL-3.0-or-later",
+    "homepage": "https://www.ideesculture.com",
+    "authors": [
+        {
+            "name": "Gautier Michelin",
+            "email": "gm@ideesculture.com",
+            "homepage": "https://www.ideesculture.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/ideesculture/providencePlugins/issues",
+        "source": "https://github.com/ideesculture/providencePlugins"
+    },
+    "require": {
+        "php": ">=8.4",
+        "ext-mbstring": "*",
+        "ext-json": "*",
+        "league/commonmark": "^2.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "IdeesCulture\\BookCreator\\": "src/"
+        },
+        "classmap": [
+            "lib/BookSchemaManager.php",
+            "models/"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.4.0"
+        },
+        "allow-plugins": {}
+    },
+    "prefer-stable": true,
+    "minimum-stability": "stable",
+    "scripts": {
+        "build-vendor": [
+            "@composer install --no-dev --optimize-autoloader --classmap-authoritative"
+        ]
+    },
+    "extra": {
+        "collectiveaccess": {
+            "plugin-name": "bookCreator",
+            "install-path": "app/plugins/bookCreator"
+        }
+    }
+}

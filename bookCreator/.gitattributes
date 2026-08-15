@@ -1,0 +1,21 @@
+# The vendor/ tree is committed on purpose: a CollectiveAccess plugin is
+# installed by dropping a directory into app/plugins/, with no build step, so
+# requiring a composer install would turn a forgotten command into a fatal
+# error at generation time. See composer.json.
+#
+# Test suites, docs and CI metadata of the dependencies are excluded from
+# archives to keep exports lean; they stay in the working tree because
+# composer install would recreate them anyway.
+vendor/**/tests/** export-ignore
+vendor/**/test/** export-ignore
+vendor/**/docs/** export-ignore
+vendor/**/doc/** export-ignore
+vendor/**/.github/** export-ignore
+vendor/**/*.md export-ignore
+
+# Fonts and PDFs are binary: never try to merge or diff them as text.
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
