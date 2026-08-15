@@ -84,14 +84,14 @@ print $vs_control_box = caFormControlBox(
 	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Représentation
 </h3>
 <div class="collapse" id="collapseRepresentation">
-	<input name="representation_id" class="section-representation_id-input" type="text" value="<?php print $section[representation_id]; ?>" />
+	<input name="representation_id" class="section-representation_id-input" type="text" value="<?php print $section["representation_id"]; ?>" />
 </div>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseSet" aria-expanded="false" aria-controls="collapseSet">
 	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Ensemble
 </h3>
 <div class="collapse" id="collapseSet">
-	<input name="set_id" class="section-set_id-input" type="text" value="<?php print $section[set_id]; ?>" />
+	<input name="set_id" class="section-set_id-input" type="text" value="<?php print $section["set_id"]; ?>" />
 </div>
 <br/><br/>
 <?php

@@ -12,7 +12,7 @@
  */
 $sections = $this->getVar('sections');
 $book_id = $this->getVar('book_id');
-$nb_pages = reset($this->getVar('nb_pages'));
+$nb_pages = $this->getVar('nb_pages');
 ?>
 <h1>Sommaire</h1>
 <table style="border:none;width: 80%;margin:auto;">

@@ -12,7 +12,7 @@
  */
 $sections = $this->getVar('sections');
 $book_id = $this->getVar('book_id');
-$nb_pages = reset($this->getVar('nb_pages'));
+$nb_pages = $this->getVar('nb_pages');
 ?>
 <h1>Catalogue</h1>
 <p>Glisser déposer les sections pour réorganiser l'ordre des sections.</p>
