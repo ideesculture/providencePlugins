@@ -1,0 +1,593 @@
+@charset "UTF-8";
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
+@font-face {
+	font-family: 'Adobe Garamond LT';
+	font-weight: '400';
+	font-style: normal;
+	src: url('/gestion/app/plugins/bookCreator/assets/fonts/Adobe Garamond LT Regular.ttf')  format('truetype');
+}
+@font-face {
+	font-family: 'Adobe Garamond LT';
+	font-weight: '700';
+	font-style: normal;
+	src: url('/gestion/app/plugins/bookCreator/assets/fonts/Adobe Garamond LT Bold.ttf')  format('truetype');
+}
+@font-face {
+	font-family: 'Adobe Garamond LT';
+	font-weight: '700';
+	font-style: italic;
+	src: url('/gestion/app/plugins/bookCreator/assets/fonts/Adobe Garamond LT Bold Italic.ttf')  format('truetype');
+}
+@font-face {
+	font-family: 'Adobe Garamond LT';
+	font-weight: '400';
+	font-style: italic;
+	src: url('/gestion/app/plugins/bookCreator/assets/fonts/Adobe Garamond LT Italic.ttf')  format('truetype');
+}
+
+blockquote {
+  background: #f9f9f9;
+  border-left: 10px solid #ccc;
+  margin: 1.5em 10px;
+  padding: 0.5em 10px;
+  quotes: "“" "”" "‘" "’";
+}
+
+blockquote:before {
+  color: #ccc;
+  content: open-quote;
+  font-size: 4em;
+  line-height: 0.1em;
+  margin-right: 0.25em;
+  vertical-align: -0.4em;
+}
+
+blockquote p {
+  color: #444;
+  font-size: 1.15em;
+}
+
+A, A:visited, A:hover {
+  color: #666666;
+  text-decoration: none;
+}
+
+@page {
+	size: A4 landscape;
+	margin: 14mm;
+}
+
+.page {
+  height: 210mm;
+  width: 297mm;
+  margin: 14mm;
+}
+
+h1, h2, h3, h4, h5, h6, b, strong {
+  font-style: normal;
+  font-weight: normal;
+  font-variant: small-caps;
+}
+
+em {
+  font-weight: normal;
+  font-style: italic;
+}
+
+body {
+  font-family: "Cormorant Garamond";
+  font-size: 11.5pt;
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-weight:400;
+  padding: 0;
+  margin: 0;
+  margin-left: 9mm;
+  margin-right: 9mm;
+  height: 184mm;
+  width: 282mm;
+  line-height: 1.2em;
+  font-variant-ligatures: common-ligatures;
+  -webkit-font-variant-ligatures: common-ligatures;
+}
+
+body i,
+body em {
+	font-style: italic;
+}
+body b {
+	font-weight: 700;
+}
+
+.dedicace, .dedicace-centre, .dedicace-droite {
+  page-break-before: always;
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: 10cm;
+  padding-right: 2cm;
+  padding-left: 2cm;
+  text-align: center;
+}
+
+.dedicace-droite {
+  text-align: right;
+}
+
+.chapter, .chapter-one-column, .chapter-two-columns, .chapter-one-column-one-image {
+  page-break-before: always;
+  /*box-sizing: border-box;*/
+  border: 1pt solid white;
+  width: 100%;
+  padding: 0;
+  clear: both;
+  page-break-after: always;
+}
+.chapter h1, .chapter-one-column h1, .chapter-two-columns h1, .chapter-one-column-one-image h1 {
+  padding-top: 4cm;
+  font-size: 46pt;
+  line-height: 1.3em;
+  border-bottom: 1px solid black;
+}
+.chapter h2, .chapter-one-column h2, .chapter-two-columns h2, .chapter-one-column-one-image h2, .chapter h3, .chapter-one-column h3, .chapter-two-columns h3, .chapter-one-column-one-image h3, .chapter h4, .chapter-one-column h4, .chapter-two-columns h4, .chapter-one-column-one-image h4, .chapter h5, .chapter-one-column h5, .chapter-two-columns h5, .chapter-one-column-one-image h5, .chapter h6, .chapter-one-column h6, .chapter-two-columns h6, .chapter-one-column-one-image h6, .chapter p, .chapter-one-column p, .chapter-two-columns p, .chapter-one-column-one-image p {
+  padding-left: 6cm;
+  padding-right: 2cm;
+}
+.chapter p, .chapter-one-column p, .chapter-two-columns p, .chapter-one-column-one-image p {
+  padding-bottom: 0.7em;
+  line-height: 1.1em;
+}
+.chapter blockquote, .chapter-one-column blockquote, .chapter-two-columns blockquote, .chapter-one-column-one-image blockquote {
+  margin-left: 6cm;
+  padding-top: 0.7cm;
+  margin-right: 2cm;
+  page-break-inside: avoid !important;
+}
+.chapter blockquote p, .chapter-one-column blockquote p, .chapter-two-columns blockquote p, .chapter-one-column-one-image blockquote p {
+  margin-left: 0;
+  padding-left: 1cm;
+  margin-right: 1cm;
+}
+
+.chapter-two-columns {
+  padding-left: 9cm;
+}
+.chapter-two-columns h1 {
+  margin-left: -7cm;
+}
+.chapter-two-columns h2, .chapter-two-columns h3, .chapter-two-columns h4, .chapter-two-columns h5, .chapter-two-columns h6 {
+  padding-left: 0;
+}
+.chapter-two-columns p {
+  width: 7cm;
+  float: left;
+  padding-left: 0;
+}
+.chapter-two-columns p:nth-child(2n+1) {
+  clear: both;
+}
+.chapter-two-columns blockquote {
+  clear: both;
+  padding-left: 0;
+  margin-left: 0;
+}
+.chapter-two-columns blockquote p {
+  width: 100%;
+  display: block;
+  float: none;
+}
+
+.chapter-one-column-one-image {
+  padding: 0;
+  margin: 0;
+  margin-left:12mm;
+  margin-right:12mm;
+}
+.chapter-one-column-one-image .content-text {
+  margin-top: 60mm;
+}
+.chapter-one-column-one-image .content-text h1 {
+  margin: 0;
+  padding: 0;
+}
+.chapter-one-column-one-image .content-text h2, .chapter-one-column-one-image .content-text h3, .chapter-one-column-one-image .content-text h4, .chapter-one-column-one-image .content-text h5, .chapter-one-column-one-image .content-text h6 {
+  padding-left: 0;
+}
+.chapter-one-column-one-image .content-text .content {
+  margin-left: 9.3cm;
+  margin-top: 0.6cm;
+}
+.chapter-one-column-one-image .content-text .content p {
+  width: 7cm;
+  padding-left: 0;
+  margin: 0;
+  padding: 0;
+  margin-bottom: 2.1mm;
+  font-size: 1em;
+}
+.chapter-one-column-one-image .content-text .content ul {
+	width: 6.8cm;
+    padding-inline-start: 0.4cm;	
+}
+.chapter-one-column-one-image .content-text .content ul p {
+	width: 6.8cm;
+}  
+.chapter-one-column-one-image .content-text .content blockquote {
+  clear: both;
+  padding-left: 0;
+  margin-left: 0;
+}
+.chapter-one-column-one-image .content-text .content blockquote p {
+  width: 100%;
+  display: block;
+  float: none;
+}
+.chapter-one-column-one-image .mediacolumn {
+  width: 10.6cm;
+  padding-left: 0;
+  margin-bottom: 2px;
+  font-size: 1em;
+  padding: 0;
+  position: absolute;
+  top: 8.4cm;
+  right: 0.5cm;
+  z-index: 500;
+}
+.chapter-one-column-one-image IMG {
+  margin-top: 8pt;
+  width: auto;
+  max-width: 100%;
+  height: 7cm;
+  margin-bottom: 8pt;
+}
+
+.page-de-titre {
+  box-sizing: border-box;
+  page-break-before: always;
+  text-align: center;
+  position: relative;
+  padding-top: 1cm;
+  min-height: 90%;
+  page-break-after: always;
+  overflow: hidden;
+}
+.page-de-titre p {
+  font-variant: small-caps;
+}
+.page-de-titre h1 {
+  padding-top: 3cm;
+  padding-bottom: 1cm;
+  font-size: 4em;
+  font-weight: normal;
+  font-variant: normal;
+  font-style: italic;
+  max-width: 15cm;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  line-height: 1em;
+}
+.page-de-titre .bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-top: 0.7cm;
+  border-top: 1px solid grey;
+  max-width: 7cm;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  font-variant: small-caps;
+}
+
+.dos-page-de-titre {
+  page-break-before: always;
+  position: relative;
+  bottom: 0;
+  font-size: 0.7em;
+  max-width: 10cm;
+  margin-left: 0.4cm;
+  page-break-after: always;
+  top: 7.3cm;
+}
+
+.page-blanche {
+  page-break-before: always;
+}
+
+.page-blanche:before {
+  color: white;
+  content: " ";
+  height: 10px;
+  width: 10px;
+  display: block;
+  page-break-after: always;
+}
+
+.hors-texte, .hors-texte-gauche, .hors-texte-droit {
+  clear: both;
+  page-break-before: always;
+  padding-left: 1cm;
+  margin-right: 4cm;
+}
+.hors-texte .media, .hors-texte-gauche .media, .hors-texte-droit .media {
+  float: left;
+  width: 62%;
+  margin-right: 1cm;
+}
+.hors-texte .media IMG, .hors-texte-gauche .media IMG, .hors-texte-droit .media IMG {
+  width: 100%;
+  height: auto;
+  max-height: 80%;
+  overflow: hidden;
+}
+.hors-texte .media p, .hors-texte-gauche .media p, .hors-texte-droit .media p {
+  padding-left: 0;
+  font-variant: small-caps;
+  margin: 0.2em 0;
+}
+.hors-texte p, .hors-texte-gauche p, .hors-texte-droit p {
+  padding-left: 1cm;
+  margin-left: 1cm;
+}
+
+.hors-texte-droit {
+  margin-right: 0;
+}
+.hors-texte-droit .media {
+  float: right;
+  width: 50%;
+}
+.hors-texte-droit .media IMG {
+  margin-left: 2cm;
+  width: 100%;
+  height: auto;
+  max-height: 80%;
+  overflow: hidden;
+}
+.hors-texte-droit .media P {
+  margin-left: 2cm;
+  font-size: 0.8em;
+  line-height: 0.9em;
+  color: #555;
+}
+.hors-texte-droit p {
+  padding-right: 1cm;
+  padding-left: 2cm;
+}
+
+.acheve-d-imprimer {
+  page-break-before: always;
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: 10cm;
+  padding-right: 2cm;
+  padding-left: 2cm;
+  text-align: center;
+}
+
+.ensemble, .ensemble-6-par-page {
+  page-break-before: always;
+}
+.ensemble .media, .ensemble-6-par-page .media {
+  height: 45%;
+  max-height: 45%;
+  max-width: 26.5%;
+  width: 26.5%;
+  margin-right: 1cm;
+  margin-left: 0.9cm;
+  margin-top: 0.5cm;
+  float: left;
+  page-break-inside: avoid;
+}
+@media print {
+	.ensemble .media, .ensemble-6-par-page .media {
+		height: 8.6cm;
+		max-height: 8.6cm;
+		max-width: 7.4cm;
+		width: 7.4cm;
+		margin-right: 1cm;
+		margin-left: 0.9cm;
+		margin-top: 0.5cm;
+		float: left;
+		page-break-inside: avoid;
+	}
+}
+
+.ensemble .media .image, .ensemble-6-par-page .media .image {
+  background-size: contain;
+  width: 100%;
+  height: 6cm;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-color: #eeeeee;
+}
+.ensemble .media p, .ensemble-6-par-page .media p {
+  text-align: justify;
+  margin: 0.1em 0;
+  line-height: 1.05em;
+  font-size: 9.4pt;
+  font-variant-ligatures: normal;
+  -webkit-font-variant-ligatures: normal;
+}
+.ensemble .media p.name, .ensemble-6-par-page .media p.name, .ensemble .media span.name, .ensemble-6-par-page .media span.name {
+  margin: 0.2em 0;
+  line-height: 1.05em;
+  font-size: 11pt;
+  font-variant-ligatures: common-ligatures;
+  -webkit-font-variant-ligatures: common-ligatures;
+  font-variant: small-caps;
+}
+.ensemble .media p.paragraph-titre, .ensemble-6-par-page .media p.paragraph-titre {
+  margin-top: 6px;
+}
+
+.ensemble-6-par-page .media {
+  overflow: hidden;
+}
+
+.ensemble4, .ensemble-4-par-page-texte-bas, .ensemble-4-par-page-texte-droite {
+  page-break-after: always;
+}
+.ensemble4 .media, .ensemble-4-par-page-texte-bas .media, .ensemble-4-par-page-texte-droite .media {
+  height: 40%;
+  max-height: 50%;
+  max-width: 26%;
+  width: 26%;
+  margin-right: 1cm;
+  margin-left: 1cm;
+  float: left;
+  page-break-inside: avoid;
+}
+.ensemble4 .media .image, .ensemble-4-par-page-texte-bas .media .image, .ensemble-4-par-page-texte-droite .media .image {
+  background-size: contain;
+  width: 100%;
+  height: 6cm;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-color: #eeeeee;
+}
+.ensemble4 .media p, .ensemble-4-par-page-texte-bas .media p, .ensemble-4-par-page-texte-droite .media p {
+  text-align: justify;
+  margin: 0.1em 0;
+  line-height: 1.05em;
+  font-size: 9 px;
+  font-variant-ligatures: normal;
+  -webkit-font-variant-ligatures: normal;
+}
+.ensemble4 .media p.name, .ensemble-4-par-page-texte-bas .media p.name, .ensemble-4-par-page-texte-droite .media p.name, .ensemble4 .media span.name, .ensemble-4-par-page-texte-bas .media span.name, .ensemble-4-par-page-texte-droite .media span.name {
+  margin: 0.2em 0;
+  line-height: 1.05em;
+  font-size: 11 px;
+  font-variant-ligatures: common-ligatures;
+  -webkit-font-variant-ligatures: common-ligatures;
+  font-variant: small-caps;
+}
+
+.ensemble-4-par-page-texte-bas .media {
+  height: 42%;
+  max-height: 42%;
+  max-width: 43%;
+  width: 43%;
+  margin-right: 1.3cm;
+  margin-left: 1.3cm;
+  float: left;
+  page-break-inside: avoid;
+  overflow: hidden;
+  margin-top: 5mm;
+}
+
+.ensemble-4-par-page-texte-droite .media {
+  height: 40%;
+  max-height: 40%;
+  max-width: 41%;
+  width: 41%;
+  margin-right: 1cm;
+  margin-left: 1cm;
+  float: left;
+  overflow: hidden;
+}
+.ensemble-4-par-page-texte-droite .media .image {
+  float: left;
+  background-size: contain;
+  width: 40%;
+  height: 4cm;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-color: #eeeeee;
+  margin-right: 5mm;
+}
+.ensemble-4-par-page-texte-droite .media p {
+  text-align: left;
+  margin: 0.1em 0;
+  padding-left: 1cm;
+  line-height: 1.05em;
+  font-size: 9 px;
+  font-variant-ligatures: normal;
+  -webkit-font-variant-ligatures: normal;
+}
+
+.page-image {
+  display: flex;
+  text-align: center;
+  margin: 0;
+}
+.page-image IMG {
+  height: 90%;
+  overflow: hidden;
+}
+@media print {
+	.page-image IMG {
+		height: 18.5cm;
+		overflow: hidden;
+	}
+}
+.page-image .content {
+	text-align: center;
+	width:100%;
+}
+.texte-deux-images-gauche,
+.texte-deux-images-droite {
+  page-break-before: always;
+  display: table;
+}
+.texte-deux-images-gauche .content,
+.texte-deux-images-droite .content {
+  width: 14cm;
+  display: table-cell;
+  vertical-align: top;
+  padding-left: 3.5cm;
+  padding-right: 2cm;
+  padding-top: 1.2cm;
+  padding-bottom: 1cm;
+}
+.texte-deux-images-gauche .media-bar,
+.texte-deux-images-droite .media-bar {
+  width: 8cm;
+  padding-top: 1.2cm;
+  display: table-cell;
+  vertical-align: top;
+}
+.texte-deux-images-gauche .media,
+.texte-deux-images-droite .media {
+  width: 100%;
+  height: auto;
+  page-break-inside: avoid;
+  margin-bottom: 8mm;
+}
+.texte-deux-images-gauche .media .image,
+.texte-deux-images-droite .media .image {
+  background-size: contain;
+  width: 100%;
+  height: 6cm;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-color: #eeeeee;
+}
+.texte-deux-images-gauche .media p,
+.texte-deux-images-droite .media p {
+  text-align: justify;
+  margin: 0.1em 0;
+  line-height: 1.05em;
+  font-size: 9 px;
+  font-variant-ligatures: normal;
+  -webkit-font-variant-ligatures: normal;
+}
+.texte-deux-images-gauche .media p.name, .texte-deux-images-gauche .media span.name,
+.texte-deux-images-droite .media p.name,
+.texte-deux-images-droite .media span.name {
+  margin: 0.2em 0;
+  line-height: 1.05em;
+  font-size: 11 px;
+  font-variant-ligatures: common-ligatures;
+  -webkit-font-variant-ligatures: common-ligatures;
+  font-variant: small-caps;
+}
+
+.texte-deux-images-gauche {
+  page-break-before: always;
+  margin-left: 2cm;
+}
+.texte-deux-images-gauche .content {
+  padding-left: 2cm;
+}
