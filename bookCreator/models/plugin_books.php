@@ -84,6 +84,17 @@ class plugin_books {
 	}
 
 	/**
+	 * Book title, or an empty string when the book could not be loaded.
+	 *
+	 * Goes through $data directly rather than the magic getter, which throws on
+	 * an unknown property: a view asking for the title of a deleted book would
+	 * otherwise take the whole page down.
+	 */
+	public function getTitle() {
+		return isset($this->data['title']) ? $this->data['title'] : '';
+	}
+
+	/**
 	 * Total number of pages of the book, as an integer.
 	 *
 	 * Sections never rendered hold NULL and are simply skipped by SUM(); a book

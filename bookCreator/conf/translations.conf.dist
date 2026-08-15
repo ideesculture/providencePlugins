@@ -1,0 +1,90 @@
+# French translations for the bookCreator plugin.
+#
+# ---------------------------------------------------------------------------
+# HOW TO INSTALL
+#
+# CollectiveAccess resolves _t() against app/conf/translations.conf, then
+# against the gettext catalogues, and falls back to the key itself. Plugins
+# cannot ship their own catalogue, so these strings have to be merged into the
+# installation's own configuration.
+#
+# Configuration::load() automatically merges an override found in
+# app/conf/local/, which is the per-installation directory and is not part of
+# the CollectiveAccess codebase. So:
+#
+#   1. copy the strings block below into app/conf/local/translations.conf
+#      (create the file if it does not exist yet, keeping the strings = { }
+#      wrapper), merging with any entry already present;
+#   2. clear the application cache — translations are cached aggressively.
+#
+# Without this step the interface displays the English keys, which is a
+# regression for a French installation.
+#
+# Values use the per-locale form so the same file can carry other languages
+# later, by adding a locale entry next to fr_FR in the same block. Keys are
+# matched case-sensitively, and values are quoted so commas, colons and
+# apostrophes cannot be read as syntax.
+# ---------------------------------------------------------------------------
+
+strings = {
+	# Menu, widget and plugin identity
+	Book = { fr_FR = "Livre" },
+	Editor = { fr_FR = "Éditeur" },
+	"Book editor" = { fr_FR = "Éditeur de livre" },
+	"Create printed books directly from CollectiveAccess" = { fr_FR = "Créer des livres imprimés directement depuis CollectiveAccess" },
+	"Book Creator plugin for CollectiveAccess" = { fr_FR = "Plugin Book Creator pour CollectiveAccess" },
+	"bookCreator plugin for CollectiveAccess" = { fr_FR = "Plugin bookCreator pour CollectiveAccess" },
+	"Books available in this database:" = { fr_FR = "Livres disponibles dans cette base :" },
+
+	# Access rights
+	"Can use book creator functions" = { fr_FR = "Peut utiliser les fonctions de création de livres" },
+	"User can use all use book creator functions." = { fr_FR = "L'utilisateur peut utiliser toutes les fonctions de création de livres." },
+
+	# Section list
+	"Add a section" = { fr_FR = "Ajouter une section" },
+	"Edit section" = { fr_FR = "Modifier la section" },
+	"Delete section" = { fr_FR = "Supprimer la section" },
+	"Drag and drop the sections to reorder them." = { fr_FR = "Glissez-déposez les sections pour les réordonner." },
+	"Confirm deletion of section" = { fr_FR = "Confirmer la suppression de la section" },
+	"Section deleted" = { fr_FR = "Section supprimée" },
+
+	# Section editor
+	Section = { fr_FR = "Section" },
+	Style = { fr_FR = "Gabarit" },
+	Content = { fr_FR = "Contenu" },
+	"Introduction/summary" = { fr_FR = "Introduction / résumé" },
+	"This section appears in the table of contents" = { fr_FR = "Cette section figure au sommaire" },
+	"HTML preview" = { fr_FR = "Aperçu HTML" },
+	"Save and redirect" = { fr_FR = "Enregistrer et rediriger" },
+
+	# Notifications
+	"Section saved." = { fr_FR = "Section enregistrée." },
+	"Section added." = { fr_FR = "Section ajoutée." },
+	"Section deleted." = { fr_FR = "Section supprimée." },
+
+	# Generation
+	"Preview first pages" = { fr_FR = "Aperçu des premières pages" },
+	"Generate the full PDF (section by section)" = { fr_FR = "Générer le PDF complet (section par section)" },
+	"Generate the table of contents" = { fr_FR = "Générer le sommaire" },
+	"Display the latest generated version" = { fr_FR = "Afficher la dernière version générée" },
+	"Table of contents" = { fr_FR = "Sommaire" },
+	"Content generated" = { fr_FR = "Contenu généré" },
+	"Page numbers added" = { fr_FR = "Pagination ajoutée" },
+	"Covers added" = { fr_FR = "Couvertures ajoutées" },
+	"The book has been generated" = { fr_FR = "Le livre a été généré" },
+	"Unable to delete the previous output file." = { fr_FR = "Impossible de supprimer la génération précédente." },
+	"Unable to delete the previous paginated output file." = { fr_FR = "Impossible de supprimer la génération précédente (avec pagination)." },
+	"Unable to delete the previous output file with covers." = { fr_FR = "Impossible de supprimer la génération précédente (avec couvertures)." },
+	"PDF assembly failed." = { fr_FR = "L'assemblage du PDF a échoué." },
+	"PDF rendering failed." = { fr_FR = "Le rendu du PDF a échoué." },
+
+	# Schema installer
+	"Book Creator — database setup" = { fr_FR = "Book Creator — installation de la base" },
+	"The plugin is ready to use." = { fr_FR = "Le plugin est prêt à être utilisé." },
+	"Open the book editor" = { fr_FR = "Ouvrir l'éditeur de livre" },
+	"The plugin tables are ready." = { fr_FR = "Les tables du plugin sont prêtes." },
+	"The plugin tables could not be fully installed. Check the database user privileges." = { fr_FR = "Les tables du plugin n'ont pas pu être entièrement installées. Vérifiez les droits de l'utilisateur de la base." },
+	"The following statements were applied:" = { fr_FR = "Les instructions suivantes ont été appliquées :" },
+	"Apply these changes" = { fr_FR = "Appliquer ces modifications" },
+	"The plugin needs the following changes before it can run. Nothing is deleted or renamed: tables, columns and indexes are only added." = { fr_FR = "Le plugin nécessite les modifications suivantes pour fonctionner. Rien n'est supprimé ni renommé : seuls des tables, des colonnes et des index sont ajoutés." }
+}

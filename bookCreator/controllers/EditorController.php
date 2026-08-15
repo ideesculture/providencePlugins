@@ -107,6 +107,7 @@
 		    $this->view->setVar("book_id", $book_id);
 		    $this->view->setVar("sections", $va_sections);
 		    $this->view->setVar("nb_pages", $vn_nb_pages);
+		    $this->view->setVar("book_title", $vt_book->getTitle());
 		    $this->render('sections_html.php');
 	    }
 
@@ -129,6 +130,7 @@
 		    $this->view->setVar("book_id", $book_id);
 		    $this->view->setVar("sections", $va_sections);
 		    $this->view->setVar("nb_pages", $vn_nb_pages);
+		    $this->view->setVar("book_title", $vt_book->getTitle());
 		    $this->render('summary_html.php');
 	    }
 

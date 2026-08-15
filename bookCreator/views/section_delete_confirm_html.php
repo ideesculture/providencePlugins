@@ -15,8 +15,8 @@ $book_id = $this->getVar('book');
 $section = $this->getVar("section_details");
 ?>
 
-<h1>Suppression de section</h1>
-<p>Confirmez vous la suppression de la section <?php $section_id; ?> ?</p>
+<h1><?php print _t('Delete section'); ?></h1>
+<p><?php print _t('Confirm deletion of section'); ?> <?php $section_id; ?> ?</p>
 <?php
 print caFormTag($this->request, "DeleteSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
 ?>

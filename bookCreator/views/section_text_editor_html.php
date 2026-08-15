@@ -25,12 +25,12 @@ foreach ($styles as &$style_pic) {
 ?>
 <div class="navBreadCrumbContainer">
 	<div class="navBreadCrumbs">
-<div class="crumb"><div class="crumbtext navBreadCrumbLabel">Emplacement courant</div><img src="/gestion/themes/default/graphics/arrows/breadcrumbloc.png" width="16" height="19" border="0"></div><div class="crumb"><nobr><div class="crumbtext"><a href="/gestion/index.php/bookCreator/Editor/BookSections/book/1">Book editor</a></div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div><div class="crumb"><nobr><div class="crumbtext">Modifier la section</div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div>	
+<div class="crumb"><div class="crumbtext navBreadCrumbLabel"><?php print _t('Current location'); ?></div><img src="/gestion/themes/default/graphics/arrows/breadcrumbloc.png" width="16" height="19" border="0"></div><div class="crumb"><nobr><div class="crumbtext"><a href="/gestion/index.php/bookCreator/Editor/BookSections/book/1"><?php print _t('Book editor'); ?></a></div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div><div class="crumb"><nobr><div class="crumbtext"><?php print _t('Edit section'); ?></div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div>
 	</div><!-- end navBreadCrumbs-->
 </div>
 
 
-<h1>Section</h1>
+<h1><?php print _t('Section'); ?></h1>
 <?php
 print caFormTag($this->request, "SaveSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
 print $vs_control_box = caFormControlBox(
@@ -48,23 +48,23 @@ print $vs_control_box = caFormControlBox(
 <input name="book" type="hidden" value="<?php print $book_id; ?>"/>
 <input name="section" type="hidden" value="<?php print $section_id; ?>"/>
 
-<h3>Titre</h3>
+<h3><?php print _t('Title'); ?></h3>
 <input name="title" class="section-titre-input" type="text" value="<?php print $section["title"]; ?>" />
 
 <label style="font-weight: normal;" class="pull-right">
   <input type="checkbox" name="is_in_summary" id="is_in_summary" value="1" <?php print ($section["is_in_summary"]*1 ? "checked=\"checked\"" : ""); ?>>
-  Cette section figure dans le sommaire
+  <?php print _t('This section appears in the table of contents'); ?>
 </label>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseIntro" aria-expanded="false" aria-controls="collapseExample">
-	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Introduction/résumé
+	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Introduction/summary'); ?>
 </h3>
 <div class="collapse" id="collapseIntro">
 	<input name="intro" class="section-intro-input" type="text" value="<?php print $section["intro"]; ?>" />
 </div>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseStyle" aria-expanded="false" aria-controls="collapseExample">
-	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Style
+	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Style'); ?>
 </h3>
 <div class="collapse" id="collapseStyle">
 	<div class="row">
@@ -77,18 +77,18 @@ print $vs_control_box = caFormControlBox(
 	</div>
 </div>
 
-<h3>Contenu</h3>
+<h3><?php print _t('Content'); ?></h3>
 <textarea name="content" class="section-contenu-textarea" id="section-contenu-textarea"><?php print $section["content"]; ?></textarea>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseRepresentation" aria-expanded="false" aria-controls="collapseRepresentation">
-	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Représentation
+	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Representation'); ?>
 </h3>
 <div class="collapse" id="collapseRepresentation">
 	<input name="representation_id" class="section-representation_id-input" type="text" value="<?php print $section["representation_id"]; ?>" />
 </div>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseSet" aria-expanded="false" aria-controls="collapseSet">
-	<i class="fa fa-plus-square-o" aria-hidden="true"></i> Ensemble
+	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Set'); ?>
 </h3>
 <div class="collapse" id="collapseSet">
 	<input name="set_id" class="section-set_id-input" type="text" value="<?php print $section["set_id"]; ?>" />
@@ -100,7 +100,7 @@ print $vs_control_box = caFormControlBox(
 	//caFormSubmitButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("Save and redirect"), 'editSectiontext').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' '.
 	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("PDF"), '', "*", "*", "renderSectionPDF/book/$book_id/section/$section_id", array()).' '.
-	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("Aperçu HTML"), '', "*", "*", "renderSectionPDF/book/$book_id/section/$section_id/debug/1", array()),
+	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("HTML preview"), '', "*", "*", "renderSectionPDF/book/$book_id/section/$section_id/debug/1", array()),
 	'',
 	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
 

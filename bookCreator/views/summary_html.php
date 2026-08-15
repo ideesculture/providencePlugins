@@ -14,7 +14,7 @@ $sections = $this->getVar('sections');
 $book_id = $this->getVar('book_id');
 $nb_pages = $this->getVar('nb_pages');
 ?>
-<h1>Sommaire</h1>
+<h1><?php print _t('Table of contents'); ?></h1>
 <table style="border:none;width: 80%;margin:auto;">
 <?php 
 	$count = 0;

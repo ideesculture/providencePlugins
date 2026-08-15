@@ -15,7 +15,7 @@ $book_id = $this->getVar('book');
 $section = $this->getVar("section_details");
 ?>
 
-<h1>Section supprimée</h1>
+<h1><?php print _t('Section deleted'); ?></h1>
 <input name="book" type="hidden" value="<?php print $book_id; ?>"/>
 <input name="section" type="hidden" value="<?php print $section_id; ?>"/>
 

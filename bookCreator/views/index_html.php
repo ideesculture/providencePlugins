@@ -12,8 +12,8 @@
  */
 $va_search_result 	= $this->getVar('search_result');
 ?>
-<h2>Plugin Book creator pour CollectiveAccess</h2>
-<p>Voici la liste des livres créés dans la base :</p>
+<h2><?php print _t('Book Creator plugin for CollectiveAccess'); ?></h2>
+<p><?php print _t('Books available in this database:'); ?></p>
 <ul>
 	<li><a href="/gestion/index.php/bookCreator/Editor/BookSections/book/1">Catalogue</a></li>
 	<li><a href="/gestion/index.php/bookCreator/Editor/BookSections/book/2">Test motrico</a></li>

@@ -13,9 +13,10 @@
 $sections = $this->getVar('sections');
 $book_id = $this->getVar('book_id');
 $nb_pages = $this->getVar('nb_pages');
+$book_title = $this->getVar('book_title');
 ?>
-<h1>Catalogue</h1>
-<p>Glisser déposer les sections pour réorganiser l'ordre des sections.</p>
+<h1><?php print $book_title; ?></h1>
+<p><?php print _t('Drag and drop the sections to reorder them.'); ?></p>
 <?php
 print caFormTag($this->request, "BookSections/book/$book_id", "sortBookSections", "bookCreator/Editor");
 ?>
@@ -26,7 +27,7 @@ print caFormTag($this->request, "BookSections/book/$book_id", "sortBookSections"
 		$count = $count+$section["pages"];
 ?>
 	<li class="booksection">
-		<span class="pull-right"><small style="display:inline-block;color:lightgray;padding-top:14px;"><?php print $section["pages"]; ?> pages </small><br/><?php print $count; ?>/<?php print $nb_pages; ?></span>
+		<span class="pull-right"><small style="display:inline-block;color:lightgray;padding-top:14px;"><?php print _t('%1 pages', $section["pages"]); ?> </small><br/><?php print $count; ?>/<?php print $nb_pages; ?></span>
 		<h3>
 			<?php print caNavButton($this->request, __CA_NAV_ICON_EDIT__, _t("Edit"), '', '*', '*', "editSection", array('book' => $book_id, "section"=> $section["booksection_id"]), array(), array("dont_show_content"=>true)); ?>
 			<?php print $section["title"]; ?> 
@@ -38,13 +39,13 @@ $i++;
 endforeach;
 ?>
 </ul>
-<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, "Ajouter une section", '', '*', '*', "addSection", array('book' => $book_id), array(), array()); ?>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderHTML/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> Aperçu 1ères pages</span></a>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderSectionsPDF/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> Générer le PDF global (section par section)</span></a>
-<?php 
-		print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf' class='form-button' target='_blank'><span class='form-button'><i class=\"fa fa-book fa-2x\" aria-hidden=\"true\"></i> Afficher la dernière version générée</span></a>";
+<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, _t("Add a section"), '', '*', '*', "addSection", array('book' => $book_id), array(), array()); ?>
+<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderHTML/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Preview first pages'); ?></span></a>
+<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderSectionsPDF/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Generate the full PDF (section by section)'); ?></span></a>
+<?php
+		print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf' class='form-button' target='_blank'><span class='form-button'><i class=\"fa fa-book fa-2x\" aria-hidden=\"true\"></i> "._t('Display the latest generated version')."</span></a>";
 ?>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/Summary/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> Générer le sommaire</span></a>
+<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/Summary/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Generate the table of contents'); ?></span></a>
 
 <br/><br/><br/><br/>
 <?php
