@@ -6,3 +6,6 @@ conf/local/
 
 # Notes de suivi locales (non versionnées)
 _suivi/
+
+# Fichiers temporaires générés par bookCreator (PDF, HTML intermédiaires)
+bookCreator/tmp/
