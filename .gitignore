@@ -7,5 +7,8 @@ conf/local/
 # Notes de suivi locales (non versionnées)
 _suivi/
 
-# Fichiers temporaires générés par bookCreator (PDF, HTML intermédiaires)
-bookCreator/tmp/
+# Fichiers temporaires générés par bookCreator (PDF, HTML intermédiaires).
+# On ignore le contenu mais on conserve le dossier (requis par le code, qui
+# écrit dedans sans le créer) via .gitkeep.
+bookCreator/tmp/*
+!bookCreator/tmp/.gitkeep
