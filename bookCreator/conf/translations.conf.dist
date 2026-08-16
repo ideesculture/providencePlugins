@@ -116,7 +116,7 @@ strings = {
 	"Back cover PDF" = { fr_FR = "PDF de quatrième de couverture" },
 	"(not declared by this theme)" = { fr_FR = "(non déclaré par ce thème)" },
 	"Page formats and typographic pairs are declared by the theme: save the book after changing it to see the lists below refreshed." = { fr_FR = "Les formats de page et les couples typographiques sont déclarés par le thème : enregistrez le livre après l'avoir changé pour voir les listes ci-dessous mises à jour." },
-	"Path of a PDF bound before the content. Leave empty for a book without a separate cover." = { fr_FR = "Chemin d'un PDF relié avant le contenu. Laissez vide pour un livre sans couverture séparée." },
+	"File name of a PDF held in the covers directory, bound before the content. A name, not a path. Leave empty for a book without a separate cover." = { fr_FR = "Nom de fichier d'un PDF déposé dans le répertoire des couvertures, relié avant le contenu. Un nom, pas un chemin. Laissez vide pour un livre sans couverture séparée." },
 
 	# Books notifications
 	"Book saved." = { fr_FR = "Livre enregistré." },

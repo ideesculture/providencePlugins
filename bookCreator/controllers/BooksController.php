@@ -141,7 +141,10 @@ class BooksController extends ActionController {
 
 			// Read the row back so the form shows what is actually stored.
 			$book = new plugin_books($book_id);
-			$this->renderEditor($book_id, $this->valuesFromBook($book), _t('Book saved.'));
+			$missing = $this->missingCovers($values);
+			$this->renderEditor($book_id, $this->valuesFromBook($book), $missing
+				? _t('Book saved. These covers were not found in the covers directory: %1', join(', ', $missing))
+				: _t('Book saved.'));
 			return;
 		}
 
@@ -163,8 +166,6 @@ class BooksController extends ActionController {
 	 * does the deletion. Same two-step shape as deleteSection().
 	 */
 	public function Delete() {
-		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
-
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 
 		$book = new plugin_books($book_id);
@@ -173,8 +174,17 @@ class BooksController extends ActionController {
 			return;
 		}
 
+		// The confirmation screen writes nothing, so it needs no token — and
+		// demanding one here made the whole feature unreachable, since the link
+		// that opens it cannot carry one. The token is required on the POST
+		// that actually deletes, which is the step that matters.
 		if (!$_POST) {
 			$this->renderList(null, null, $book_id);
+			return;
+		}
+
+		if (!$this->isTrustedRequest()) {
+			$this->renderList(null, _t('Invalid or expired request. Reload the page and try again.'));
 			return;
 		}
 
@@ -312,7 +322,39 @@ class BooksController extends ActionController {
 		foreach (array('theme', 'font_pair', 'page_format') as $field) {
 			if (!strlen($values[$field])) { $values[$field] = $defaults[$field]; }
 		}
+
+		// Covers are file NAMES, resolved inside the covers directory. Reducing
+		// them here rather than at assembly time is what makes the change
+		// visible: the v1 stored full paths, and silently keeping one would
+		// produce a book without its cover, or bound with a namesake.
+		foreach (array('cover_pdf', 'backcover_pdf') as $field) {
+			$values[$field] = basename(trim($values[$field]));
+		}
 		return $values;
+	}
+
+	/**
+	 * Covers named on the book that are not in the covers directory.
+	 *
+	 * Returned so the form can say so. A cover that cannot be found is not an
+	 * error worth refusing the save for — the file may be uploaded next — but
+	 * it must not be discovered on the printed copy either.
+	 *
+	 * @return string[] the names that resolve to nothing
+	 */
+	private function missingCovers(array $values) {
+		$directory = trim((string)$this->opo_config->get('covers_dir'));
+		if (!strlen($directory)) {
+			$directory = __CA_APP_DIR__.'/plugins/bookCreator/assets/covers';
+		}
+
+		$missing = array();
+		foreach (array('cover_pdf', 'backcover_pdf') as $field) {
+			$name = trim($values[$field]);
+			if ($name === '') { continue; }
+			if (!is_readable($directory.'/'.$name)) { $missing[] = $name; }
+		}
+		return $missing;
 	}
 
 	# -------------------------------------------------------

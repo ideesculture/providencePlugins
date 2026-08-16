@@ -50,7 +50,7 @@ print $vs_control_box = caFormControlBox(
 	//middle
 	'',
 	//right
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", BookCsrf::param())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
 
 );?>
 
@@ -115,7 +115,7 @@ print $vs_control_box = caFormControlBox(
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' '.
 	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("Preview this section"), '', "bookCreator", "Preview", "Section", array('book' => $book_id, 'section' => $section_id)),
 	'',
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", BookCsrf::param())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
 
 );?>
 

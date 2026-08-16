@@ -130,7 +130,12 @@
 		    $book_id = ($this->request->getParameter("book", pInteger));
 		    //var_dump($book_id);
 		    $vt_book = new plugin_books($book_id);
-	    	if($_POST && ($_POST["_formName"]=="sortBookSections")) {
+	    	// Reordering writes to the database, so it takes a token like every
+	    	// other write. The keys are checked before being read: a forged post
+	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
+	    	if(isset($_POST["_formName"]) && $_POST["_formName"]=="sortBookSections"
+	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])
+	    		&& $this->isTrustedRequest()) {
 	    		// We have new positions to sort sections
 	    		$data=array();
 	    		foreach($_POST["sort"] as $section_id=>$position) {
@@ -153,7 +158,12 @@
 	    public function Summary() {
 		    $book_id = ($this->request->getParameter("book", pInteger));
 		    $vt_book = new plugin_books($book_id);
-	    	if($_POST && ($_POST["_formName"]=="sortBookSections")) {
+	    	// Reordering writes to the database, so it takes a token like every
+	    	// other write. The keys are checked before being read: a forged post
+	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
+	    	if(isset($_POST["_formName"]) && $_POST["_formName"]=="sortBookSections"
+	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])
+	    		&& $this->isTrustedRequest()) {
 	    		// We have new positions to sort sections
 	    		$data=array();
 	    		foreach($_POST["sort"] as $section_id=>$position) {
@@ -234,17 +244,23 @@
         }
 
         public function deleteSection() {
-	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
 	        $book_id = $this->request->getParameter("book", pInteger);
 	        $section_id = $this->request->getParameter("section", pInteger);
 	        $vt_book = new plugin_books($book_id);
 	        if(!$_POST) {
+		        // The confirmation screen writes nothing and therefore needs no
+		        // token; requiring one on the link would only push it into the
+		        // URL, where it lands in the access logs and in the history.
 		        $this->view->setVar("book", $book_id);
 		        $this->view->setVar("section", $section_id);
 		        // confirmation dialog
 		        $this->render('section_delete_confirm_html.php');
 			} else {
-				// confirmed, deletion
+				// confirmed, deletion — this is the step the token guards
+		        if (!$this->isTrustedRequest()) {
+			        $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Editor', 'BookSections', ['book' => $book_id]));
+			        return;
+		        }
 		        $result = $vt_book->deleteSection($section_id);
 		        if(is_array($result)) {
 			        $this->view->setVar("error", implode(" – ", $result));

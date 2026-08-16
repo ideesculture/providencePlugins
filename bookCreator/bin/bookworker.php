@@ -597,25 +597,47 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		foreach ($sections as $index => $section) {
 			if (!bookworker_is_summary_section($book_data, $section)) { continue; }
 
-			$before = (int)$section['pages'];
+			// Length recorded by the FIRST pass, read back from the database —
+			// not the value carried by $section, which predates this generation
+			// and is null on a book that has never been rendered. Comparing
+			// against that would silence the warning on the very first run,
+			// which is precisely when the table of contents gains its folios
+			// and is most likely to change length.
+			$stored = $book->getSection((int)$section['booksection_id']);
+			$before = (int)$stored['pages'];
+
 			$rendered = BookWorkerRenderBridge::renderSection(
 				$book_data,
 				$section,
-				(int)$book->getSection((int)$section['booksection_id'])['first_page'],
+				(int)$stored['first_page'],
 				$directories['work']
 			);
 			$section_pdfs[$index] = $rendered['path'];
+
+			// Keep the recorded length in step with what was actually produced,
+			// otherwise the page counts of the interface stay on the first pass.
+			$book->setSection((int)$section['booksection_id'], [
+				'pages'       => (int)$rendered['pages'],
+				'rendered_on' => time(),
+			], false);
 
 			// A table of contents that grew or shrank between the two passes
 			// shifts everything after it, so the folios it now prints are off
 			// by that difference. Rare, but it has to be said rather than
 			// silently produce a book whose numbering is wrong.
 			if ($before && $before !== (int)$rendered['pages']) {
-				bookworker_error(
-					"job {$job['job_id']}: the table of contents changed length between passes ("
-					."{$before} -> {$rendered['pages']} pages); page numbers after it are off by "
-					.((int)$rendered['pages'] - $before).". Generate again to settle them."
+				$drift = (int)$rendered['pages'] - $before;
+				$warning = _t(
+					'The table of contents changed length (%1 to %2 pages): the page numbers after it are off by %3. Generate again to settle them.',
+					$before, (int)$rendered['pages'], $drift
 				);
+
+				bookworker_error("job {$job['job_id']}: {$warning}");
+
+				// Also carried on the job itself. The editor never reads stderr:
+				// leaving the warning there alone means downloading a book with
+				// a wrong pagination and no way of knowing it.
+				$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, $warning);
 			}
 		}
 	}

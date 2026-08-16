@@ -119,7 +119,7 @@ print caHTMLSelect(
 
 <h3><?php print _t('Cover PDF'); ?></h3>
 <input name="cover_pdf" class="book-input" type="text" value="<?php print $val('cover_pdf'); ?>"/>
-<p class="book-hint"><?php print _t('Path of a PDF bound before the content. Leave empty for a book without a separate cover.'); ?></p>
+<p class="book-hint"><?php print _t('File name of a PDF held in the covers directory, bound before the content. A name, not a path. Leave empty for a book without a separate cover.'); ?></p>
 
 <h3><?php print _t('Back cover PDF'); ?></h3>
 <input name="backcover_pdf" class="book-input" type="text" value="<?php print $val('backcover_pdf'); ?>"/>

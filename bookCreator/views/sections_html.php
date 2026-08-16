@@ -19,6 +19,7 @@ $book_title = $this->getVar('book_title');
 <p><?php print _t('Drag and drop the sections to reorder them.'); ?></p>
 <?php
 print caFormTag($this->request, "BookSections/book/$book_id", "sortBookSections", "bookCreator/Editor");
+print BookCsrf::field();
 ?>
 <ul id="sectionsList">
 <?php 
@@ -62,7 +63,7 @@ print $vs_control_box = caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'sortBookSections').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id", array()),
 	'',
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id", BookCsrf::param())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id", array())
 
 );?>
 <div style="margin-bottom:100px;"></div>
