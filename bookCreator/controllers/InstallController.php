@@ -13,6 +13,7 @@
 
 require_once(__CA_LIB_DIR__.'/Configuration.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookCsrf.php');
 
 /**
  * Creates or completes the two tables owned by the plugin.
@@ -67,8 +68,24 @@ class InstallController extends ActionController {
 		$this->render('install_html.php');
 	}
 
-	/** Applies the missing tables, columns and indexes, then reports. */
+	/**
+	 * Applies the missing tables, columns and indexes, then reports.
+	 *
+	 * Requires a POST carrying the plugin token. This action runs DDL, and it
+	 * used to be reachable by a plain GET: an <img> tag on any page visited by
+	 * a logged-in user was enough to trigger it.
+	 */
 	public function Run() {
+		if (!$this->request->isLoggedIn() || strtoupper($this->request->getRequestMethod()) !== 'POST'
+			|| !BookCsrf::isValid($this->request)) {
+			$this->view->setVar('error', _t('Invalid or expired request. Reload this page and try again.'));
+			$this->view->setVar('is_usable', $this->opo_schema->isUsable());
+			$this->view->setVar('changes', $this->opo_schema->describeState());
+			$this->view->setVar('applied', null);
+			$this->render('install_html.php');
+			return;
+		}
+
 		$applied = $this->opo_schema->install();
 
 		if (!$this->opo_schema->isUsable()) {

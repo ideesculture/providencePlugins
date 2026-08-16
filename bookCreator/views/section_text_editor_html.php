@@ -42,6 +42,7 @@ $sections_url = caNavUrl($this->request, 'bookCreator', 'Editor', 'BookSections'
 <h1><?php print _t('Section'); ?></h1>
 <?php
 print caFormTag($this->request, "SaveSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
+print BookCsrf::field();
 print $vs_control_box = caFormControlBox(
 	//left
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'editSectiontext').' '.
@@ -49,7 +50,7 @@ print $vs_control_box = caFormControlBox(
 	//middle
 	'',
 	//right
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", BookCsrf::param())
 
 );?>
 
@@ -114,7 +115,7 @@ print $vs_control_box = caFormControlBox(
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' '.
 	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("Preview this section"), '', "bookCreator", "Preview", "Section", array('book' => $book_id, 'section' => $section_id)),
 	'',
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", BookCsrf::param())
 
 );?>
 

@@ -16,9 +16,10 @@ $section = $this->getVar("section_details");
 ?>
 
 <h1><?php print _t('Delete section'); ?></h1>
-<p><?php print _t('Confirm deletion of section'); ?> <?php $section_id; ?> ?</p>
+<p><?php print _t('Confirm deletion of section'); ?> <?php print (int)$section_id; ?> ?</p>
 <?php
 print caFormTag($this->request, "DeleteSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
+print BookCsrf::field();
 ?>
 <input name="book" type="hidden" value="<?php print $book_id; ?>"/>
 <input name="section" type="hidden" value="<?php print $section_id; ?>"/>

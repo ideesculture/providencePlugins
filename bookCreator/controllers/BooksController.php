@@ -14,6 +14,7 @@
 require_once(__CA_LIB_DIR__.'/Configuration.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookCsrf.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/ThemeRegistry.php');
 
 /**
@@ -64,6 +65,17 @@ class BooksController extends ActionController {
 	 * role does, default_access in bookCreator.conf decides. Shipped at 1, so a
 	 * fresh install is usable without touching the CollectiveAccess roles.
 	 */
+	/**
+	 * Whether this request may change anything.
+	 *
+	 * Creating, deleting and duplicating a book all used to be reachable
+	 * without any token, and duplication by a plain link: an image tag on any
+	 * page a logged-in editor visited was enough to fire it.
+	 */
+	private function isTrustedRequest() {
+		return $this->request->isLoggedIn() && BookCsrf::isValid($this->request);
+	}
+
 	private function userCanUsePlugin() {
 		if ($this->request->user->canDoAction('can_use_book_editor_plugin')) { return true; }
 		return (bool)$this->opo_config->get('default_access');
@@ -97,6 +109,8 @@ class BooksController extends ActionController {
 
 	/** Creates or updates, then shows the form again with the result. */
 	public function Save() {
+		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
+
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 		$values  = $this->valuesFromRequest();
 
@@ -149,6 +163,8 @@ class BooksController extends ActionController {
 	 * does the deletion. Same two-step shape as deleteSection().
 	 */
 	public function Delete() {
+		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
+
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 
 		$book = new plugin_books($book_id);
@@ -171,6 +187,8 @@ class BooksController extends ActionController {
 
 	/** Copies a book and all of its sections, under an explicit copy title. */
 	public function Duplicate() {
+		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
+
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 
 		$book = new plugin_books($book_id);

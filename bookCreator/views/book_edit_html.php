@@ -62,6 +62,7 @@ $select_options = function($va_entries, $vs_current) use ($esc) {
 
 <?php
 print caFormTag($this->request, 'Save/book/'.$vn_book_id, 'bookEditor', 'bookCreator/Books');
+print BookCsrf::field();
 
 print caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t('Save'), 'bookEditor').' '.

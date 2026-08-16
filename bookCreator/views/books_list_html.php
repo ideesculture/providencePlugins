@@ -60,6 +60,7 @@ if ($vn_confirm_book) {
 				$title($va_confirm['title']), (int)$va_confirm['nb_sections']); ?>
 		</p>
 		<?php print caFormTag($this->request, 'Delete/book/'.(int)$va_confirm['book_id'], 'deleteBook', 'bookCreator/Books'); ?>
+		<?php print BookCsrf::field(); ?>
 		<?php print caFormControlBox(
 			caFormSubmitButton($this->request, __CA_NAV_ICON_DELETE__, _t('Delete'), 'deleteBook').' '.
 			caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t('Cancel'), '', '*', '*', 'Index', array()),
@@ -120,7 +121,7 @@ if ($vn_confirm_book) {
 			<td class="actions">
 				<?php print caNavButton($this->request, __CA_NAV_ICON_EDIT__, _t('Edit the book settings'), '', '*', '*', 'Edit', array('book' => $vn_book_id), array(), array('dont_show_content' => true)); ?>
 				<?php print caNavButton($this->request, __CA_NAV_ICON_HIER__, _t('Sections'), '', 'bookCreator', 'Editor', 'BookSections', array('book' => $vn_book_id), array(), array('dont_show_content' => true)); ?>
-				<?php print caNavButton($this->request, __CA_NAV_ICON_DUPLICATE__, _t('Duplicate'), '', '*', '*', 'Duplicate', array('book' => $vn_book_id), array(), array('dont_show_content' => true)); ?>
+				<?php print caNavButton($this->request, __CA_NAV_ICON_DUPLICATE__, _t('Duplicate'), '', '*', '*', 'Duplicate', array_merge(array('book' => $vn_book_id), BookCsrf::param()), array(), array('dont_show_content' => true)); ?>
 				<?php print caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t('Delete'), '', '*', '*', 'Delete', array('book' => $vn_book_id), array(), array('dont_show_content' => true)); ?>
 			</td>
 		</tr>

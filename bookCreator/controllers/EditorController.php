@@ -19,6 +19,7 @@
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/TemplateRegistry.php');
+	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookCsrf.php');
 
 
 
@@ -82,6 +83,17 @@
  				$legacy[$code] = ['code' => $code, 'label' => $code];
  			}
  			return $legacy;
+ 		}
+
+ 		/**
+ 		 * Whether this request may change anything.
+ 		 *
+ 		 * Saving, adding and deleting a section were all reachable without a
+ 		 * token, and adding by a plain link: an image tag on any page a
+ 		 * logged-in editor visited was enough to append a section to a book.
+ 		 */
+ 		private function isTrustedRequest() {
+ 			return $this->request->isLoggedIn() && BookCsrf::isValid($this->request);
  		}
 
  		/**
@@ -176,6 +188,7 @@
 		    $this->render('section_text_editor_html.php');
 	    }
         public function SaveSection() {
+	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
         	$book_id = $this->request->getParameter("book", pInteger);
 	        $section_id = $this->request->getParameter("section", pInteger);
 	        $vt_book = new plugin_books($book_id);
@@ -202,6 +215,7 @@
         }
 
         public function addSection() {
+	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
 	        $book_id = ($this->request->getParameter("book", pInteger));
 	        //var_dump($book_id);
 	        $vt_book = new plugin_books($book_id);
@@ -220,6 +234,7 @@
         }
 
         public function deleteSection() {
+	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
 	        $book_id = $this->request->getParameter("book", pInteger);
 	        $section_id = $this->request->getParameter("section", pInteger);
 	        $vt_book = new plugin_books($book_id);

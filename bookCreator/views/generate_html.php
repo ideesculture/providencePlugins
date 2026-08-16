@@ -29,7 +29,7 @@ $status_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Status', ['
 <div id="bookGenerationState">
 <?php if ($status === 'none') { ?>
 	<p><?php print _t('No generation is running for this book.'); ?></p>
-	<?php print caNavButton($this->request, __CA_NAV_ICON_PDF__, _t('Generate the PDF'), '', '*', 'Generation', 'Submit', ['book' => $book_id]); ?>
+	<?php print caNavButton($this->request, __CA_NAV_ICON_PDF__, _t('Generate the PDF'), '', '*', 'Generation', 'Submit', array_merge(['book' => $book_id], BookCsrf::param())); ?>
 <?php } else { ?>
 	<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
 	<progress id="bookGenerationProgress" value="<?php print $progress; ?>" max="100"></progress>

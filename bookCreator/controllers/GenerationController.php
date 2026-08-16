@@ -14,6 +14,7 @@
 require_once(__CA_LIB_DIR__.'/Configuration.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookJobModel.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookCsrf.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/PdfRendererFactory.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 
@@ -76,6 +77,11 @@ class GenerationController extends ActionController {
 	 * renderings of a 200-page catalogue.
 	 */
 	public function Submit() {
+		if (!$this->request->isLoggedIn() || !BookCsrf::isValid($this->request)) {
+			$this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Generation', 'Index', ['book' => (int)$this->request->getParameter('book', pInteger)]));
+			return;
+		}
+
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 
 		// Refuse early when nothing can render, rather than queueing a job that

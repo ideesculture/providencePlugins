@@ -366,12 +366,12 @@ final class BookWorkerRenderBridge {
 		// Covers stay static PDFs supplied by the client, as they always were:
 		// they are designed in a page layout application, not composed here.
 		$parts = [];
-		if (!empty($book['cover_pdf']) && is_readable($book['cover_pdf'])) {
-			$parts[] = $book['cover_pdf'];
+		if ($cover = bookworker_cover_path($book['cover_pdf'] ?? '')) {
+			$parts[] = $cover;
 		}
 		$parts = array_merge($parts, $section_pdfs);
-		if (!empty($book['backcover_pdf']) && is_readable($book['backcover_pdf'])) {
-			$parts[] = $book['backcover_pdf'];
+		if ($backcover = bookworker_cover_path($book['backcover_pdf'] ?? '')) {
+			$parts[] = $backcover;
 		}
 
 		if (!sizeof($parts)) {
@@ -388,6 +388,49 @@ final class BookWorkerRenderBridge {
 # -------------------------------------------------------
 # Job processing
 # -------------------------------------------------------
+
+/**
+ * Resolves a cover to a readable file, inside the covers directory only.
+ *
+ * The stored value is a file NAME, never a path. It used to be a free path
+ * concatenated straight into the qpdf command line, so any PDF the worker could
+ * read ended up bound into a book the user could then download — a complete
+ * file exfiltration route for any account allowed to use the plugin.
+ *
+ * basename() strips any directory the value might carry, and the resolved path
+ * is checked against the real covers directory, so neither ../ nor a symlink
+ * planted inside it can escape.
+ *
+ * @return string|null the absolute path, or null when there is nothing usable
+ */
+function bookworker_cover_path(string $name): ?string {
+	$name = trim($name);
+	if ($name === '') { return null; }
+
+	$directory = realpath(bookworker_covers_dir());
+	if (!$directory) { return null; }
+
+	$path = realpath($directory . '/' . basename($name));
+	if (!$path || !is_file($path) || !is_readable($path)) { return null; }
+
+	// Confinement check, after realpath() has resolved every symlink.
+	if (strpos($path, $directory . DIRECTORY_SEPARATOR) !== 0) {
+		bookworker_error("cover {$name} resolves outside the covers directory and was ignored");
+		return null;
+	}
+	return $path;
+}
+
+/** Directory holding the cover PDFs, from the configuration. */
+function bookworker_covers_dir(): string {
+	static $directory = null;
+	if ($directory !== null) { return $directory; }
+
+	$plugin_dir = dirname(__DIR__);
+	$configured = trim((string)Configuration::load($plugin_dir . '/conf/bookCreator.conf')->get('covers_dir'));
+
+	return $directory = strlen($configured) ? $configured : $plugin_dir . '/assets/covers';
+}
 
 /**
  * True when the layout of this section generates a table of contents.

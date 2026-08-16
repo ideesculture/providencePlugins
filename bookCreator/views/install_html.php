@@ -48,6 +48,7 @@ $vs_notification = $this->getVar('notification');
 		<?php } ?>
 	</ul>
 	<form action="<?php print caNavUrl($this->request, 'bookCreator', 'Install', 'Run'); ?>" method="post">
+		<?php print BookCsrf::field(); ?>
 		<button type="submit" class="btn btn-primary"><?php print _t('Apply these changes'); ?></button>
 	</form>
 <?php } ?>

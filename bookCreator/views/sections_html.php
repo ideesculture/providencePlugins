@@ -40,14 +40,14 @@ endforeach;
 ?>
 </ul>
 <?php print caNavButton($this->request, __CA_NAV_ICON_GO__, _t("All books"), "", "bookCreator", "Books", "Index"); ?>
-<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, _t("Add a section"), '', '*', '*', "addSection", array('book' => $book_id), array(), array()); ?>
+<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, _t("Add a section"), '', '*', '*', "addSection", array_merge(array('book' => $book_id), BookCsrf::param()), array(), array()); ?>
 <?php
 // Actions built with caNavUrl rather than assembled by hand: the previous
 // version wrote /index.php/... itself, and pointed the download straight at a
 // file under tmp/, which both exposed the layout of the plugin directory and
 // offered a link to a PDF that might be half written.
 $preview_url  = caNavUrl($this->request, 'bookCreator', 'Preview', 'Book', ['book' => $book_id]);
-$generate_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Submit', ['book' => $book_id]);
+$generate_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Submit', array_merge(['book' => $book_id], BookCsrf::param()));
 $download_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Download', ['book' => $book_id]);
 $summary_url  = caNavUrl($this->request, 'bookCreator', 'Editor', 'Summary', ['book' => $book_id]);
 ?>
@@ -62,7 +62,7 @@ print $vs_control_box = caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'sortBookSections').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id", array()),
 	'',
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id", array())
+	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id", BookCsrf::param())
 
 );?>
 <div style="margin-bottom:100px;"></div>
