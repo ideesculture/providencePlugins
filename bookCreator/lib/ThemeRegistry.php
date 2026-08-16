@@ -197,7 +197,7 @@ class ThemeRegistry {
 		}
 
 		$css  = ":root {\n\t".join(";\n\t", $declarations).";\n}\n";
-		$css .= $this->buildPageRule($format, $options);
+		$css .= $this->buildPageRule($format, $options, $pair);
 		$css .= $this->buildFontFaces($pair);
 
 		return $css;
@@ -217,7 +217,7 @@ class ThemeRegistry {
 	 * engines, and a folio silently failing to print is exactly the kind of
 	 * defect that only surfaces on the printed copy.
 	 */
-	private function buildPageRule($format, $options = []) {
+	private function buildPageRule($format, $options = [], $pair = null) {
 		$rules = ['size: '.$format['width'].' '.$format['height']];
 
 		if (isset($format['margin'])) {
@@ -245,7 +245,7 @@ class ThemeRegistry {
 		// furniture back where the binding expects it.
 		$first_page = (int)caGetOption('first_page', $options, 0);
 		$mirrored   = ($first_page > 0 && $first_page % 2 === 0);
-		$css .= $this->buildMarginBoxes($mirrored);
+		$css .= $this->buildMarginBoxes($mirrored, $pair);
 
 		return $css;
 	}
@@ -256,11 +256,25 @@ class ThemeRegistry {
 	 * @param bool $mirrored swap the two rules, for a section whose first page
 	 *                       is even; see buildPageRule().
 	 */
-	private function buildMarginBoxes($mirrored = false) {
+	private function buildMarginBoxes($mirrored = false, $pair = null) {
 		$tokens = $this->getTokens();
 		$size  = isset($tokens['font-size-folio']) ? $tokens['font-size-folio'] : '9pt';
 		$color = isset($tokens['color-folio']) ? $tokens['color-folio'] : '#1a1a1a';
-		$style = "font-size: {$size}; color: {$color};";
+
+		// The family, spelled out. A margin box is not a descendant of body, so
+		// it inherits nothing from it: without this declaration WeasyPrint falls
+		// back to its own default and every folio and every running head of the
+		// book prints in Times New Roman, inside a catalogue set in Garamond.
+		// Measured on WeasyPrint 69, and invisible until the proof comes back
+		// from the printer. Inlined for the same reason as the size and the
+		// colour above: custom properties declared on :root are not reliably
+		// visible from inside a margin box.
+		$family = 'serif';
+		if (is_array($pair) && isset($pair['body']['family'])) {
+			$family = '"'.$pair['body']['family'].'", serif';
+		}
+
+		$style = "font-family: {$family}; font-size: {$size}; color: {$color};";
 
 		// Which selector carries the left-hand page furniture.
 		$verso = $mirrored ? ':right' : ':left';
