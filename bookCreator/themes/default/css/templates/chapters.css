@@ -1,0 +1,203 @@
+/* bookCreator — default theme — chapter openings
+ *
+ * Templates: chapter-one-column, chapter-two-columns,
+ * chapter-one-column-one-image.
+ *
+ * Markup, as emitted by the editor:
+ *   .chapter-*                  > h1 + .content
+ *   .chapter-one-column-one-image > .content > .mediacolumn + .content-text
+ *                                 .content-text > h1 + .content
+ * so the outer .content of the illustrated variant is a wrapper, and the inner
+ * one holds the running text. Child selectors keep the two apart.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Shared chapter typography
+ *
+ * The running text is set in a single measure indented from the left, which
+ * leaves the head margin free for the title.
+ * ------------------------------------------------------------------------- */
+.chapter-one-column h1,
+.chapter-two-columns h1,
+.chapter-one-column-one-image h1 {
+	border-bottom: var(--rule-width, 0.75pt) solid var(--color-rule-strong, #1a1a1a);
+	font-size: var(--font-size-chapter-title, 46pt);
+	line-height: var(--line-height-chapter-title, 1.3);
+	padding-top: var(--space-title-top, 40mm);
+}
+
+.chapter-one-column h2,
+.chapter-one-column h3,
+.chapter-one-column h4,
+.chapter-one-column h5,
+.chapter-one-column h6,
+.chapter-one-column p,
+.chapter-two-columns h2,
+.chapter-two-columns h3,
+.chapter-two-columns h4,
+.chapter-two-columns h5,
+.chapter-two-columns h6,
+.chapter-two-columns p,
+.chapter-one-column-one-image h2,
+.chapter-one-column-one-image h3,
+.chapter-one-column-one-image h4,
+.chapter-one-column-one-image h5,
+.chapter-one-column-one-image h6,
+.chapter-one-column-one-image p {
+	padding-left: var(--indent-chapter-text, 60mm);
+	padding-right: var(--margin-text-outer, 20mm);
+}
+
+.chapter-one-column p,
+.chapter-two-columns p,
+.chapter-one-column-one-image p {
+	line-height: var(--line-height-text, 1.1);
+	padding-bottom: var(--space-paragraph, 0.7em);
+}
+
+/* Quotations keep the indent of the running text, so they read as part of it. */
+.chapter-one-column blockquote,
+.chapter-two-columns blockquote,
+.chapter-one-column-one-image blockquote {
+	margin-left: var(--indent-chapter-text, 60mm);
+	margin-right: var(--margin-text-outer, 20mm);
+	padding-top: var(--space-blockquote-top, 7mm);
+}
+
+.chapter-one-column blockquote p,
+.chapter-two-columns blockquote p,
+.chapter-one-column-one-image blockquote p {
+	margin-left: 0;
+	margin-right: var(--gutter, 10mm);
+	padding-left: var(--gutter, 10mm);
+	padding-right: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Two-column opening
+ *
+ * A two-track grid, not CSS columns: WeasyPrint supports neither a constrained
+ * column height nor column-span, both of which this layout needs. One
+ * paragraph per cell reproduces the row-by-row pairing of the original floats.
+ * The title is pulled back into the head margin.
+ * ------------------------------------------------------------------------- */
+.chapter-two-columns {
+	padding-left: var(--indent-chapter-two-col, 90mm);
+}
+
+.chapter-two-columns h1 {
+	margin-left: calc(var(--margin-text-outer, 20mm) - var(--indent-chapter-two-col, 90mm));
+}
+
+.chapter-two-columns .content {
+	display: grid;
+	grid-template-columns: repeat(var(--chapter-columns, 2), var(--measure-narrow, 70mm));
+	column-gap: var(--chapter-column-gap, 20mm);
+	align-items: start;
+}
+
+.chapter-two-columns h2,
+.chapter-two-columns h3,
+.chapter-two-columns h4,
+.chapter-two-columns h5,
+.chapter-two-columns h6,
+.chapter-two-columns p {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+/* A quotation interrupts both columns. */
+.chapter-two-columns blockquote {
+	grid-column: 1 / -1;
+	margin-left: 0;
+	margin-right: 0;
+}
+
+.chapter-two-columns blockquote p {
+	margin-right: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * One column plus a plate
+ *
+ * Two grid tracks: the text on the left, the plate pinned to the right. The
+ * plate used to be absolutely positioned against the page and overlapped the
+ * text by a few millimetres; as tracks they simply sit side by side. Both
+ * keep their own top offset, which is what staggers them.
+ * ------------------------------------------------------------------------- */
+.chapter-one-column-one-image {
+	margin-left: var(--chapter-image-margin-inline, 12mm);
+	margin-right: var(--chapter-image-margin-inline, 12mm);
+}
+
+.chapter-one-column-one-image > .content {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) var(--mediacolumn-width, 106mm);
+	column-gap: var(--gutter, 10mm);
+	align-items: start;
+}
+
+.chapter-one-column-one-image .content-text {
+	grid-column: 1;
+	margin-top: var(--content-text-top, 60mm);
+}
+
+/* The title is the one element that spans the plate track, as it sits above
+ * the plate's own top offset. */
+.chapter-one-column-one-image .content-text h1 {
+	margin: 0;
+	margin-right: calc(-1 * (var(--mediacolumn-width, 106mm) + var(--gutter, 10mm)));
+	padding: 0;
+	padding-top: 0;
+}
+
+.chapter-one-column-one-image .content-text h2,
+.chapter-one-column-one-image .content-text h3,
+.chapter-one-column-one-image .content-text h4,
+.chapter-one-column-one-image .content-text h5,
+.chapter-one-column-one-image .content-text h6 {
+	padding-left: 0;
+}
+
+/* The text block hugs the plate track rather than sitting at a fixed offset,
+ * which is what used to make it overlap. */
+.chapter-one-column-one-image .content-text .content {
+	margin-top: var(--space-text-block-top, 6mm);
+	margin-left: auto;
+	max-width: var(--measure-narrow, 70mm);
+}
+
+.chapter-one-column-one-image .content-text .content p {
+	margin: 0 0 var(--space-line, 2.1mm) 0;
+	padding: 0;
+	font-size: 1em;
+}
+
+.chapter-one-column-one-image .content-text .content ul,
+.chapter-one-column-one-image .content-text .content ol {
+	padding-inline-start: var(--list-indent-narrow, 4mm);
+}
+
+.chapter-one-column-one-image .content-text .content blockquote {
+	margin-left: 0;
+	margin-right: 0;
+}
+
+.chapter-one-column-one-image .content-text .content blockquote p {
+	margin-right: 0;
+	padding-left: 0;
+}
+
+.chapter-one-column-one-image .mediacolumn {
+	grid-column: 2;
+	margin-top: var(--mediacolumn-top, 84mm);
+	font-size: 1em;
+}
+
+.chapter-one-column-one-image .mediacolumn img {
+	width: auto;
+	max-width: 100%;
+	height: var(--figure-height, 70mm);
+	margin-top: var(--space-figure-y, 8pt);
+	margin-bottom: var(--space-figure-y, 8pt);
+}

@@ -1,0 +1,116 @@
+/* bookCreator — default theme — plates
+ *
+ * Templates: hors-texte-gauche, hors-texte-droit, page-image.
+ *
+ * Markup, as emitted by the editor:
+ *   .hors-texte-*  > .media (img + caption) + .content (running text)
+ *   .page-image    > .content > text + div > img
+ *
+ * The editor emits the plate before the text in both variants; which side it
+ * lands on is decided here, by grid placement, instead of by a float. A theme
+ * can therefore swap the two without touching the generator.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Plate facing text
+ * ------------------------------------------------------------------------- */
+.hors-texte-gauche,
+.hors-texte-droit {
+	display: grid;
+	column-gap: var(--gutter, 10mm);
+	align-items: start;
+	padding-left: var(--gutter, 10mm);
+}
+
+.hors-texte-gauche {
+	grid-template-columns: var(--hors-texte-media-width, 62%) minmax(0, 1fr);
+	margin-right: var(--margin-hors-texte-outer, 40mm);
+}
+
+.hors-texte-gauche .media {
+	grid-column: 1;
+}
+
+.hors-texte-gauche .content {
+	grid-column: 2;
+}
+
+.hors-texte-droit {
+	grid-template-columns: minmax(0, 1fr) var(--hors-texte-media-width-right, 50%);
+}
+
+.hors-texte-droit .media {
+	grid-column: 2;
+}
+
+.hors-texte-droit .content {
+	grid-column: 1;
+}
+
+/* The plate is capped in height so that its caption stays on the same page.
+ * The former max-height: 80% resolved against a track of indefinite height and
+ * never applied. */
+.hors-texte-gauche .media img,
+.hors-texte-droit .media img {
+	width: 100%;
+	height: auto;
+	max-height: var(--plate-image-max-height, 170mm);
+}
+
+.hors-texte-gauche .media p,
+.hors-texte-droit .media p {
+	font-variant: var(--font-variant-heading, small-caps);
+	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	margin: var(--space-name-y, 0.2em) 0;
+	padding-left: 0;
+}
+
+.hors-texte-gauche .content p {
+	padding-left: var(--gutter, 10mm);
+	margin-left: var(--gutter, 10mm);
+}
+
+/* The right-hand variant sets its caption as a credit line, and indents the
+ * plate away from the text. */
+.hors-texte-droit .media img {
+	margin-left: var(--margin-text-outer, 20mm);
+}
+
+.hors-texte-droit .media p {
+	color: var(--color-caption, #555555);
+	font-size: var(--font-size-credit, 0.8em);
+	line-height: var(--line-height-credit, 0.9);
+	margin-left: var(--margin-text-outer, 20mm);
+}
+
+.hors-texte-droit .content p {
+	padding-left: var(--margin-text-outer, 20mm);
+	padding-right: var(--gutter, 10mm);
+}
+
+/* ---------------------------------------------------------------------------
+ * Full-page plate
+ *
+ * One image centred on the page area. The height cap is a length, not a
+ * percentage: a percentage would resolve against a box of indefinite height
+ * and be dropped.
+ * ------------------------------------------------------------------------- */
+.page-image {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	height: var(--content-height);
+	margin: 0;
+	text-align: center;
+}
+
+.page-image .content {
+	width: 100%;
+	text-align: center;
+}
+
+.page-image img {
+	max-width: 100%;
+	max-height: var(--full-image-height, 186mm);
+	height: auto;
+}

@@ -1,0 +1,261 @@
+/* bookCreator — default theme — base stylesheet
+ *
+ * Rules shared by every template: page geometry, running text, headings,
+ * figures and notice primitives.
+ *
+ * This file never declares a token value, an @page rule or an @font-face:
+ * ThemeRegistry emits those ahead of it, from theme.conf. Everything here
+ * reads them back through var(), with a fallback that keeps the sheet
+ * readable on its own.
+ *
+ * Rendering targets are WeasyPrint 69 and Paged.js, from this same source, so
+ * only what both support is used: block flow, simple grid, simple flex and
+ * CSS Paged Media. No multi-column, no absolute positioning, no float.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Derived geometry
+ *
+ * These two are computed, never declared in theme.conf: they exist so that
+ * templates can size against the composition area without repeating the
+ * arithmetic. --page-height and --page-margin are the primitives, and come
+ * from the format chosen at render time.
+ * ------------------------------------------------------------------------- */
+:root {
+	--content-height: calc(var(--page-height, 210mm) - 2 * var(--page-margin, 12mm));
+	/* Height of one cell in a two-row full-page grid, gutter deducted. */
+	--grid-row-height: calc((var(--content-height) - var(--gutter, 10mm)) / 2);
+}
+
+/* ---------------------------------------------------------------------------
+ * Reset
+ *
+ * The composition area is the page area defined by @page. Neither html nor
+ * body carries a size: giving body a height is what used to make percentage
+ * heights resolve, and what used to break pagination.
+ * ------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Running text
+ * ------------------------------------------------------------------------- */
+body {
+	color: var(--color-ink, #1a1a1a);
+	font-family: var(--font-body, "EB Garamond"), serif;
+	font-size: var(--font-size-body, 11.5pt);
+	font-style: normal;
+	font-weight: var(--font-weight-body, 400);
+	line-height: var(--line-height, 1.2);
+	font-variant-ligatures: common-ligatures;
+	orphans: 2;
+	widows: 2;
+}
+
+p {
+	margin: 0;
+}
+
+em,
+i {
+	font-style: italic;
+	font-weight: var(--font-weight-body, 400);
+}
+
+b,
+strong {
+	font-weight: var(--font-weight-bold, 700);
+}
+
+a,
+a:visited,
+a:hover {
+	color: var(--color-link, #666666);
+	text-decoration: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Headings
+ *
+ * Small caps are the only distinction between a heading and running text in
+ * this design, hence the tracking token: real small caps set solid read badly
+ * without it.
+ * ------------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--font-heading, var(--font-body, "EB Garamond")), serif;
+	font-style: normal;
+	font-weight: var(--font-weight-body, 400);
+	font-variant: var(--font-variant-heading, small-caps);
+	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	margin: 0;
+	break-after: avoid;
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-size: var(--font-size-heading, 18pt);
+}
+
+/* ---------------------------------------------------------------------------
+ * Lists and quotations
+ * ------------------------------------------------------------------------- */
+ul,
+ol {
+	margin: 0;
+	padding-inline-start: var(--gutter, 10mm);
+}
+
+blockquote {
+	background: var(--color-quote-bg, #f9f9f9);
+	border-left: var(--rule-quote-width, 3mm) solid var(--color-quote-border, #cccccc);
+	color: var(--color-quote-text, #444444);
+	margin: 0;
+	padding: var(--space-quote-inline, 3mm);
+	quotes: "\201C" "\201D" "\2018" "\2019";
+	break-inside: avoid;
+}
+
+blockquote::before {
+	color: var(--color-quote-border, #cccccc);
+	content: open-quote;
+	font-size: var(--font-size-quote-mark, 4em);
+	line-height: 0.1em;
+	margin-right: 0.25em;
+	vertical-align: -0.4em;
+}
+
+blockquote p {
+	color: var(--color-quote-text, #444444);
+	font-size: var(--font-size-quote, 1.15em);
+}
+
+/* ---------------------------------------------------------------------------
+ * Figures
+ *
+ * Two kinds of illustration coexist: a real <img>, used by the plate and
+ * chapter templates, and a .image block carrying the picture as a background,
+ * used by every grid of notices. The placeholder colour is what shows while a
+ * derivative is missing.
+ * ------------------------------------------------------------------------- */
+img {
+	max-width: 100%;
+	height: auto;
+}
+
+.image {
+	background-color: var(--color-image-placeholder, #eeeeee);
+	background-position: center center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	width: 100%;
+	height: var(--image-box-height, 60mm);
+}
+
+/* ---------------------------------------------------------------------------
+ * Notice primitives
+ *
+ * Emitted inside every .media block: a title line (idno + name), then the
+ * catalogue fields. .idno, .mat_et_techniques, .inscriptions, .dimensions and
+ * .description are left to inherit here, and are the hooks a theme overrides
+ * to build its own hierarchy.
+ *
+ * The title line itself is spaced in sets.css, where the selectors are
+ * specific enough to win over the per-grid notice rules.
+ * ------------------------------------------------------------------------- */
+.name {
+	font-size: var(--font-size-name, 11pt);
+	font-variant: var(--font-variant-heading, small-caps);
+	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	line-height: var(--line-height-tight, 1.05);
+	margin: var(--space-name-y, 0.2em) 0;
+	font-variant-ligatures: common-ligatures;
+}
+
+/* ---------------------------------------------------------------------------
+ * Page grid
+ *
+ * Every section emitted by the editor is one template root, and every template
+ * root opens a page. Sections that hold a single page also close it, so that a
+ * short chapter is never followed by unrelated material.
+ * ------------------------------------------------------------------------- */
+.page-de-titre,
+.dos-page-de-titre,
+.dedicace-centre,
+.dedicace-droite,
+.page-blanche,
+.chapter-one-column,
+.chapter-two-columns,
+.chapter-one-column-one-image,
+.hors-texte-gauche,
+.hors-texte-droit,
+.page-image,
+.ensemble-6-par-page,
+.ensemble-4-par-page-texte-bas,
+.ensemble-4-par-page-texte-droite,
+.texte-deux-images-gauche,
+.texte-deux-images-droite,
+.acheve-d-imprimer {
+	break-before: page;
+}
+
+.page-de-titre,
+.dos-page-de-titre,
+.dedicace-centre,
+.dedicace-droite,
+.page-blanche,
+.hors-texte-gauche,
+.hors-texte-droit,
+.page-image,
+.acheve-d-imprimer {
+	break-after: page;
+}
+
+/* ---------------------------------------------------------------------------
+ * Running heads
+ *
+ * The strings are set here; the margin boxes that print them belong to @page
+ * and are emitted by ThemeRegistry. Front matter runs on named pages so that
+ * those boxes can be emptied there.
+ * ------------------------------------------------------------------------- */
+.chapter-one-column h1,
+.chapter-two-columns h1,
+.chapter-one-column-one-image h1 {
+	string-set: chapter content();
+}
+
+.page-de-titre h1 {
+	string-set: book-title content();
+}
+
+.page-de-titre,
+.dos-page-de-titre,
+.dedicace-centre,
+.dedicace-droite,
+.acheve-d-imprimer {
+	page: liminaire;
+}
+
+.page-blanche {
+	page: blanche;
+}
+
+.page-image {
+	page: pleine-page;
+}

@@ -1,0 +1,92 @@
+/* bookCreator — default theme — front and back matter
+ *
+ * Templates: page-de-titre, dos-page-de-titre, dedicace-centre,
+ * dedicace-droite, page-blanche, acheve-d-imprimer.
+ *
+ * All of them are single-page, centred blocks whose only geometry is a top
+ * offset. Their break behaviour and named page come from base.css.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Title page
+ *
+ * The colophon line (.bottom) sits at the foot of the page. It used to be
+ * absolutely positioned against an ancestor that happened to be relative;
+ * a column flex box with an auto top margin does the same thing without
+ * depending on the containing block.
+ * ------------------------------------------------------------------------- */
+.page-de-titre {
+	display: flex;
+	flex-direction: column;
+	min-height: var(--content-height);
+	padding-top: var(--space-page-top, 10mm);
+	text-align: center;
+	overflow: hidden;
+}
+
+.page-de-titre p {
+	font-variant: var(--font-variant-heading, small-caps);
+	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+}
+
+.page-de-titre h1 {
+	font-size: var(--font-size-title, 4em);
+	font-style: italic;
+	font-variant: normal;
+	letter-spacing: normal;
+	line-height: var(--line-height-title, 1);
+	max-width: var(--title-max-width, 150mm);
+	margin-left: auto;
+	margin-right: auto;
+	padding-top: var(--space-title-page-top, 30mm);
+	padding-bottom: var(--gutter, 10mm);
+	text-align: center;
+}
+
+.page-de-titre .bottom {
+	border-top: var(--rule-width, 0.75pt) solid var(--color-rule-light, #808080);
+	font-variant: var(--font-variant-heading, small-caps);
+	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	max-width: var(--colophon-max-width, 70mm);
+	margin-top: auto;
+	margin-left: auto;
+	margin-right: auto;
+	padding-top: var(--space-blockquote-top, 7mm);
+	text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * Title page verso — legal notices, set low on the page
+ * ------------------------------------------------------------------------- */
+.dos-page-de-titre {
+	font-size: var(--font-size-legal, 0.7em);
+	max-width: var(--legal-max-width, 100mm);
+	margin-top: var(--legal-top, 73mm);
+	margin-left: var(--legal-margin-left, 4mm);
+}
+
+/* ---------------------------------------------------------------------------
+ * Dedication and colophon — same block, three alignments
+ * ------------------------------------------------------------------------- */
+.dedicace-centre,
+.dedicace-droite,
+.acheve-d-imprimer {
+	padding-top: var(--space-cover-top, 100mm);
+	padding-left: var(--margin-text-outer, 20mm);
+	padding-right: var(--margin-text-outer, 20mm);
+	text-align: center;
+}
+
+.dedicace-droite {
+	text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+ * Deliberately blank page
+ *
+ * The section carries no content, so it needs a height of its own to claim a
+ * page. This replaces the 10x10px phantom block of the previous stylesheet.
+ * ------------------------------------------------------------------------- */
+.page-blanche {
+	min-height: var(--content-height);
+}

@@ -162,10 +162,6 @@ class ThemeRegistry {
 
 		$declarations = [];
 
-		// Page geometry, always exposed so stylesheets can size against it.
-		$declarations[] = '--page-width: '.$format['width'];
-		$declarations[] = '--page-height: '.$format['height'];
-
 		// Typography. Font families are quoted here so theme.conf stays readable.
 		if (is_array($pair)) {
 			if (isset($pair['heading']['family'])) {
@@ -189,6 +185,17 @@ class ThemeRegistry {
 			}
 		}
 
+		// Page geometry comes last, because it is authoritative: a theme may
+		// declare a page-margin token as documentation of its A4 value, but the
+		// margin actually applied is the one of the format in use, and the
+		// stylesheets derive the composition area from it. Emitting it earlier
+		// would let the theme token win and skew every grid on any other format.
+		$declarations[] = '--page-width: '.$format['width'];
+		$declarations[] = '--page-height: '.$format['height'];
+		if (isset($format['margin'])) {
+			$declarations[] = '--page-margin: '.$format['margin'];
+		}
+
 		$css  = ":root {\n\t".join(";\n\t", $declarations).";\n}\n";
 		$css .= $this->buildPageRule($format, $options);
 		$css .= $this->buildFontFaces($pair);
@@ -196,7 +203,20 @@ class ThemeRegistry {
 		return $css;
 	}
 
-	/** The @page rule: size, margins, and optionally bleed and crop marks. */
+	/**
+	 * The @page rules: size, margins, optional bleed, and the margin boxes that
+	 * carry the folio and the running heads.
+	 *
+	 * Folios and running heads belong here rather than in the stylesheets:
+	 * margin boxes only exist inside @page, and the stylesheets have no way to
+	 * reach them. base.css does its half of the work by setting string-set on
+	 * the headings and assigning named pages to the front matter.
+	 *
+	 * Values are inlined rather than read through var(): custom properties
+	 * declared on :root are not reliably visible from margin boxes across
+	 * engines, and a folio silently failing to print is exactly the kind of
+	 * defect that only surfaces on the printed copy.
+	 */
 	private function buildPageRule($format, $options = []) {
 		$rules = ['size: '.$format['width'].' '.$format['height']];
 
@@ -210,7 +230,42 @@ class ThemeRegistry {
 			$rules[] = 'marks: crop cross';
 		}
 
-		return "@page {\n\t".join(";\n\t", $rules).";\n}\n";
+		$css = "@page {\n\t".join(";\n\t", $rules).";\n}\n";
+		$css .= $this->buildMarginBoxes();
+
+		return $css;
+	}
+
+	/** Folio and running head, mirrored for left and right pages. */
+	private function buildMarginBoxes() {
+		$tokens = $this->getTokens();
+		$size  = isset($tokens['font-size-folio']) ? $tokens['font-size-folio'] : '9pt';
+		$color = isset($tokens['color-folio']) ? $tokens['color-folio'] : '#1a1a1a';
+		$style = "font-size: {$size}; color: {$color};";
+
+		$css  = "@page :left {\n";
+		$css .= "\t@bottom-left { content: counter(page); {$style} }\n";
+		$css .= "\t@top-left { content: string(chapter); {$style} }\n";
+		$css .= "}\n";
+
+		$css .= "@page :right {\n";
+		$css .= "\t@bottom-right { content: counter(page); {$style} }\n";
+		$css .= "\t@top-right { content: string(chapter); {$style} }\n";
+		$css .= "}\n";
+
+		// Front matter, blank pages and full-bleed plates carry no furniture.
+		// base.css assigns these named pages to the layouts concerned.
+		foreach (['liminaire', 'blanche', 'pleine-page'] as $named) {
+			$css .= "@page {$named} {\n";
+			$css .= "\t@bottom-left { content: none }\n";
+			$css .= "\t@bottom-right { content: none }\n";
+			$css .= "\t@bottom-center { content: none }\n";
+			$css .= "\t@top-left { content: none }\n";
+			$css .= "\t@top-right { content: none }\n";
+			$css .= "}\n";
+		}
+
+		return $css;
 	}
 
 	/**

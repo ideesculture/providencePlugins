@@ -101,8 +101,14 @@ class BookHtmlBuilder {
 		// A section rendered alone still has to carry the page number it holds
 		// in the finished book: nb_pages and first_page are written by the
 		// worker as it goes, and injected back here.
+		//
+		// The rule must target :first, and carry the first page number itself.
+		// Measured against WeasyPrint 69: an unqualified "@page { counter-reset:
+		// page N }" applies to every page of the section, which stamps them all
+		// with the same folio; and the reset happens after the increment, so
+		// N-1 would shift the whole book by one page.
 		if (isset($options['first_page']) && (int)$options['first_page'] > 0) {
-			$css .= "@page { counter-reset: page ".((int)$options['first_page'] - 1)."; }\n";
+			$css .= "@page :first { counter-reset: page ".(int)$options['first_page']."; }\n";
 		}
 
 		$html  = "<!DOCTYPE html>\n<html><head>\n";

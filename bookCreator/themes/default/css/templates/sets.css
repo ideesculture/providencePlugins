@@ -1,0 +1,171 @@
+/* bookCreator — default theme — sets of works
+ *
+ * Templates: ensemble-6-par-page, ensemble-4-par-page-texte-bas,
+ * ensemble-4-par-page-texte-droite, texte-deux-images-gauche,
+ * texte-deux-images-droite.
+ *
+ * Markup, as emitted by the editor:
+ *   .ensemble-*          > .media (.image + notice paragraphs) x N
+ *   .texte-deux-images-* > .content + .media-bar > .media x N
+ *
+ * The grids are laid out as real grids rather than as rows of floats: the
+ * number of cells across is a property of the template, not the arithmetic
+ * consequence of a width in centimetres. Row height is derived from the page
+ * area, so two rows always fill it exactly.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Notice typography, shared by every grid
+ * ------------------------------------------------------------------------- */
+.ensemble-6-par-page .media p,
+.ensemble-4-par-page-texte-bas .media p,
+.ensemble-4-par-page-texte-droite .media p,
+.texte-deux-images-gauche .media p,
+.texte-deux-images-droite .media p {
+	font-size: var(--font-size-caption, 9pt);
+	line-height: var(--line-height-tight, 1.05);
+	margin: var(--space-caption-y, 0.1em) 0;
+	text-align: justify;
+	font-variant-ligatures: normal;
+}
+
+/* The title line of a notice opens the block, so it is set off from the
+ * previous field. Repeated at grid level to outweigh the rule above. */
+.ensemble-6-par-page .media p.paragraph-titre,
+.ensemble-4-par-page-texte-bas .media p.paragraph-titre,
+.ensemble-4-par-page-texte-droite .media p.paragraph-titre,
+.texte-deux-images-gauche .media p.paragraph-titre,
+.texte-deux-images-droite .media p.paragraph-titre {
+	margin-top: var(--space-notice-title-top, 2mm);
+}
+
+/* ---------------------------------------------------------------------------
+ * Six works to a page — three across, two down
+ * ------------------------------------------------------------------------- */
+.ensemble-6-par-page {
+	display: grid;
+	grid-template-columns: repeat(var(--grid-columns-dense, 3), minmax(0, 1fr));
+	grid-auto-rows: var(--grid-row-height);
+	gap: var(--gutter, 10mm);
+}
+
+.ensemble-6-par-page .media {
+	overflow: hidden;
+	break-inside: avoid;
+}
+
+/* This grid gets a slightly larger notice size than the denser ones. */
+.ensemble-6-par-page .media p {
+	font-size: var(--font-size-caption-large, 9.4pt);
+}
+
+/* ---------------------------------------------------------------------------
+ * Four works to a page, caption under the plate
+ * ------------------------------------------------------------------------- */
+.ensemble-4-par-page-texte-bas {
+	display: grid;
+	grid-template-columns: repeat(var(--grid-columns-wide, 2), minmax(0, 1fr));
+	grid-auto-rows: var(--grid-row-height);
+	column-gap: var(--grid-gap-wide, 26mm);
+	row-gap: var(--gutter, 10mm);
+}
+
+.ensemble-4-par-page-texte-bas .media {
+	overflow: hidden;
+	break-inside: avoid;
+}
+
+/* ---------------------------------------------------------------------------
+ * Four works to a page, caption beside the plate
+ *
+ * Inside a cell the plate takes the first track and spans every row of the
+ * notice, so the paragraphs stack in the second track instead of wrapping
+ * around a float.
+ * ------------------------------------------------------------------------- */
+.ensemble-4-par-page-texte-droite {
+	display: grid;
+	grid-template-columns: repeat(var(--grid-columns-wide, 2), minmax(0, 1fr));
+	grid-auto-rows: var(--grid-row-height);
+	gap: var(--gutter, 10mm);
+}
+
+.ensemble-4-par-page-texte-droite .media {
+	display: grid;
+	grid-template-columns: var(--image-box-width-sm, 40%) minmax(0, 1fr);
+	column-gap: var(--space-media-gap, 5mm);
+	align-content: start;
+	overflow: hidden;
+	break-inside: avoid;
+}
+
+.ensemble-4-par-page-texte-droite .media .image {
+	grid-column: 1;
+	grid-row: 1 / span var(--notice-lines, 8);
+	align-self: start;
+	height: var(--image-box-height-sm, 40mm);
+}
+
+.ensemble-4-par-page-texte-droite .media p {
+	grid-column: 2;
+	text-align: left;
+}
+
+/* ---------------------------------------------------------------------------
+ * Running text with a bar of plates
+ *
+ * Two tracks, the text and the bar. Which one is on the left is set here, by
+ * placement, rather than by the order in which the editor emits them.
+ * ------------------------------------------------------------------------- */
+.texte-deux-images-gauche,
+.texte-deux-images-droite {
+	display: grid;
+	column-gap: var(--gutter, 10mm);
+	align-items: start;
+	padding-top: var(--space-column-top, 12mm);
+	padding-bottom: var(--gutter, 10mm);
+}
+
+.texte-deux-images-gauche {
+	grid-template-columns: var(--table-media-width, 80mm) minmax(0, 1fr);
+	margin-left: var(--margin-text-outer, 20mm);
+}
+
+.texte-deux-images-gauche .media-bar {
+	grid-column: 1;
+}
+
+.texte-deux-images-gauche .content {
+	grid-column: 2;
+	padding-left: var(--margin-text-outer, 20mm);
+}
+
+.texte-deux-images-droite {
+	grid-template-columns: minmax(0, 1fr) var(--table-media-width, 80mm);
+}
+
+.texte-deux-images-droite .content {
+	grid-column: 1;
+	padding-left: var(--table-text-pad-left, 35mm);
+}
+
+.texte-deux-images-droite .media-bar {
+	grid-column: 2;
+}
+
+.texte-deux-images-gauche .content,
+.texte-deux-images-droite .content {
+	padding-right: var(--margin-text-outer, 20mm);
+}
+
+/* The bar stacks its plates, each of which stays whole on one page. */
+.texte-deux-images-gauche .media-bar,
+.texte-deux-images-droite .media-bar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-media-bottom, 8mm);
+}
+
+.texte-deux-images-gauche .media,
+.texte-deux-images-droite .media {
+	break-inside: avoid;
+}
