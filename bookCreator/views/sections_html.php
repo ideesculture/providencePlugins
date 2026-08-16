@@ -88,14 +88,12 @@ print caFormControlBox(
 jQuery(document).ready(function() {
 	jQuery("#sectionsList").sortable({
 		stop: function () {
-            $('input.currentposition').each(function(idx, value) {
-                console.log( idx + ": " + $(this).val() );
-                $(this).val(idx);
-                //console.log($(this));
-                //console.log($(idx));
-                //$(this).val(nbElems - idx);
-            });
-        }
+			// The hidden inputs carry the new order to the form: after a drop,
+			// each one takes the index of its row.
+			jQuery('input.currentposition').each(function (idx) {
+				jQuery(this).val(idx);
+			});
+		}
 	});
 	jQuery("#sectionsList").disableSelection();
 });

@@ -128,7 +128,6 @@
  		# -------------------------------------------------------
 	    public function BookSections() {
 		    $book_id = ($this->request->getParameter("book", pInteger));
-		    //var_dump($book_id);
 		    $vt_book = new plugin_books($book_id);
 		    if (!$vt_book->isLoaded()) {
 			    $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
