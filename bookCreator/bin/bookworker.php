@@ -398,6 +398,23 @@ final class BookWorkerRenderBridge {
 			}
 		}
 
+		// Each layout block is built to be one page. More pages than blocks means
+		// the renderer had to break a block in two — measured on the shipped
+		// six-per-page grid, whose row height fills the usable height exactly:
+		// a notice of about forty words pushes the second row onto its own page,
+		// and a 200-work catalogue prints on ~68 pages instead of ~34, one page
+		// in two half empty. The folios stay consistent and the table of
+		// contents agrees with them, so nothing else can reveal it before the
+		// proof comes back.
+		$expected = (int)$builder->lastDocumentPageBlocks();
+		if ($expected > 0 && (int)$pages > $expected) {
+			$warnings[] = _t(
+				'“%1” printed on %2 pages instead of %3: its content does not fit the layout and the pages after it are shifted. Shorten the notices, or use a layout with fewer works per page.',
+				$label, (int)$pages, $expected
+			);
+			bookworker_error("section {$section_id}: {$pages} pages for {$expected} layout blocks");
+		}
+
 		return ['path' => $pdf_path, 'pages' => (int)$pages, 'warnings' => $warnings];
 	}
 
@@ -518,7 +535,7 @@ function bookworker_is_summary_section(array $book, array $section): bool {
  *
  * @return array{work: string, output: string}
  */
-function bookworker_directories(string $plugin_dir, int $job_id = 0): array {
+function bookworker_directories(string $plugin_dir, string $claim = ''): array {
 	$config  = Configuration::load($plugin_dir . '/conf/bookCreator.conf');
 	$work    = trim((string)$config->get('job_work_dir'));
 	$output  = trim((string)$config->get('job_output_dir'));
@@ -536,7 +553,7 @@ function bookworker_directories(string $plugin_dir, int $job_id = 0): array {
 	// either a failed assembly or, worse, a book mixing pages from two renders
 	// with folios consistent throughout. The queue row was never the whole
 	// race; the disk was.
-	if ($job_id > 0) { $work .= '/job-' . $job_id; }
+	if ($claim !== '') { $work .= '/job-' . $claim; }
 
 	foreach ([$work, $output] as $directory) {
 		if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
@@ -545,9 +562,53 @@ function bookworker_directories(string $plugin_dir, int $job_id = 0): array {
 		if (!is_writable($directory)) {
 			throw new RuntimeException("Directory {$directory} is not writable by the worker user.");
 		}
+		bookworker_protect_directory($directory);
 	}
 
 	return ['work' => rtrim($work, '/'), 'output' => rtrim($output, '/')];
+}
+
+/**
+ * A file-name-safe form of the claim token held by this job.
+ *
+ * The token is unique to one claim — worker id plus random bytes, stamped on
+ * the row by claimNext() — which is what makes it the right key for anything
+ * written to disk: two workers on the same job get different names, so neither
+ * can overwrite or delete the other's work.
+ */
+function bookworker_claim_slug(array $job): string {
+	$token = (string)($job['worker_id'] ?? '');
+	$slug  = preg_replace('~[^A-Za-z0-9_-]+~', '-', $token);
+	$slug  = trim((string)$slug, '-');
+
+	// Never empty: a job whose token could not be read still needs a directory
+	// of its own rather than the root of the work area.
+	return strlen($slug) ? substr($slug, 0, 96) : 'job-' . (int)($job['job_id'] ?? 0);
+}
+
+/**
+ * Drops a deny-all .htaccess into a directory the worker writes to.
+ *
+ * The plugin ships one in tmp/, but job_work_dir and job_output_dir can point
+ * anywhere, and a directory under the document root without it serves every
+ * generated catalogue by its name — book-<book_id>-job-<job_id>.pdf, two small
+ * integers, no authentication. Writing the file is cheap and idempotent; an
+ * existing one is never overwritten, so a host that manages its own rules keeps
+ * them.
+ *
+ * Not a substitute for putting these directories outside the document root,
+ * which remains the right answer and is what bin/README.md recommends.
+ */
+function bookworker_protect_directory(string $directory): void {
+	$htaccess = $directory . '/.htaccess';
+	if (file_exists($htaccess)) { return; }
+
+	@file_put_contents($htaccess,
+		"# Written by bookCreator: generated books are served by the download\n"
+		."# controller, which checks the user, never by their file name.\n"
+		."<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n"
+		."<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n"
+	);
 }
 
 /**
@@ -575,7 +636,10 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		);
 	}
 
-	$directories = bookworker_directories($plugin_dir, (int)$job['job_id']);
+	// Keyed by the claim token, not by the job id: reapStale() requeues the
+	// same job, so two workers on the same job would otherwise share a
+	// directory and each delete the fragments the other is assembling.
+	$directories = bookworker_directories($plugin_dir, bookworker_claim_slug($job));
 
 	// plugin_books exposes the whole row only through its magic getter called
 	// with no property name; every named access throws on a book that could
@@ -604,7 +668,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	$page_offset = 1;
 	$done = 0;
 
-	$jobs->updateProgress($job['job_id'], 0, _t('Rendering %1 sections', $total));
+	$jobs->updateProgress($job['job_id'], 0, _t('Rendering %1 sections', $total), $job['worker_id']);
 
 	foreach ($sections as $section) {
 		// Stop checkpoint. Between two sections nothing is half written, so the
@@ -701,9 +765,10 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		}
 	}
 
-	$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('Assembling the PDF'));
+	$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('Assembling the PDF'), $job['worker_id']);
 
-	$output_path = $directories['output'] . '/book-' . (int)$job['book_id'] . '-job-' . (int)$job['job_id'] . '.pdf';
+	$output_path = $directories['output'] . '/book-' . (int)$job['book_id']
+		. '-job-' . (int)$job['job_id'] . '-' . bookworker_claim_slug($job) . '.pdf';
 	BookWorkerRenderBridge::assemble($book_data, $section_pdfs, $output_path);
 
 	if (!is_file($output_path)) {
@@ -726,7 +791,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// now is what the editor reads next to a finished book. Written any earlier,
 	// the following progress update would have wiped it.
 	if ($job_warnings) {
-		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, join(' ', $job_warnings));
+		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, join(' ', $job_warnings), $job['worker_id']);
 	}
 
 	return $output_path;
@@ -964,7 +1029,7 @@ while (true) {
 
 	try {
 		$pdf_path = bookworker_process_job($job, $jobs, $plugin_dir);
-		$closed = $jobs->finish((int)$job['job_id'], $pdf_path);
+		$closed = $jobs->finish((int)$job['job_id'], $pdf_path, $job['worker_id']);
 		$g_bookworker['current_job_id'] = 0;
 		if ($closed) {
 			bookworker_log("job {$job['job_id']}: done -> {$pdf_path}");
@@ -985,7 +1050,7 @@ while (true) {
 	} catch (Throwable $e) {
 		// The message goes to the row (the editor reads it), the detail to
 		// stderr (the operator reads that).
-		$jobs->fail((int)$job['job_id'], $e->getMessage());
+		$jobs->fail((int)$job['job_id'], $e->getMessage(), $job['worker_id']);
 		$g_bookworker['current_job_id'] = 0;
 		bookworker_error("job {$job['job_id']} failed: " . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
 		$exit_code = BOOKWORKER_EXIT_RUNTIME;

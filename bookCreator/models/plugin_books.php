@@ -496,14 +496,26 @@ class plugin_books {
 			return array($outcome['error']);
 		}
 
-		// Same rule as setSection(): a book deleted elsewhere must not report a
-		// successful save. modified_on is always part of the statement, so a row
-		// that exists is always touched and the count can only be 0 when the row
-		// is gone.
-		if ((int)$o_data->affectedRows() === 0) {
+		// Same rule as setSection(), and the same trap: affected_rows counts the
+		// rows actually CHANGED, not the rows matched. The comment here used to
+		// argue that modified_on always changes so a live row is always touched
+		// — false within the same second, where time() returns the identical
+		// value and MariaDB reports 0. Saving a book twice in a row then told
+		// the editor the book no longer existed. The existence check settles it,
+		// and only runs on the count of 0, so the normal path pays nothing.
+		if ((int)$o_data->affectedRows() === 0 && !$this->rowExists($this->book_id)) {
 			return array(_t('This book no longer exists.'));
 		}
 		return true;
+	}
+
+	/** True when the book row is still there. */
+	private function rowExists($book_id) {
+		$o_data = new Db();
+		$outcome = self::run($o_data, "SELECT book_id FROM plugin_books WHERE book_id = ?", array((int)$book_id));
+		$qr = $outcome['result'];
+
+		return ($outcome['ok'] && $qr && $qr->numRows() > 0);
 	}
 
 	/**

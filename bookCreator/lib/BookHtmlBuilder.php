@@ -91,6 +91,9 @@ class BookHtmlBuilder {
 	/** Whether the last document built carried no content at all; see lastDocumentWasEmpty(). */
 	private $last_document_empty = false;
 
+	/** Page blocks emitted for the last document; see lastDocumentPageBlocks(). */
+	private $last_document_blocks = 0;
+
 	public function __construct($theme_code = 'default', $format = 'a4-landscape', $font_pair = 'default', $parser = null) {
 		$this->theme     = new ThemeRegistry($theme_code);
 		$this->templates = new TemplateRegistry($theme_code);
@@ -123,6 +126,7 @@ class BookHtmlBuilder {
 		// The builder is reusable: the worker keeps one instance for the whole
 		// book and calls this once per section.
 		$this->running_head_css = [];
+		$this->last_document_blocks = 0;
 
 		$body = '';
 		foreach ($book->getSections() as $section) {
@@ -260,6 +264,20 @@ class BookHtmlBuilder {
 		return $this->last_document_empty;
 	}
 
+	/**
+	 * How many pages the last document was built to occupy.
+	 *
+	 * One block per page is the contract of the layouts: a set section is split
+	 * into chunks of items_per_page precisely so that each div is one page. The
+	 * worker compares this with the page count of the produced PDF, because the
+	 * contract is not enforceable from here — a grid whose cells grow past the
+	 * row height pushes its second row onto a page of its own, and the book
+	 * silently doubles in length with half of every other page left blank.
+	 */
+	public function lastDocumentPageBlocks() {
+		return $this->last_document_blocks;
+	}
+
 	/** One section, as one or more divs carrying its layout code as a class. */
 	public function buildSection($section) {
 		$code = $section['style'];
@@ -368,6 +386,12 @@ class BookHtmlBuilder {
 
 	/** Wraps rendered content in the div the stylesheets style. */
 	private function wrapLayout($code, $content) {
+		// Every layout block is meant to occupy exactly one printed page, which
+		// is why set sections are chunked into one block per page rather than
+		// left to the renderer. Counting them gives the worker something to
+		// compare the produced PDF against.
+		$this->last_document_blocks++;
+
 		$classes = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
 		if ($this->current_section_class) { $classes .= ' '.$this->current_section_class; }
 
@@ -405,31 +429,68 @@ class BookHtmlBuilder {
 
 		$this->current_section_class = 'bc-section-'.$id;
 
-		// This string is read by two parsers in turn, and escaping for only one
-		// of them is what makes the naive version dangerous.
-		//
-		// CSS first: backslashes, then the quote that delimits the literal, then
-		// the newlines a title pasted from a word processor carries — an
-		// unescaped one terminates the declaration and drops the rest of the
-		// stylesheet.
-		//
-		// HTML second, and this is the part the first version of this method
-		// missed: the rule is written inside a <style> element, and the HTML
-		// tokeniser closes that element at the first "</style>" it sees, wherever
-		// it sits — inside a CSS string included. A section titled
-		// "</style><script>…</script>" therefore left the stylesheet and became
-		// executable script in the preview, running with the editor's session.
-		// "<" and ">" go out as CSS hexadecimal escapes: the CSS parser reads
-		// them back as the characters themselves, so the running head still
-		// prints the title as typed, while the HTML tokeniser never sees a tag.
-		// The trailing space terminates each escape, and is consumed with it.
-		$escaped = str_replace(
-			['\\', '"', "\r\n", "\r", "\n", '<', '>'],
-			['\\\\', '\\"', ' ', ' ', ' ', '\\3c ', '\\3e '],
-			$title
-		);
+		$this->running_head_css[] = '.'.$this->current_section_class
+			.' { string-set: chapter "'.self::cssString($title).'"; }';
+	}
 
-		$this->running_head_css[] = '.'.$this->current_section_class.' { string-set: chapter "'.$escaped.'"; }';
+	/**
+	 * A title, as the body of a CSS string literal.
+	 *
+	 * This string is read by two parsers in turn — the HTML tokeniser that finds
+	 * the end of the <style> element, then the CSS parser that reads the literal
+	 * — and three separate escapes have been written here, each one enumerating
+	 * the characters believed to be dangerous, each one shipped with one
+	 * missing:
+	 *
+	 *   - the first escaped only the quote and the backslash, so a section
+	 *     titled "</style><script>" left the stylesheet and ran as script;
+	 *   - the second added "<" and ">" and missed U+000C, which CSS Syntax 3
+	 *     §4.2 counts as a newline exactly like \n: a form feed pasted into a
+	 *     title closed the literal and injected arbitrary CSS — a book silently
+	 *     reduced to a 50 mm page with its text set to display:none.
+	 *
+	 * The list was never going to be complete, so this no longer uses one. Only
+	 * ASCII letters and digits are emitted as themselves; every other character
+	 * — punctuation, spaces, accented letters, dashes, anything a title may hold
+	 * — leaves as a CSS hexadecimal escape, which the parser reads back as that
+	 * exact character. Nothing new can slip through, because nothing is being
+	 * decided about individual characters any more.
+	 *
+	 * The space is escaped along with the rest, and that is not zeal. CSS Syntax
+	 * 3 §4.3.7 consumes a whitespace character that follows an escape, six
+	 * digits or not: leaving spaces literal printed "Le \"Grand\"atelier" for
+	 * "Le \"Grand\" atelier", every space swallowed by the escape before it.
+	 * Escaping them too means no escape is ever followed by a literal space.
+	 */
+	private static function cssString($title) {
+		$out = '';
+
+		// UTF-8 aware: a byte loop would escape each byte of a letter like "e"
+		// with an acute accent separately and produce mojibake.
+		foreach (preg_split('//u', $title, -1, PREG_SPLIT_NO_EMPTY) as $char) {
+			if (preg_match('~^[A-Za-z0-9]$~', $char)) {
+				$out .= $char;
+				continue;
+			}
+
+			$codepoint = self::codepoint($char);
+			// Not valid UTF-8: no code point to emit, and nothing that could be
+			// rendered either, so it is dropped rather than passed through.
+			if ($codepoint === null) { continue; }
+
+			$out .= sprintf('\\%06X', $codepoint);
+		}
+
+		return $out;
+	}
+
+	/** Unicode code point of one UTF-8 character, null when undecodable. */
+	private static function codepoint($char) {
+		$converted = @iconv('UTF-8', 'UCS-4BE', $char);
+		if ($converted === false || strlen($converted) < 4) { return null; }
+
+		$unpacked = unpack('N', substr($converted, 0, 4));
+		return $unpacked ? $unpacked[1] : null;
 	}
 
 	/**

@@ -114,6 +114,28 @@ class PreviewController extends ActionController {
 		// document carrying anything of its own.
 		$this->response->addHeader('X-BookCreator-Skipped', (string)$builder->countSkipped());
 		$this->response->addHeader('Content-Type', 'text/html; charset=UTF-8');
+
+		// The Markdown of a section is rendered with raw HTML allowed, on
+		// purpose: the v1 corpus contains inline markup and refusing it would
+		// change the books. But this document is served as text/html on the
+		// CollectiveAccess origin, so a <script> or an onerror= typed into a
+		// section ran with the session of whoever opened the preview.
+		//
+		// Rather than enumerating the tags and attributes to strip — the same
+		// losing game as escaping a character list — the whole class of
+		// execution is refused here. Only scripts served by this origin may run,
+		// which is Paged.js and nothing else: inline <script> blocks and every
+		// on* handler are dead, whatever they look like, because CSP never
+		// grants them without 'unsafe-inline'. Styles stay inline-allowed since
+		// the document carries its own generated <style>, and the CSS written
+		// into it is escaped at the source.
+		//
+		// The PDF chain needs none of this: WeasyPrint runs no script at all.
+		$this->response->addHeader(
+			'Content-Security-Policy',
+			"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+			."img-src 'self' data: blob:; font-src 'self' data:; base-uri 'none'; form-action 'none'"
+		);
 		$this->response->sendHeaders();
 
 		print $html;

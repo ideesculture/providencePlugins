@@ -240,22 +240,33 @@ class BookJobModel {
 	 * is clamped rather than rejected: the column is a TINYINT UNSIGNED and a
 	 * rounding error upstream must not abort a two-minute render.
 	 */
-	public function updateProgress(int $jobId, int $percent, ?string $message = null): bool {
+	public function updateProgress(int $jobId, int $percent, ?string $message = null, ?string $claimToken = null): bool {
 		if ($jobId <= 0) { return false; }
 		$percent = max(0, min(100, $percent));
 
-		if ($message === null) {
-			$qr = $this->query(
-				"UPDATE `" . self::TABLE . "` SET progress = ? WHERE job_id = ? AND status = ?",
-				[$percent, $jobId, self::STATUS_RUNNING]
-			);
-		} else {
-			$qr = $this->query(
-				"UPDATE `" . self::TABLE . "` SET progress = ?, message = ? WHERE job_id = ? AND status = ?",
-				[$percent, $message, $jobId, self::STATUS_RUNNING]
-			);
+		// truncateMessage() like every other message writer. This one was the
+		// exception, and it is the one the worker uses to report its warnings:
+		// past roughly nine hundred of them the TEXT column overflows, strict
+		// mode rejects the statement, and every warning of the job is lost —
+		// precisely the case the warning mechanism exists for.
+		if ($message !== null) { $message = $this->truncateMessage($message); }
+
+		$sql = "UPDATE `" . self::TABLE . "` SET progress = ?"
+			.($message === null ? '' : ', message = ?')
+			." WHERE job_id = ? AND status = ?";
+		$params = [$percent];
+		if ($message !== null) { $params[] = $message; }
+		$params[] = $jobId;
+		$params[] = self::STATUS_RUNNING;
+
+		// The claim token narrows the write to the worker that holds the job;
+		// see finish() for why that matters.
+		if ($claimToken !== null) {
+			$sql .= " AND worker_id = ?";
+			$params[] = $claimToken;
 		}
-		return (bool)$qr;
+
+		return (bool)$this->query($sql, $params);
 	}
 
 	/**
@@ -265,15 +276,28 @@ class BookJobModel {
 	 * reapStale) may already have been claimed by another worker; the late
 	 * worker then gets false here instead of overwriting a fresher run.
 	 */
-	public function finish(int $jobId, string $pdfPath): bool {
+	public function finish(int $jobId, string $pdfPath, ?string $claimToken = null): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->query(
-			"UPDATE `" . self::TABLE . "`
+		// The claim token, not merely the status. reapStale() requeues the same
+		// job_id, so a job reaped while its worker is still alive is claimed a
+		// second time and is running for the newcomer: testing the status alone
+		// let the stale worker finish first and record its own file, after which
+		// the fresh one found the job done and threw its result away — the exact
+		// opposite of what this method used to promise. The token is unique to
+		// one claim, so only the worker that currently holds the job can close
+		// it.
+		$sql = "UPDATE `" . self::TABLE . "`
 			 SET status = ?, progress = 100, pdf_path = ?, finished_on = ?
-			 WHERE job_id = ? AND status = ?",
-			[self::STATUS_DONE, $pdfPath, time(), $jobId, self::STATUS_RUNNING]
-		);
+			 WHERE job_id = ? AND status = ?";
+		$params = [self::STATUS_DONE, $pdfPath, time(), $jobId, self::STATUS_RUNNING];
+
+		if ($claimToken !== null) {
+			$sql .= " AND worker_id = ?";
+			$params[] = $claimToken;
+		}
+
+		$qr = $this->query($sql, $params);
 		return ($qr && (int)$this->db->affectedRows() > 0);
 	}
 
@@ -284,15 +308,22 @@ class BookJobModel {
 	 * can both carry: a PHP stack trace or a full WeasyPrint log belongs in the
 	 * worker output, not in a row polled every two seconds.
 	 */
-	public function fail(int $jobId, string $message): bool {
+	public function fail(int $jobId, string $message, ?string $claimToken = null): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->query(
-			"UPDATE `" . self::TABLE . "`
+		$sql = "UPDATE `" . self::TABLE . "`
 			 SET status = ?, message = ?, finished_on = ?
-			 WHERE job_id = ? AND status = ?",
-			[self::STATUS_ERROR, $this->truncateMessage($message), time(), $jobId, self::STATUS_RUNNING]
-		);
+			 WHERE job_id = ? AND status = ?";
+		$params = [self::STATUS_ERROR, $this->truncateMessage($message), time(), $jobId, self::STATUS_RUNNING];
+
+		// Same reasoning as finish(): a stale worker must not be able to mark
+		// failed a job another worker is running.
+		if ($claimToken !== null) {
+			$sql .= " AND worker_id = ?";
+			$params[] = $claimToken;
+		}
+
+		$qr = $this->query($sql, $params);
 		return ($qr && (int)$this->db->affectedRows() > 0);
 	}
 
