@@ -146,10 +146,20 @@ class BookHtmlBuilder {
 		$html .= "<meta charset=\"UTF-8\" />\n";
 
 		// The stylesheets and fonts of a theme are declared relative to its own
-		// directory. WeasyPrint is told where that is through --base-url; a
-		// browser has to be told in the document itself, otherwise the relative
-		// hrefs resolve against the preview URL and every one of them 404s.
-		$html .= "<base href=\"".htmlspecialchars($this->themeBaseUrl(), ENT_QUOTES, 'UTF-8')."\" />\n";
+		// directory. The two consumers are told where that is in different ways,
+		// and mixing them breaks both:
+		//   - WeasyPrint receives --base-url, a file:// path, from the worker;
+		//   - a browser has to be told inside the document, otherwise the
+		//     relative hrefs resolve against the preview URL and all 404.
+		//
+		// The <base> is therefore emitted for the preview ONLY. WeasyPrint gives
+		// a document's own <base> precedence over --base-url, so emitting a web
+		// path here would send it looking for file:///app/plugins/... — every
+		// stylesheet and every font would fail to load, and it would still exit
+		// 0 with a correctly sized but entirely unstyled PDF.
+		if (caGetOption('preview', $options, false)) {
+			$html .= "<base href=\"".htmlspecialchars($this->themeBaseUrl(), ENT_QUOTES, 'UTF-8')."\" />\n";
+		}
 		$html .= "<style>\n".$css."</style>\n";
 
 		foreach ($this->theme->getStylesheets() as $sheet) {
@@ -296,16 +306,27 @@ class BookHtmlBuilder {
 		$media_container = $manifest['media_container'] ?? 'media-bar';
 
 		$blocks = $this->buildSetItems($section, $code);
-		$media = '';
-		if (sizeof($blocks)) {
-			$media = "<div class=\"".htmlspecialchars($media_container, ENT_QUOTES, 'UTF-8')."\">\n"
-				.join('', $blocks)
-				."</div>\n";
-		}
-
 		$text = "<div class=\"content\">".$this->markdown->render($section['content'])."</div>\n";
 
-		return $this->wrapLayout($code, $text.$media);
+		if (!sizeof($blocks)) { return $this->wrapLayout($code, $text); }
+
+		// These layouts hold a fixed number of plates per page too, and their
+		// manifests declare it — the two-plate layouts say so explicitly. Only
+		// the first page carries the text; the following ones continue with the
+		// remaining plates, exactly as the set layouts do. Emitting all of them
+		// in a single bar, as this did, overflows the page and therefore loses
+		// pages, which in turn falsifies every folio after it.
+		$per_page = $this->getItemsPerPage($code, $section);
+		$pages = ($per_page > 0) ? array_chunk($blocks, $per_page) : [$blocks];
+
+		$html = '';
+		foreach ($pages as $index => $page_blocks) {
+			$bar = "<div class=\"".htmlspecialchars($media_container, ENT_QUOTES, 'UTF-8')."\">\n"
+				.join('', $page_blocks)
+				."</div>\n";
+			$html .= $this->wrapLayout($code, ($index === 0 ? $text : '').$bar);
+		}
+		return $html;
 	}
 
 	/** Wraps rendered content in the div the stylesheets style. */

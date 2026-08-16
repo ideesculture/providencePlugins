@@ -390,6 +390,23 @@ final class BookWorkerRenderBridge {
 # -------------------------------------------------------
 
 /**
+ * True when the layout of this section generates a table of contents.
+ *
+ * Read from the theme manifest rather than from the layout name: a theme is
+ * free to call it whatever it likes, and the type is exactly what the manifest
+ * declares it for.
+ */
+function bookworker_is_summary_section(array $book, array $section): bool {
+	static $registries = [];
+
+	$theme = $book['theme'] ?? 'default';
+	if (!isset($registries[$theme])) { $registries[$theme] = new TemplateRegistry($theme); }
+
+	$manifest = $registries[$theme]->getTemplate($section['style']);
+	return is_array($manifest) && ($manifest['section_type'] ?? '') === 'summary';
+}
+
+/**
  * Directories the worker writes to.
  *
  * Read from the plugin configuration when the keys are present, so a host can
@@ -501,11 +518,15 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// generated table of contents has no folios, the cumulated page count of
 		// the interface stays at zero, and a section previewed on its own cannot
 		// carry the number it holds in the book.
-		$book->setSection((int)$section['booksection_id'], [
-			'pages'       => (int)$rendered['pages'],
-			'first_page'  => $page_offset,
-			'rendered_on' => time(),
-		], false);   // false: these columns are the worker's, not a form's
+		// A single-section job renders that section alone, starting at page 1:
+		// its offset is a placeholder, not its place in the book. Writing it
+		// would overwrite the real folio computed by the last full generation,
+		// so only the page count is recorded in that case.
+		$counters = ['pages' => (int)$rendered['pages'], 'rendered_on' => time()];
+		if ($job['job_type'] !== BookJobModel::TYPE_SECTION) {
+			$counters['first_page'] = $page_offset;
+		}
+		$book->setSection((int)$section['booksection_id'], $counters, false);   // false: worker columns, not a form's
 
 		$page_offset += max(0, (int)$rendered['pages']);
 		$done++;
@@ -519,6 +540,41 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			_t('Section %1 of %2 rendered', $done, $total)
 		);
 		bookworker_log("job {$job['job_id']}: section {$done}/{$total} rendered ({$percent}%)");
+	}
+
+	// Second pass for generated tables of contents.
+	//
+	// A table of contents lists the first page of the sections that follow it,
+	// and it sits at the front of the book — so on the first pass it reads
+	// folios that have not been computed yet, and prints none. Re-rendering it
+	// once the whole book has been laid out is the only way it can carry real
+	// numbers. Only summary sections are rendered again, and their PDF replaces
+	// the one produced by the first pass.
+	if ($job['job_type'] !== BookJobModel::TYPE_SECTION) {
+		foreach ($sections as $index => $section) {
+			if (!bookworker_is_summary_section($book_data, $section)) { continue; }
+
+			$before = (int)$section['pages'];
+			$rendered = BookWorkerRenderBridge::renderSection(
+				$book_data,
+				$section,
+				(int)$book->getSection((int)$section['booksection_id'])['first_page'],
+				$directories['work']
+			);
+			$section_pdfs[$index] = $rendered['path'];
+
+			// A table of contents that grew or shrank between the two passes
+			// shifts everything after it, so the folios it now prints are off
+			// by that difference. Rare, but it has to be said rather than
+			// silently produce a book whose numbering is wrong.
+			if ($before && $before !== (int)$rendered['pages']) {
+				bookworker_error(
+					"job {$job['job_id']}: the table of contents changed length between passes ("
+					."{$before} -> {$rendered['pages']} pages); page numbers after it are off by "
+					.((int)$rendered['pages'] - $before).". Generate again to settle them."
+				);
+			}
+		}
 	}
 
 	$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('Assembling the PDF'));
@@ -656,6 +712,7 @@ foreach ([
 	$plugin_dir . '/models/plugin_books.php',
 	$plugin_dir . '/lib/PdfRendererFactory.php',
 	$plugin_dir . '/lib/BookHtmlBuilder.php',
+	$plugin_dir . '/lib/TemplateRegistry.php',
 ] as $plugin_file) {
 	if (!is_file($plugin_file)) {
 		bookworker_error("missing plugin file {$plugin_file}");
