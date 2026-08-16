@@ -651,7 +651,35 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		throw new RuntimeException("The PDF chain reported success but {$output_path} was not written.");
 	}
 
+	// The per-section HTML and PDF have served their purpose. Left behind, they
+	// accumulate one set per section per generation: a 200-page catalogue
+	// regenerated weekly fills a disk with files nobody will ever open. They
+	// are only removed once the book exists, so a failed job keeps everything
+	// needed to understand why.
+	bookworker_clean_work_files($section_pdfs, $directories['work']);
+
+	// Older deliverables of the same book are dropped too: only the latest is
+	// ever offered for download, the job carrying its path.
+	bookworker_clean_previous_outputs($directories['output'], (int)$job['book_id'], $output_path);
+
 	return $output_path;
+}
+
+/** Removes the intermediate files of a finished job. */
+function bookworker_clean_work_files(array $section_pdfs, string $work_dir): void {
+	foreach ($section_pdfs as $pdf) {
+		if (is_file($pdf)) { @unlink($pdf); }
+
+		$html = preg_replace('/\.pdf$/', '.html', $pdf);
+		if ($html !== $pdf && is_file($html)) { @unlink($html); }
+	}
+}
+
+/** Removes the previous PDFs of a book, keeping the one just produced. */
+function bookworker_clean_previous_outputs(string $output_dir, int $book_id, string $keep): void {
+	foreach (glob($output_dir . '/book-' . $book_id . '-job-*.pdf') ?: [] as $previous) {
+		if ($previous !== $keep && is_file($previous)) { @unlink($previous); }
+	}
 }
 
 # -------------------------------------------------------

@@ -130,6 +130,11 @@
 		    $book_id = ($this->request->getParameter("book", pInteger));
 		    //var_dump($book_id);
 		    $vt_book = new plugin_books($book_id);
+		    if (!$vt_book->isLoaded()) {
+			    $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
+			    return;
+		    }
+
 	    	// Reordering writes to the database, so it takes a token like every
 	    	// other write. The keys are checked before being read: a forged post
 	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
@@ -158,6 +163,11 @@
 	    public function Summary() {
 		    $book_id = ($this->request->getParameter("book", pInteger));
 		    $vt_book = new plugin_books($book_id);
+		    if (!$vt_book->isLoaded()) {
+			    $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
+			    return;
+		    }
+
 	    	// Reordering writes to the database, so it takes a token like every
 	    	// other write. The keys are checked before being read: a forged post
 	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
@@ -188,6 +198,14 @@
 
 		    $vt_book = new plugin_books($book_id);
 		    $va_section_info = $vt_book->getSection($section_id);
+
+		    // A deleted book or section used to hand false to the view, which
+		    // then indexed it: a form of empty fields and a string of PHP 8
+		    // warnings, with nothing saying what had happened.
+		    if (!$vt_book->isLoaded() || !is_array($va_section_info)) {
+			    $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
+			    return;
+		    }
 
 		    $this->view->setVar("book", $book_id);
 		    $this->view->setVar("section", $section_id);

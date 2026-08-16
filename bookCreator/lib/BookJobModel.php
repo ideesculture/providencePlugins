@@ -245,6 +245,32 @@ class BookJobModel {
 	}
 
 	/**
+	 * Cancels a job that has not been picked up yet.
+	 *
+	 * Without this a book can be stuck for good: submit() deliberately returns
+	 * the pending job of a book rather than queueing a second one, so if the
+	 * worker is not running — the normal state of a fresh install, and the one
+	 * the README warns about — the button keeps handing back the same job and
+	 * the editor has no way out.
+	 *
+	 * Only a pending job can be cancelled. A running one belongs to a worker
+	 * that is writing files right now; marking it cancelled from the web side
+	 * would leave that worker finishing a job nobody expects any more. Such a
+	 * job is dealt with by reapStale(), which is the mechanism for it.
+	 */
+	public function cancel(int $jobId): bool {
+		if ($jobId <= 0) { return false; }
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, message = ?, finished_on = ?
+			 WHERE job_id = ? AND status = ?",
+			[self::STATUS_ERROR, $this->truncateMessage(_t('Cancelled before it started.')), time(), $jobId, self::STATUS_PENDING]
+		);
+		return ($qr && (int)$this->db->affectedRows() > 0);
+	}
+
+	/**
 	 * Puts a running job back in the queue, without counting it as a failure.
 	 *
 	 * Used when the worker is asked to stop (SIGTERM from a cron wrapper, pod

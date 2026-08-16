@@ -102,6 +102,42 @@ class GenerationController extends ActionController {
 		$this->render('generate_html.php');
 	}
 
+	/**
+	 * Cancels the job waiting for this book.
+	 *
+	 * The way out of a queue nobody is serving: since submit() hands back the
+	 * pending job instead of creating another, a book whose worker is not
+	 * running would otherwise stay locked on it for ever.
+	 */
+	public function Cancel() {
+		$book_id = (int)$this->request->getParameter('book', pInteger);
+
+		if (!$this->request->isLoggedIn() || !BookCsrf::isValid($this->request)) {
+			$this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Generation', 'Index', ['book' => $book_id]));
+			return;
+		}
+
+		$job = $this->opo_jobs->getForBook($book_id);
+		$notification = null;
+		$error = null;
+
+		if (!is_array($job)) {
+			$error = _t('There is no generation to cancel for this book.');
+		} elseif ($this->opo_jobs->cancel((int)$job['job_id'])) {
+			$notification = _t('Generation cancelled.');
+		} else {
+			// cancel() only touches a pending job: a running one belongs to a
+			// worker that is writing right now, and is left to the reaper.
+			$error = _t('This generation has already started and cannot be cancelled. It will be released if its worker stops.');
+		}
+
+		$this->view->setVar('book_id', $book_id);
+		$this->view->setVar('job', $this->opo_jobs->getForBook($book_id));
+		$this->view->setVar('notification', $notification);
+		$this->view->setVar('error', $error);
+		$this->render('generate_html.php');
+	}
+
 	/** The progress screen alone, without queueing anything. */
 	public function Index() {
 		$book_id = (int)$this->request->getParameter('book', pInteger);

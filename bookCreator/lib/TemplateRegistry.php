@@ -163,15 +163,5 @@ class TemplateRegistry {
 		return null;
 	}
 
-	/** Path of the HTML skeleton of a layout, or null when it has none. */
-	public function getSkeletonPath($code) {
-		$path = $this->templatesPath().'/'.$code.'/template.php';
-		return is_file($path) ? $path : null;
-	}
 
-	/** Web-facing thumbnail file name of a layout, kept for the picker. */
-	public function getThumbnailPath($code) {
-		$path = $this->templatesPath().'/'.$code.'/thumbnail.png';
-		return is_file($path) ? $path : null;
-	}
 }

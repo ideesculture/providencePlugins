@@ -106,14 +106,8 @@ class RecordLoader {
 		$this->skipped[] = ['table' => $table, 'id' => $id, 'reason' => $reason, 'context' => $context];
 	}
 
-	/** True when something was left out of the rendering. */
-	public function hasSkipped() { return (bool)sizeof($this->skipped); }
-
 	/** How many items were left out. */
 	public function countSkipped() { return sizeof($this->skipped); }
-
-	/** Raw list of skipped items, for callers that want to format their own report. */
-	public function getSkipped() { return $this->skipped; }
 
 	/**
 	 * One human-readable line per skipped item, ready to display outside the

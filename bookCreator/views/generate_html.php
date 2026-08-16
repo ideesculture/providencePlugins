@@ -13,6 +13,7 @@
 $book_id = (int)$this->getVar('book_id');
 $job     = $this->getVar('job');
 $error   = $this->getVar('error');
+$notification = $this->getVar('notification');
 
 $status   = is_array($job) ? $job['status'] : 'none';
 $progress = is_array($job) ? (int)$job['progress'] : 0;
@@ -26,12 +27,17 @@ $status_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Status', ['
 	<div class="alert alert-danger"><?php print htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
 <?php } ?>
 
+<?php if ($notification) { ?>
+	<div class="alert alert-success"><?php print htmlspecialchars($notification, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
 <div id="bookGenerationState">
 <?php if ($status === 'none') { ?>
 	<p><?php print _t('No generation is running for this book.'); ?></p>
 	<?php print caNavButton($this->request, __CA_NAV_ICON_PDF__, _t('Generate the PDF'), '', '*', 'Generation', 'Submit', array_merge(['book' => $book_id], BookCsrf::param())); ?>
 <?php } else { ?>
 	<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
+	<?php print caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t('Cancel this generation'), '', '*', 'Generation', 'Cancel', array_merge(['book' => $book_id], BookCsrf::param())); ?>
 	<progress id="bookGenerationProgress" value="<?php print $progress; ?>" max="100"></progress>
 	<span id="bookGenerationPercent"><?php print $progress; ?>%</span>
 <?php } ?>

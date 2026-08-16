@@ -211,7 +211,8 @@ img {
 .ensemble-4-par-page-texte-droite,
 .texte-deux-images-gauche,
 .texte-deux-images-droite,
-.acheve-d-imprimer {
+.acheve-d-imprimer,
+.sommaire {
 	break-before: page;
 }
 
@@ -223,7 +224,8 @@ img {
 .hors-texte-gauche,
 .hors-texte-droit,
 .page-image,
-.acheve-d-imprimer {
+.acheve-d-imprimer,
+.sommaire {
 	break-after: page;
 }
 
@@ -248,7 +250,8 @@ img {
 .dos-page-de-titre,
 .dedicace-centre,
 .dedicace-droite,
-.acheve-d-imprimer {
+.acheve-d-imprimer,
+.sommaire {
 	page: liminaire;
 }
 

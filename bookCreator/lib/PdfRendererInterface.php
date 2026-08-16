@@ -121,10 +121,6 @@ final class RenderResult {
 		);
 	}
 
-	/** True when the engine had something to say although it succeeded. */
-	public function hasWarnings(): bool {
-		return $this->success && trim($this->warnings) !== '';
-	}
 
 	/** One line for a log or a job message. */
 	public function __toString(): string {
