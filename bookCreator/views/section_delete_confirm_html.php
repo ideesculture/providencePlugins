@@ -10,13 +10,25 @@
  *
  * ----------------------------------------------------------------------
  */
-$section_id = $this->getVar('section');
-$book_id = $this->getVar('book');
-$section = $this->getVar("section_details");
+$section_id = (int)$this->getVar('section');
+$book_id    = (int)$this->getVar('book');
+$section    = $this->getVar("section_details");
+$error      = $this->getVar('error');
+
+// The title, because "section 47" tells the editor nothing about what is
+// about to be deleted. Falls back to the id when the section has no title.
+$label = (is_array($section) && strlen(trim((string)$section['title'])))
+	? $section['title']
+	: _t('section %1', $section_id);
 ?>
 
 <h1><?php print _t('Delete section'); ?></h1>
-<p><?php print _t('Confirm deletion of section'); ?> <?php print (int)$section_id; ?> ?</p>
+
+<?php if ($error) { ?>
+	<div class="alert alert-danger"><?php print htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
+<p><?php print _t('Delete “%1”? This cannot be undone.', htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8')); ?></p>
 <?php
 print caFormTag($this->request, "DeleteSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
 print BookCsrf::field();
@@ -25,31 +37,10 @@ print BookCsrf::field();
 <input name="section" type="hidden" value="<?php print $section_id; ?>"/>
 
 <?php
-print $vs_control_box = caFormControlBox(
+print caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), 'editSectiontext').' '.
-	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "editSection/book/$book_id/section/$section_id", array()),
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "editSection", array('book' => $book_id, 'section' => $section_id)),
 	'',
 	''
 );?>
 </form>
-<style type="text/css">
-	.section-titre-input,
-	.section-intro-input {
-		width:100%;
-	}
-	.section-contenu-textarea {
-		width: 100%;
-		height:220px;
-	}
-</style>
-
-
-<link rel="stylesheet" href="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/css/vendor/easymde.min.css">
-<script src="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/js/vendor/easymde.min.js"></script>
-
-<script>
-	new EasyMDE({
-		element: document.getElementById("section-contenu-textarea"),
-		spellChecker: false,
-	});
-</script>

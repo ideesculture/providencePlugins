@@ -150,5 +150,60 @@ strings = {
 	"This book has not been generated yet." = { fr_FR = "Ce livre n'a pas encore été généré." },
 	"The generated file is no longer available." = { fr_FR = "Le fichier généré n'est plus disponible." },
 	"Book saved. These covers were not found in the covers directory: %1" = { fr_FR = "Livre enregistré. Ces couvertures sont introuvables dans le répertoire des couvertures : %1" },
-	"The table of contents changed length (%1 to %2 pages): the page numbers after it are off by %3. Generate again to settle them." = { fr_FR = "Le sommaire a changé de longueur (%1 à %2 pages) : les numéros de page qui le suivent sont décalés de %3. Relancez la génération pour les stabiliser." }
+	"The table of contents changed length (%1 to %2 pages): the page numbers after it are off by %3. Generate again to settle them." = { fr_FR = "Le sommaire a changé de longueur (%1 à %2 pages) : les numéros de page qui le suivent sont décalés de %3. Relancez la génération pour les stabiliser." },
+	"Invalid or expired request. Save again." = { fr_FR = "Requête invalide ou expirée. Enregistrez à nouveau." },
+	"Invalid or expired request. Confirm again." = { fr_FR = "Requête invalide ou expirée. Confirmez à nouveau." },
+	"Invalid or expired request. Reorder the sections and save again." = { fr_FR = "Requête invalide ou expirée. Réordonnez les sections et enregistrez à nouveau." },
+	"Order saved." = { fr_FR = "Ordre enregistré." },
+	"Section not deleted" = { fr_FR = "Section non supprimée" },
+	"Back to the sections" = { fr_FR = "Retour aux sections" },
+	"Delete “%1”? This cannot be undone." = { fr_FR = "Supprimer « %1 » ? Cette action est irréversible." },
+	"section %1" = { fr_FR = "section %1" },
+	"The database refused the following statements:" = { fr_FR = "La base de données a refusé les instructions suivantes :" },
+
+	# Form controls and table headings
+	"Save" = { fr_FR = "Enregistrer" },
+	"Cancel" = { fr_FR = "Annuler" },
+	"Delete" = { fr_FR = "Supprimer" },
+	"Edit" = { fr_FR = "Modifier" },
+	"Duplicate" = { fr_FR = "Dupliquer" },
+	"Actions" = { fr_FR = "Actions" },
+	"Title" = { fr_FR = "Titre" },
+	"Subtitle" = { fr_FR = "Sous-titre" },
+	"Identifier" = { fr_FR = "Identifiant" },
+	"Description" = { fr_FR = "Description" },
+	"Theme" = { fr_FR = "Thème" },
+	"Format" = { fr_FR = "Format" },
+	"Sections" = { fr_FR = "Sections" },
+	"Pages" = { fr_FR = "Pages" },
+	"Section" = { fr_FR = "Section" },
+	"Style" = { fr_FR = "Style" },
+	"Content" = { fr_FR = "Contenu" },
+	"Set" = { fr_FR = "Ensemble" },
+	"Representation" = { fr_FR = "Représentation" },
+	"Current location" = { fr_FR = "Emplacement courant" },
+	"%1 pages" = { fr_FR = "%1 pages" },
+	"Blank page" = { fr_FR = "Page blanche" },
+
+	# Menu and widget labels
+	"Book" = { fr_FR = "Livre" },
+	"Books" = { fr_FR = "Livres" },
+	"Editor" = { fr_FR = "Éditeur" },
+
+	# Worker progress, shown in the generation screen
+	"Rendering %1 sections" = { fr_FR = "Rendu de %1 sections" },
+	"Section %1 of %2 rendered" = { fr_FR = "Section %1 sur %2 rendue" },
+	"Assembling the PDF" = { fr_FR = "Assemblage du PDF" },
+	"No PDF renderer is available: %1" = { fr_FR = "Aucun moteur de rendu PDF n'est disponible : %1" },
+
+	# Records skipped during rendering
+	"%1 %2 has been deleted" = { fr_FR = "%1 %2 a été supprimé" },
+	"%1 %2 no longer exists" = { fr_FR = "%1 %2 n'existe plus" },
+	"Object %1 has no primary representation" = { fr_FR = "L'objet %1 n'a pas de représentation principale" },
+
+	# Installer
+	"Table %1 is missing and will be created." = { fr_FR = "La table %1 est absente et va être créée." },
+	"Column %1 is missing from table %2 and will be added." = { fr_FR = "La colonne %1 est absente de la table %2 et va être ajoutée." },
+	"Column %1 of table %2 must default to NULL and will be altered." = { fr_FR = "La colonne %1 de la table %2 doit avoir NULL pour valeur par défaut et va être modifiée." },
+	"Index %1 is missing from table %2 and will be added." = { fr_FR = "L'index %1 est absent de la table %2 et va être ajouté." }
 }

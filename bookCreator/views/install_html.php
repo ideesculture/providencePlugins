@@ -13,6 +13,7 @@
 $vb_is_usable   = $this->getVar('is_usable');
 $va_changes     = $this->getVar('changes');
 $va_applied     = $this->getVar('applied');
+$va_failed      = $this->getVar('failed');
 $vs_error       = $this->getVar('error');
 $vs_notification = $this->getVar('notification');
 ?>
@@ -31,6 +32,15 @@ $vs_notification = $this->getVar('notification');
 	<ul>
 		<?php foreach ($va_applied as $vs_sql) { ?>
 			<li><code><?php print htmlspecialchars($vs_sql, ENT_QUOTES, 'UTF-8'); ?></code></li>
+		<?php } ?>
+	</ul>
+<?php } ?>
+
+<?php if (is_array($va_failed) && sizeof($va_failed)) { ?>
+	<p><?php print _t('The database refused the following statements:'); ?></p>
+	<ul>
+		<?php foreach ($va_failed as $vs_failure) { ?>
+			<li><code><?php print htmlspecialchars($vs_failure, ENT_QUOTES, 'UTF-8'); ?></code></li>
 		<?php } ?>
 	</ul>
 <?php } ?>

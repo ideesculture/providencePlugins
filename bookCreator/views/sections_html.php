@@ -14,8 +14,19 @@ $sections = $this->getVar('sections');
 $book_id = $this->getVar('book_id');
 $nb_pages = $this->getVar('nb_pages');
 $book_title = $this->getVar('book_title');
+$notification = $this->getVar('notification');
+$error = $this->getVar('error');
 ?>
 <h1><?php print htmlspecialchars((string)$book_title, ENT_QUOTES, "UTF-8"); ?></h1>
+
+<?php if ($error) { ?>
+	<div class="alert alert-danger"><?php print htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
+<?php if ($notification) { ?>
+	<div class="alert alert-success"><?php print htmlspecialchars((string)$notification, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
 <p><?php print _t('Drag and drop the sections to reorder them.'); ?></p>
 <?php
 print caFormTag($this->request, "BookSections/book/$book_id", "sortBookSections", "bookCreator/Editor");
@@ -31,12 +42,18 @@ print BookCsrf::field();
 		<span class="pull-right"><small style="display:inline-block;color:lightgray;padding-top:14px;"><?php print _t('%1 pages', $section["pages"]); ?> </small><br/><?php print $count; ?>/<?php print $nb_pages; ?></span>
 		<h3>
 			<?php print caNavButton($this->request, __CA_NAV_ICON_EDIT__, _t("Edit"), '', '*', '*', "editSection", array('book' => $book_id, "section"=> $section["booksection_id"]), array(), array("dont_show_content"=>true)); ?>
-			<?php print htmlspecialchars((string)$section["title"], ENT_QUOTES, "UTF-8"); ?> 
+			<?php
+			// Deletion belongs to the section it deletes. The previous version
+			// carried a single Delete button under the list, pointing at
+			// deleteSection without a section parameter: it could never delete
+			// anything, whichever section the editor had in mind.
+			print caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', '*', '*', "deleteSection", array('book' => $book_id, "section" => $section["booksection_id"]), array(), array("dont_show_content"=>true));
+			?>
+			<?php print htmlspecialchars((string)$section["title"], ENT_QUOTES, "UTF-8"); ?>
 		</h3>
 		<input class='currentposition' type='hidden' name='sort[<?php print (int)$section['booksection_id']; ?>][currposition]' value="<?php print (int)$section["sort"]; ?>">
 	</li>
 <?php
-$i++;
 endforeach;
 ?>
 </ul>
@@ -59,12 +76,11 @@ $summary_url  = caNavUrl($this->request, 'bookCreator', 'Editor', 'Summary', ['b
 
 <br/><br/><br/><br/>
 <?php
-print $vs_control_box = caFormControlBox(
+print caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'sortBookSections').' '.
-	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id", array()),
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections", array('book' => $book_id)),
 	'',
-	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id", array())
-
+	''
 );?>
 <div style="margin-bottom:100px;"></div>
 

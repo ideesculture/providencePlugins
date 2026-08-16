@@ -68,6 +68,63 @@ class plugin_books {
 	 */
 	const SECTIONS_FORM_RESERVED = array("booksection_id", "book_id", "pages", "first_page", "content_hash", "rendered_on");
 
+	/**
+	 * Section columns typed as integers in the schema.
+	 *
+	 * A form always posts its fields, empty ones included, so an unfilled
+	 * "set_id" arrives as "". Under the strict SQL mode — the default since
+	 * MySQL 5.7 and MariaDB 10.2.4, that is the whole range this plugin claims
+	 * to support — writing "" into an INT column is error 1366 and the whole
+	 * save fails. These columns therefore have their empty values turned into
+	 * NULL, which is what "not set" means here.
+	 */
+	const SECTIONS_INTEGER_COLUMNS = array("booksection_id", "book_id", "sort", "set_id", "representation_id", "pages", "first_page", "is_in_summary", "rendered_on");
+
+	/** Book columns typed as integers, same reasoning. */
+	const BOOKS_INTEGER_COLUMNS = array("book_id", "locale_id", "created_on", "modified_on");
+
+	/**
+	 * Runs a statement and reports failure as a value.
+	 *
+	 * Db::query() does not return false on a SQL error: it throws a
+	 * DatabaseException (Db/mysqli.php:328), which Providence catches at the
+	 * very top and renders as "Could not connect to database. Check your
+	 * database configuration" — a system error page, on top of the work in
+	 * progress being lost. Every `if ($db->numErrors())` in this file was
+	 * therefore unreachable.
+	 *
+	 * @return array{ok: bool, result: mixed, error: ?string}
+	 */
+	private static function run($db, $sql, $values = null) {
+		try {
+			$result = is_null($values) ? $db->query($sql) : $db->query($sql, $values);
+		} catch (Exception $e) {
+			// Exception, not DatabaseException: the class is not guaranteed to
+			// be loaded in a CLI context, and any other failure is just as bad.
+			return ['ok' => false, 'result' => null, 'error' => $e->getMessage()];
+		}
+
+		if ($db->numErrors()) {
+			return ['ok' => false, 'result' => $result, 'error' => join(' – ', $db->getErrors())];
+		}
+		return ['ok' => true, 'result' => $result, 'error' => null];
+	}
+
+	/**
+	 * Turns empty strings into NULL for the integer columns of a payload.
+	 *
+	 * @param array $data    column => value, as posted
+	 * @param array $columns the integer columns of the table concerned
+	 */
+	private static function normaliseIntegers(array $data, array $columns) {
+		foreach ($columns as $column) {
+			if (array_key_exists($column, $data) && $data[$column] === '') {
+				$data[$column] = null;
+			}
+		}
+		return $data;
+	}
+
 	// Source : http://stackoverflow.com/questions/12330341/php-trying-to-create-dynamic-variables-in-classes/12330428#12330428
 	// This is a method to magically set and get variables inside the class, they are actually stored inside the data array container
 	// but setter and getter allows them to be used like $my_plugin_books_instance->var1
@@ -92,11 +149,12 @@ class plugin_books {
 	public function load($id) {
 		$this->book_id = (int)$id;
 		$o_data = new Db();
-		$qr_result = $o_data->query("
+		$outcome = self::run($o_data, "
 		    SELECT *
 		    FROM plugin_books
 		    WHERE book_id = ?", array((int)$id));
-		if($qr_result && $qr_result->numRows()==1) {
+		$qr_result = $outcome['result'];
+		if($outcome['ok'] && $qr_result && $qr_result->numRows()==1) {
 			$qr_result->nextRow();
 			foreach($qr_result->getRow() as $field=>$value) {
 				$this->{$field} = $value;
@@ -152,11 +210,12 @@ class plugin_books {
 	 */
 	public function getNbPages() {
 		$o_data = new Db();
-		$qr_result = $o_data->query("
+		$outcome = self::run($o_data, "
 		    SELECT SUM(pages) AS nb_pages
 		    FROM plugin_booksections
 		    WHERE book_id = ?", array($this->book_id));
-		if($qr_result && $qr_result->nextRow()) {
+		$qr_result = $outcome['result'];
+		if($outcome['ok'] && $qr_result && $qr_result->nextRow()) {
 			return (int)$qr_result->get("nb_pages");
 		}
 		return 0;
@@ -164,33 +223,53 @@ class plugin_books {
 
 	public function getSections() {
 		$o_data = new Db();
-		$qr_result = $o_data->query("
+		// booksection_id breaks the tie: two sections may share the same sort
+		// value — addSection() gives a new section the sort of its predecessor
+		// plus one, but nothing forbids two rows from ending up equal after a
+		// duplication or a reordering. Without a second criterion, MySQL is free
+		// to return them in any order, and the same book can produce two
+		// different PDFs.
+		$outcome = self::run($o_data, "
 		    SELECT *
 		    FROM plugin_booksections
-		    WHERE book_id = ? ORDER BY sort", array($this->book_id));
+		    WHERE book_id = ? ORDER BY sort, booksection_id", array($this->book_id));
+		$qr_result = $outcome['result'];
 		$result=array();
-		if(!$qr_result) { return $result; }
+		if(!$outcome['ok'] || !$qr_result) { return $result; }
 		while($qr_result->nextRow()) {
 			$result[] = $qr_result->getRow();
 		}
 		return $result;
 	}
 
+	/**
+	 * Writes the new position of each section.
+	 *
+	 * The loop used to discard what setSection() returned, so a reordering that
+	 * failed halfway through reported success and the editor was shown the old
+	 * order as if it had been saved. Errors are collected and returned like
+	 * everywhere else in this class: true, or the array of messages.
+	 *
+	 * @return bool|array
+	 */
 	public function sortSections($data) {
+		$errors = array();
 		foreach($data as $section) {
-			$this->setSection($section["booksection_id"], $section);
+			$result = $this->setSection($section["booksection_id"], $section);
+			if(is_array($result)) { $errors = array_merge($errors, $result); }
 		}
-		return true;
+		return sizeof($errors) ? $errors : true;
 	}
 
 	public function getSection($id) {
 		$o_data = new Db();
-		$qr_result = $o_data->query("
+		$outcome = self::run($o_data, "
 		    SELECT *
 		    FROM plugin_booksections
 		    WHERE book_id = ? AND booksection_id = ?", array($this->book_id, (int)$id));
 
-		if($qr_result && $qr_result->numRows()==1) {
+		$qr_result = $outcome['result'];
+		if($outcome['ok'] && $qr_result && $qr_result->numRows()==1) {
 			$qr_result->nextRow();
 			return $qr_result->getRow();
 		}
@@ -207,6 +286,8 @@ class plugin_books {
 	public function setSection($id, $data, $from_form = true) {
 		$update_vars = array();
 		$values = array();
+
+		$data = self::normaliseIntegers($data, self::SECTIONS_INTEGER_COLUMNS);
 
 		// Columns a form must never reach. The worker passes $from_form = false
 		// to write the rendering counters, which are its own business.
@@ -226,25 +307,28 @@ class plugin_books {
 
 		$o_data = new Db();
 		$request = "UPDATE plugin_booksections SET ".implode(", ", $update_vars)." WHERE book_id = ? AND booksection_id = ?";
-		$qr_result = $o_data->query($request, $values);
-		if($o_data->numErrors()) {
-			return $o_data->getErrors();
+		$outcome = self::run($o_data, $request, $values);
+		if(!$outcome['ok']) {
+			return array($outcome['error']);
 		}
 		return true;
 	}
 
 	public function addSection() {
 		$o_data = new Db();
-		$qr_result = $o_data->query("SELECT MAX(sort) AS max_sort FROM plugin_booksections WHERE book_id = ?", array($this->book_id));
+		$outcome = self::run($o_data, "SELECT MAX(sort) AS max_sort FROM plugin_booksections WHERE book_id = ?", array($this->book_id));
+		if(!$outcome['ok']) { return array($outcome['error']); }
+
 		$sort = 0;
+		$qr_result = $outcome['result'];
 		if($qr_result && $qr_result->nextRow()) {
 			$sort = (int)$qr_result->get("max_sort") + 1;
 		}
 		// booksection_id is left out so the AUTO_INCREMENT does its job.
 		$request = "INSERT INTO plugin_booksections (book_id, title, sort, style) VALUES (?, ?, ?, ?)";
-		$o_data->query($request, array($this->book_id, _t("Blank page"), $sort, "page-blanche"));
-		if($o_data->numErrors()) {
-			return $o_data->getErrors();
+		$outcome = self::run($o_data, $request, array($this->book_id, _t("Blank page"), $sort, "page-blanche"));
+		if(!$outcome['ok']) {
+			return array($outcome['error']);
 		}
 		return true;
 	}
@@ -252,9 +336,9 @@ class plugin_books {
 	public function deleteSection($id) {
 		$o_data = new Db();
 		$request = "DELETE FROM plugin_booksections WHERE book_id = ? AND booksection_id = ?";
-		$o_data->query($request, array($this->book_id, (int)$id));
-		if($o_data->numErrors()) {
-			return $o_data->getErrors();
+		$outcome = self::run($o_data, $request, array($this->book_id, (int)$id));
+		if(!$outcome['ok']) {
+			return array($outcome['error']);
 		}
 		return true;
 	}
@@ -281,7 +365,7 @@ class plugin_books {
 	 */
 	public static function getBooks(): array {
 		$o_data = new Db();
-		$qr_result = $o_data->query("
+		$outcome = self::run($o_data, "
 		    SELECT b.*,
 		           COALESCE(s.nb_sections, 0) AS nb_sections,
 		           COALESCE(s.nb_pages, 0) AS nb_pages
@@ -293,8 +377,9 @@ class plugin_books {
 		    ) s ON s.book_id = b.book_id
 		    ORDER BY b.title");
 
+		$qr_result = $outcome['result'];
 		$result = array();
-		if(!$qr_result) { return $result; }
+		if(!$outcome['ok'] || !$qr_result) { return $result; }
 		while($qr_result->nextRow()) {
 			$row = $qr_result->getRow();
 			$row["nb_sections"] = (int)$row["nb_sections"];
@@ -319,6 +404,8 @@ class plugin_books {
 		$placeholders = array();
 		$values = array();
 
+		$data = self::normaliseIntegers($data, self::BOOKS_INTEGER_COLUMNS);
+
 		foreach(self::BOOKS_WRITABLE_COLUMNS as $field) {
 			if(!array_key_exists($field, $data)) { continue; }
 			$columns[] = "`".$field."`";
@@ -333,8 +420,8 @@ class plugin_books {
 
 		$o_data = new Db();
 		$request = "INSERT INTO plugin_books (".implode(", ", $columns).") VALUES (".implode(", ", $placeholders).")";
-		$o_data->query($request, $values);
-		if($o_data->numErrors()) { return null; }
+		$outcome = self::run($o_data, $request, $values);
+		if(!$outcome['ok']) { return null; }
 
 		$new_id = (int)$o_data->getLastInsertID();
 		return ($new_id > 0) ? $new_id : null;
@@ -358,6 +445,8 @@ class plugin_books {
 		// an instance built in insertion mode, where it was never assigned.
 		$whitelist = is_array($this->books_db_structure) ? $this->books_db_structure : self::BOOKS_WRITABLE_COLUMNS;
 
+		$data = self::normaliseIntegers($data, self::BOOKS_INTEGER_COLUMNS);
+
 		$update_vars = array();
 		$values = array();
 		foreach($data as $field=>$value) {
@@ -378,9 +467,9 @@ class plugin_books {
 
 		$o_data = new Db();
 		$request = "UPDATE plugin_books SET ".implode(", ", $update_vars)." WHERE book_id = ?";
-		$o_data->query($request, $values);
-		if($o_data->numErrors()) {
-			return $o_data->getErrors();
+		$outcome = self::run($o_data, $request, $values);
+		if(!$outcome['ok']) {
+			return array($outcome['error']);
 		}
 		return true;
 	}
@@ -400,11 +489,11 @@ class plugin_books {
 		if($id <= 0) { return false; }
 
 		$o_data = new Db();
-		$o_data->query("DELETE FROM plugin_booksections WHERE book_id = ?", array($id));
-		if($o_data->numErrors()) { return false; }
+		$outcome = self::run($o_data, "DELETE FROM plugin_booksections WHERE book_id = ?", array($id));
+		if(!$outcome['ok']) { return false; }
 
-		$o_data->query("DELETE FROM plugin_books WHERE book_id = ?", array($id));
-		if($o_data->numErrors()) { return false; }
+		$outcome = self::run($o_data, "DELETE FROM plugin_books WHERE book_id = ?", array($id));
+		if(!$outcome['ok']) { return false; }
 
 		return true;
 	}
@@ -430,26 +519,26 @@ class plugin_books {
 		$o_data = new Db();
 		$now = time();
 
-		$o_data->query("
+		$outcome = self::run($o_data, "
 		    INSERT INTO plugin_books
 		        (idno, title, subtitle, description, theme, font_pair, page_format, cover_pdf, backcover_pdf, locale_id, created_on, modified_on)
 		    SELECT idno, ?, subtitle, description, theme, font_pair, page_format, cover_pdf, backcover_pdf, locale_id, ?, ?
 		    FROM plugin_books
 		    WHERE book_id = ?", array($new_title, $now, $now, $id));
-		if($o_data->numErrors()) { return null; }
+		if(!$outcome['ok']) { return null; }
 
 		// An unknown source book selects no row, so nothing is inserted and the
 		// insert id stays at 0.
 		$new_id = (int)$o_data->getLastInsertID();
 		if($new_id <= 0) { return null; }
 
-		$o_data->query("
+		$outcome = self::run($o_data, "
 		    INSERT INTO plugin_booksections
 		        (book_id, sort, title, style, content, intro, set_id, representation_id, is_in_summary, options, pages, first_page, content_hash, rendered_on)
 		    SELECT ?, sort, title, style, content, intro, set_id, representation_id, is_in_summary, options, NULL, NULL, NULL, NULL
 		    FROM plugin_booksections
 		    WHERE book_id = ?", array($new_id, $id));
-		if($o_data->numErrors()) { return null; }
+		if(!$outcome['ok']) { return null; }
 
 		return $new_id;
 	}

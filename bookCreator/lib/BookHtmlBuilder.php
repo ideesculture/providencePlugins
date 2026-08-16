@@ -82,6 +82,12 @@ class BookHtmlBuilder {
 	 */
 	private $use_local_media = true;
 
+	/** Running-head rules collected while building, one per section; see collectRunningHead(). */
+	private $running_head_css = [];
+
+	/** Class scoping the section being built, or null when it has no title. */
+	private $current_section_class = null;
+
 	public function __construct($theme_code = 'default', $format = 'a4-landscape', $font_pair = 'default', $parser = null) {
 		$this->theme     = new ThemeRegistry($theme_code);
 		$this->templates = new TemplateRegistry($theme_code);
@@ -110,6 +116,10 @@ class BookHtmlBuilder {
 		$this->use_local_media = !caGetOption('preview', $options, false);
 
 		$book = new plugin_books($book_id);
+
+		// The builder is reusable: the worker keeps one instance for the whole
+		// book and calls this once per section.
+		$this->running_head_css = [];
 
 		$body = '';
 		foreach ($book->getSections() as $section) {
@@ -140,6 +150,11 @@ class BookHtmlBuilder {
 		// N-1 would shift the whole book by one page.
 		if (isset($options['first_page']) && (int)$options['first_page'] > 0) {
 			$css .= "@page :first { counter-reset: page ".(int)$options['first_page']."; }\n";
+		}
+
+		// Running heads, one rule per section built above.
+		if (sizeof($this->running_head_css)) {
+			$css .= join("\n", $this->running_head_css)."\n";
 		}
 
 		$html  = "<!DOCTYPE html>\n<html><head>\n";
@@ -229,6 +244,8 @@ class BookHtmlBuilder {
 	public function buildSection($section) {
 		$code = $section['style'];
 		$manifest = $this->templates->getTemplate($code);
+
+		$this->collectRunningHead($section);
 
 		// An unknown layout still renders its text rather than disappearing:
 		// losing a page silently is worse than losing its layout.
@@ -331,7 +348,49 @@ class BookHtmlBuilder {
 
 	/** Wraps rendered content in the div the stylesheets style. */
 	private function wrapLayout($code, $content) {
-		return "<div class=\"".htmlspecialchars($code, ENT_QUOTES, 'UTF-8')."\">\n".$content."</div>\n";
+		$classes = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+		if ($this->current_section_class) { $classes .= ' '.$this->current_section_class; }
+
+		return "<div class=\"".$classes."\">\n".$content."</div>\n";
+	}
+
+	/**
+	 * Records the running head of a section, as a CSS rule.
+	 *
+	 * base.css only sets string(chapter) from the h1 of the three chapter
+	 * layouts. Every other layout — plates, catalogue pages, full-bleed images —
+	 * carries no h1, so the string stayed empty and those pages printed no
+	 * running head at all. Worse, the worker renders each section as a document
+	 * of its own: a string set in the previous section cannot carry over, the
+	 * way it would in a single continuous document.
+	 *
+	 * The title is therefore emitted as a literal in a rule of its own, scoped
+	 * to this section. A literal rather than content() or attr(): both would
+	 * need an element in the flow to hang off, and a literal is plain CSS 2.1
+	 * that no renderer can decline. The h1 rule of base.css still applies on top
+	 * for chapter layouts, which is what we want — a chapter titled differently
+	 * from its section shows its own title.
+	 */
+	private function collectRunningHead($section) {
+		$this->current_section_class = null;
+
+		$title = trim((string)$section['title']);
+		$id    = (int)$section['booksection_id'];
+		if (!strlen($title) || $id <= 0) { return; }
+
+		$this->current_section_class = 'bc-section-'.$id;
+
+		// A CSS string literal: backslashes first, then the quote that delimits
+		// it, then the newlines a title pasted from a document may carry — an
+		// unescaped one would terminate the declaration and drop the rest of the
+		// stylesheet.
+		$escaped = str_replace(
+			['\\', '"', "\r\n", "\r", "\n"],
+			['\\\\', '\\"', ' ', ' ', ' '],
+			$title
+		);
+
+		$this->running_head_css[] = '.'.$this->current_section_class.' { string-set: chapter "'.$escaped.'"; }';
 	}
 
 	/**

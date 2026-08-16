@@ -58,8 +58,45 @@ class BookJobModel {
 	/** @var Db */
 	private $db;
 
+	/** Message of the last statement that failed, for callers that report it. */
+	private $last_error = null;
+
 	public function __construct($db = null) {
 		$this->db = $db ? $db : new Db();
+	}
+
+	/**
+	 * Runs a statement and returns false instead of throwing.
+	 *
+	 * Db::query() throws a DatabaseException on a SQL error rather than
+	 * returning false (Db/mysqli.php:328). On the web side that surfaces as a
+	 * Providence system error page; in the worker it kills the process in the
+	 * middle of a render, leaving the job stuck in 'running' until reapStale()
+	 * picks it up an hour later. Both are worse than a job that fails cleanly,
+	 * so every statement of this class goes through here.
+	 *
+	 * @return mixed the query result, or false when the statement failed
+	 */
+	private function query(string $sql, array $params = array()) {
+		$this->last_error = null;
+		try {
+			$qr = $this->db->query($sql, $params);
+		} catch (Exception $e) {
+			$this->last_error = $e->getMessage();
+			return false;
+		}
+		if ($this->db->numErrors()) {
+			$this->last_error = join(' – ', $this->db->getErrors());
+			return false;
+		}
+		return $qr;
+	}
+
+	/**
+	 * Message of the last failed statement, or null when the last one worked.
+	 */
+	public function getLastError(): ?string {
+		return $this->last_error;
 	}
 
 	# -------------------------------------------------------
@@ -91,7 +128,7 @@ class BookJobModel {
 			return (int)$existing['job_id'];
 		}
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"INSERT INTO `" . self::TABLE . "` (book_id, job_type, section_id, status, progress, created_on)
 			 VALUES (?, ?, ?, ?, 0, ?)",
 			[$bookId, $type, $sectionId, self::STATUS_PENDING, time()]
@@ -141,7 +178,7 @@ class BookJobModel {
 	public function claimNext(string $workerId): ?array {
 		$token = $this->claimToken($workerId);
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = ?, started_on = ?, progress = 0, message = NULL
 			 WHERE status = ?
@@ -165,7 +202,7 @@ class BookJobModel {
 		if ($jobId <= 0) { return null; }
 		$token = $this->claimToken($workerId);
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = ?, started_on = ?, progress = 0, message = NULL
 			 WHERE job_id = ? AND status = ?",
@@ -193,12 +230,12 @@ class BookJobModel {
 		$percent = max(0, min(100, $percent));
 
 		if ($message === null) {
-			$qr = $this->db->query(
+			$qr = $this->query(
 				"UPDATE `" . self::TABLE . "` SET progress = ? WHERE job_id = ? AND status = ?",
 				[$percent, $jobId, self::STATUS_RUNNING]
 			);
 		} else {
-			$qr = $this->db->query(
+			$qr = $this->query(
 				"UPDATE `" . self::TABLE . "` SET progress = ?, message = ? WHERE job_id = ? AND status = ?",
 				[$percent, $message, $jobId, self::STATUS_RUNNING]
 			);
@@ -216,7 +253,7 @@ class BookJobModel {
 	public function finish(int $jobId, string $pdfPath): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, progress = 100, pdf_path = ?, finished_on = ?
 			 WHERE job_id = ? AND status = ?",
@@ -235,7 +272,7 @@ class BookJobModel {
 	public function fail(int $jobId, string $message): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, message = ?, finished_on = ?
 			 WHERE job_id = ? AND status = ?",
@@ -261,7 +298,7 @@ class BookJobModel {
 	public function cancel(int $jobId): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, message = ?, finished_on = ?
 			 WHERE job_id = ? AND status = ?",
@@ -281,7 +318,7 @@ class BookJobModel {
 	public function release(int $jobId, ?string $message = null): bool {
 		if ($jobId <= 0) { return false; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
 			 WHERE job_id = ? AND status = ?",
@@ -298,7 +335,7 @@ class BookJobModel {
 	public function get(int $jobId): ?array {
 		if ($jobId <= 0) { return null; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "` WHERE job_id = ?",
 			[$jobId]
 		);
@@ -318,7 +355,7 @@ class BookJobModel {
 	public function getForBook(int $bookId): ?array {
 		if ($bookId <= 0) { return null; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
 			 WHERE book_id = ?
 			 ORDER BY created_on DESC, job_id DESC
@@ -334,7 +371,7 @@ class BookJobModel {
 	public function getActiveForBook(int $bookId): ?array {
 		if ($bookId <= 0) { return null; }
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
 			 WHERE book_id = ? AND status IN (?, ?)
 			 ORDER BY created_on, job_id
@@ -348,7 +385,7 @@ class BookJobModel {
 
 	/** Number of jobs waiting in the queue, for monitoring and for the worker log. */
 	public function countPending(): int {
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"SELECT COUNT(*) AS c FROM `" . self::TABLE . "` WHERE status = ?",
 			[self::STATUS_PENDING]
 		);
@@ -380,7 +417,7 @@ class BookJobModel {
 		if ($olderThanSeconds < 1) { return 0; }
 		$cutoff = time() - $olderThanSeconds;
 
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
 			 WHERE status = ? AND (started_on IS NULL OR started_on < ?)",
@@ -411,7 +448,7 @@ class BookJobModel {
 
 	/** Reads back the row a claim statement just stamped. */
 	private function getByClaimToken(string $token): ?array {
-		$qr = $this->db->query(
+		$qr = $this->query(
 			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
 			 WHERE worker_id = ? AND status = ?
 			 LIMIT 1",

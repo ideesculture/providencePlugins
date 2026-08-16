@@ -93,6 +93,7 @@ class InstallController extends ActionController {
 			// than sending the user to an editor that would fail.
 			$this->view->setVar('error', _t('The plugin tables could not be fully installed. Check the database user privileges.'));
 			$this->view->setVar('changes', $this->opo_schema->describeState());
+			$this->view->setVar('failed', $this->opo_schema->getInstallErrors());
 		} else {
 			$this->view->setVar('notification', _t('The plugin tables are ready.'));
 			$this->view->setVar('changes', []);

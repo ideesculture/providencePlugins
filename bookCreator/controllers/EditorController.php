@@ -139,16 +139,27 @@
 	    	// other write. The keys are checked before being read: a forged post
 	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
 	    	if(isset($_POST["_formName"]) && $_POST["_formName"]=="sortBookSections"
-	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])
-	    		&& $this->isTrustedRequest()) {
-	    		// We have new positions to sort sections
-	    		$data=array();
-	    		foreach($_POST["sort"] as $section_id=>$position) {
-	    			// Create an array with booksection_id and new sort order
-	    			$data[]=array("booksection_id"=>$section_id, "sort"=>$position["currposition"]);
-			    }
-			    // Call the method to sort sections
-				$vt_book->sortSections($data);
+	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])) {
+
+	    		if (!$this->isTrustedRequest()) {
+	    			$this->view->setVar("error", _t('Invalid or expired request. Reorder the sections and save again.'));
+	    		} else {
+	    			// We have new positions to sort sections
+	    			$data=array();
+	    			foreach($_POST["sort"] as $section_id=>$position) {
+	    				// Create an array with booksection_id and new sort order
+	    				$data[]=array("booksection_id"=>$section_id, "sort"=>$position["currposition"]);
+				    }
+				    // Call the method to sort sections. It reports a failed
+				    // statement rather than throwing, and saying nothing here
+				    // would show the old order back as if it had been saved.
+				    $result = $vt_book->sortSections($data);
+				    if (is_array($result)) {
+				    	$this->view->setVar("error", implode(" – ", $result));
+				    } else {
+				    	$this->view->setVar("notification", _t("Order saved."));
+				    }
+	    		}
 		    }
 		    $va_sections = $vt_book->getSections();
 		    $vn_nb_pages = $vt_book->getNbPages();
@@ -168,21 +179,9 @@
 			    return;
 		    }
 
-	    	// Reordering writes to the database, so it takes a token like every
-	    	// other write. The keys are checked before being read: a forged post
-	    	// without them reached foreach() on a missing key, a fatal in PHP 8.
-	    	if(isset($_POST["_formName"]) && $_POST["_formName"]=="sortBookSections"
-	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])
-	    		&& $this->isTrustedRequest()) {
-	    		// We have new positions to sort sections
-	    		$data=array();
-	    		foreach($_POST["sort"] as $section_id=>$position) {
-	    			// Create an array with booksection_id and new sort order
-	    			$data[]=array("booksection_id"=>$section_id, "sort"=>$position["currposition"]);
-			    }
-			    // Call the method to sort sections
-				$vt_book->sortSections($data);
-		    }
+		    // Read only: summary_html.php shows the table of contents and carries
+		    // no form. The reordering block that used to sit here was a copy of
+		    // the one in BookSections(), waiting for a post that never comes.
 		    $va_sections = $vt_book->getSections();
 		    $vn_nb_pages = $vt_book->getNbPages();
 		    $this->view->setVar("book_id", $book_id);
@@ -216,7 +215,6 @@
 		    $this->render('section_text_editor_html.php');
 	    }
         public function SaveSection() {
-	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
         	$book_id = $this->request->getParameter("book", pInteger);
 	        $section_id = $this->request->getParameter("section", pInteger);
 	        $vt_book = new plugin_books($book_id);
@@ -226,6 +224,21 @@
 	        // recording page counts, for one — silently cleared it.
 	        $post = $_POST;
 	        if (!isset($post['is_in_summary'])) { $post['is_in_summary'] = 0; }
+
+	        // A token expires when the session is renewed, which on a long piece
+	        // of editing is exactly when it happens. Redirecting to the book list
+	        // threw away the text that had just been typed and explained nothing.
+	        // The editor comes back instead, still holding what was posted and
+	        // carrying a fresh token, so saving again is one click.
+	        if (!$this->isTrustedRequest()) {
+		        $this->view->setVar("error", _t('Invalid or expired request. Save again.'));
+		        $this->view->setVar("book", $book_id);
+		        $this->view->setVar("section", $section_id);
+		        $this->view->setVar("section_details", $this->mergePostedSection($vt_book->getSection($section_id), $post));
+		        $this->view->setVar("templates", $this->availableTemplates($vt_book));
+		        $this->render('section_text_editor_html.php');
+		        return;
+	        }
 
 	        $result = $vt_book->setSection($section_id, $post);
 			if(is_array($result)) {
@@ -243,22 +256,46 @@
         }
 
         public function addSection() {
-	        if (!$this->isTrustedRequest()) { $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index')); return; }
 	        $book_id = ($this->request->getParameter("book", pInteger));
-	        //var_dump($book_id);
 	        $vt_book = new plugin_books($book_id);
-	        $result = $vt_book->addSection();
-	        if(is_array($result)) {
-		        $this->view->setVar("error", implode(" – ", $result));
+
+	        if (!$this->isTrustedRequest()) {
+		        $this->view->setVar("error", _t('Invalid or expired request. Reload this page and try again.'));
 	        } else {
-		        $this->view->setVar("notification", _t("Section added."));
+		        $result = $vt_book->addSection();
+		        if(is_array($result)) {
+			        $this->view->setVar("error", implode(" – ", $result));
+		        } else {
+			        $this->view->setVar("notification", _t("Section added."));
+		        }
 	        }
 
-	        $va_sections = $vt_book->getSections();
-	        $this->view->setVar("sections", $va_sections);
+	        // nb_pages and book_title as well: the view prints both, and leaving
+	        // them out gave a heading with no book name and a page counter
+	        // reading "12/" on every line.
+	        $this->view->setVar("sections", $vt_book->getSections());
 	        $this->view->setVar("book_id", $book_id);
+	        $this->view->setVar("nb_pages", $vt_book->getNbPages());
+	        $this->view->setVar("book_title", $vt_book->getTitle());
 
 	        $this->render('sections_html.php');
+        }
+
+        /**
+         * Overlays what a form posted on top of the stored section.
+         *
+         * Used when a save is refused: the editor is redisplayed with the text
+         * as it was typed rather than as it is in the database, so nothing is
+         * lost between the refusal and the retry. Only the fields the form owns
+         * are taken from the payload.
+         */
+        private function mergePostedSection($section, $post) {
+	        if (!is_array($section)) { return $section; }
+
+	        foreach (['title', 'intro', 'content', 'style', 'set_id', 'representation_id', 'is_in_summary'] as $field) {
+		        if (array_key_exists($field, $post)) { $section[$field] = $post[$field]; }
+	        }
+	        return $section;
         }
 
         public function deleteSection() {
@@ -271,12 +308,21 @@
 		        // URL, where it lands in the access logs and in the history.
 		        $this->view->setVar("book", $book_id);
 		        $this->view->setVar("section", $section_id);
+		        $this->view->setVar("section_details", $vt_book->getSection($section_id));
 		        // confirmation dialog
 		        $this->render('section_delete_confirm_html.php');
 			} else {
-				// confirmed, deletion — this is the step the token guards
+				// confirmed, deletion — this is the step the token guards.
+				// An expired token sends the editor back to the confirmation
+				// with an explanation rather than to the section list: a silent
+				// redirect reads as "it deleted nothing and said nothing", and
+				// the natural response to that is to click again.
 		        if (!$this->isTrustedRequest()) {
-			        $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Editor', 'BookSections', ['book' => $book_id]));
+			        $this->view->setVar("book", $book_id);
+			        $this->view->setVar("section", $section_id);
+			        $this->view->setVar("section_details", $vt_book->getSection($section_id));
+			        $this->view->setVar("error", _t('Invalid or expired request. Confirm again.'));
+			        $this->render('section_delete_confirm_html.php');
 			        return;
 		        }
 		        $result = $vt_book->deleteSection($section_id);

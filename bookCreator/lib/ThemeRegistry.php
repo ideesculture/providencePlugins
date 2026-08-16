@@ -231,24 +231,47 @@ class ThemeRegistry {
 		}
 
 		$css = "@page {\n\t".join(";\n\t", $rules).";\n}\n";
-		$css .= $this->buildMarginBoxes();
+
+		// A section rendered on its own is a document of its own, and CSS Paged
+		// Media makes the first page of a document a :right page whatever the
+		// page counter says (Paged Media 3, §4.1: the parity follows the page
+		// progression, not counter(page); the counter-reset emitted by the HTML
+		// builder does not move it). So a section that starts on page 12 — a
+		// left-hand page in the assembled book — is laid out by the renderer as
+		// a right-hand one, and its folio lands in the outer corner of the wrong
+		// side. Half the sections of a book come out mirrored.
+		//
+		// Passing the parity of first_page and swapping the two rules puts the
+		// furniture back where the binding expects it.
+		$first_page = (int)caGetOption('first_page', $options, 0);
+		$mirrored   = ($first_page > 0 && $first_page % 2 === 0);
+		$css .= $this->buildMarginBoxes($mirrored);
 
 		return $css;
 	}
 
-	/** Folio and running head, mirrored for left and right pages. */
-	private function buildMarginBoxes() {
+	/**
+	 * Folio and running head, mirrored for left and right pages.
+	 *
+	 * @param bool $mirrored swap the two rules, for a section whose first page
+	 *                       is even; see buildPageRule().
+	 */
+	private function buildMarginBoxes($mirrored = false) {
 		$tokens = $this->getTokens();
 		$size  = isset($tokens['font-size-folio']) ? $tokens['font-size-folio'] : '9pt';
 		$color = isset($tokens['color-folio']) ? $tokens['color-folio'] : '#1a1a1a';
 		$style = "font-size: {$size}; color: {$color};";
 
-		$css  = "@page :left {\n";
+		// Which selector carries the left-hand page furniture.
+		$verso = $mirrored ? ':right' : ':left';
+		$recto = $mirrored ? ':left' : ':right';
+
+		$css  = "@page {$verso} {\n";
 		$css .= "\t@bottom-left { content: counter(page); {$style} }\n";
 		$css .= "\t@top-left { content: string(chapter); {$style} }\n";
 		$css .= "}\n";
 
-		$css .= "@page :right {\n";
+		$css .= "@page {$recto} {\n";
 		$css .= "\t@bottom-right { content: counter(page); {$style} }\n";
 		$css .= "\t@top-right { content: string(chapter); {$style} }\n";
 		$css .= "}\n";

@@ -126,6 +126,9 @@ class BookSchemaManager {
 	 */
 	private $state_cache = null;
 
+	/** Statements the last install() run could not apply, with their error. */
+	private $install_errors = [];
+
 	public function __construct($db = null) {
 		$this->db = $db ? $db : new Db();
 	}
@@ -192,14 +195,42 @@ class BookSchemaManager {
 	 * Additive only: CREATE TABLE, ADD COLUMN, ADD INDEX. Returns the list of
 	 * statements applied, so the install view can show exactly what was done.
 	 */
+	/**
+	 * Issues one DDL statement, reporting failure as a value.
+	 *
+	 * The database user of a Providence installation does not always hold CREATE
+	 * or ALTER. Db::query() throws on the refusal (Db/mysqli.php:328), which
+	 * would replace the installer page — the one page able to explain what is
+	 * missing — with a system error. Failures are collected instead and shown
+	 * next to the statements that did go through.
+	 */
+	private function apply($sql) {
+		try {
+			$this->db->query($sql);
+		} catch (Exception $e) {
+			$this->install_errors[] = $sql . ' — ' . $e->getMessage();
+			return false;
+		}
+		if ($this->db->numErrors()) {
+			$this->install_errors[] = $sql . ' — ' . join(' – ', $this->db->getErrors());
+			return false;
+		}
+		return true;
+	}
+
+	/** Statements install() could not apply, with the reason given by the database. */
+	public function getInstallErrors() {
+		return $this->install_errors;
+	}
+
 	public function install() {
 		$applied = [];
+		$this->install_errors = [];
 		$state = $this->getState();
 
 		foreach ($state['missing_tables'] as $table) {
 			$sql = $this->buildCreateTable($table);
-			$this->db->query($sql);
-			$applied[] = $sql;
+			if ($this->apply($sql)) { $applied[] = $sql; }
 		}
 
 		// A table just created already has every column, so re-read the state
@@ -212,20 +243,17 @@ class BookSchemaManager {
 		foreach ($state['missing_columns'] as $missing) {
 			$definition = self::EXPECTED[$missing['table']][$missing['column']];
 			$sql = "ALTER TABLE `{$missing['table']}` ADD COLUMN `{$missing['column']}` {$definition}";
-			$this->db->query($sql);
-			$applied[] = $sql;
+			if ($this->apply($sql)) { $applied[] = $sql; }
 		}
 
 		foreach ($state['missing_indexes'] as $missing) {
 			$sql = "ALTER TABLE `{$missing['table']}` ADD INDEX `{$missing['index']}` {$missing['columns']}";
-			$this->db->query($sql);
-			$applied[] = $sql;
+			if ($this->apply($sql)) { $applied[] = $sql; }
 		}
 
 		foreach ($state['wrong_defaults'] as $wrong) {
 			$sql = "ALTER TABLE `{$wrong['table']}` MODIFY `{$wrong['column']}` {$wrong['definition']}";
-			$this->db->query($sql);
-			$applied[] = $sql;
+			if ($this->apply($sql)) { $applied[] = $sql; }
 		}
 
 		// Whatever happened, the cached state no longer describes the database.

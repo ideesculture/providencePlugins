@@ -13,6 +13,8 @@
 $section_id = $this->getVar('section');
 $book_id = $this->getVar('book');
 $section = $this->getVar("section_details");
+$notification = $this->getVar('notification');
+$error = $this->getVar('error');
 
 $path = __CA_URL_ROOT__."/app/plugins/bookCreator/";
 $dir = __CA_BASE_DIR__."/app/plugins/bookCreator/";
@@ -40,6 +42,15 @@ $sections_url = caNavUrl($this->request, 'bookCreator', 'Editor', 'BookSections'
 
 
 <h1><?php print _t('Section'); ?></h1>
+
+<?php if ($error) { ?>
+	<div class="alert alert-danger"><?php print htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
+<?php if ($notification) { ?>
+	<div class="alert alert-success"><?php print htmlspecialchars((string)$notification, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php } ?>
+
 <?php
 print caFormTag($this->request, "SaveSection/book/$book_id/section/$section_id", "editSectiontext", "bookCreator/Editor");
 print BookCsrf::field();

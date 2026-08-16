@@ -110,6 +110,14 @@ final class GotenbergRenderer implements PdfRendererInterface {
 	private readonly ?string $urlError;
 
 	/**
+	 * Directories an absolute reference of the document may point into, for the
+	 * render under way. Set by prepareRequest(), read by flatNameFor().
+	 *
+	 * @var string[]
+	 */
+	private array $absoluteRoots = [];
+
+	/**
 	 * @param string       $baseUrl           Base URL of the service, "http://gotenberg:3000".
 	 * @param PdfAssembler|null $assembler    Optional, only to read back the page count of the
 	 *                                        produced file.
@@ -277,6 +285,10 @@ final class GotenbergRenderer implements PdfRendererInterface {
 			[$documentPath, $files] = $prepared;
 
 			return $this->post($documentPath, $files, $pdfPath, $opts, $started, $warnings, basename($htmlPath));
+		} catch (RuntimeException $e) {
+			// Raised by rewrite(): a reference rewriting that failed halfway is
+			// not something to carry on with. See that method.
+			return $this->fail($e->getMessage(), $started, $warnings);
 		} finally {
 			foreach ($temporary as $path) { @unlink($path); }
 		}
@@ -544,6 +556,8 @@ final class GotenbergRenderer implements PdfRendererInterface {
 			self::MAX_ASSET_FILES, self::MAX_ASSET_BYTES, self::MAX_ASSET_FILE_BYTES
 		);
 
+		$this->absoluteRoots = $this->allowedRoots($htmlPath, $opts);
+
 		// 1. Candidates, keyed by the path a reference would use. Explicit assets
 		//    are the caller's own list and are sent whether or not this driver can
 		//    see them referenced; collected ones wait to be asked for.
@@ -649,6 +663,29 @@ final class GotenbergRenderer implements PdfRendererInterface {
 	 * the spot — that is how the plates of a section, written as absolute local
 	 * paths by the HTML builder for the local driver, travel with the request.
 	 */
+	/**
+	 * preg_replace_callback that refuses to return the subject unchanged.
+	 *
+	 * PCRE gives up on a large subject: the patterns below are non-greedy and
+	 * run over the whole document, and a catalogue section is easily past the
+	 * default pcre.backtrack_limit of one million. When that happens the
+	 * function returns null — and the previous `?? $subject` turned that into
+	 * the untouched document, which Gotenberg then rendered with none of its
+	 * assets: a PDF of the right length, with no plates and no typography, and
+	 * not one line anywhere saying why. Failing the render is the only honest
+	 * outcome.
+	 */
+	private function rewrite(string $pattern, callable $callback, string $subject, string $what): string {
+		$result = preg_replace_callback($pattern, $callback, $subject);
+		if ($result === null) {
+			throw new RuntimeException(
+				'assets: rewriting the '.$what.' references failed ('.preg_last_error_msg().'). '
+				.'The document is '.strlen($subject).' bytes; raising pcre.backtrack_limit lets it through.'
+			);
+		}
+		return $result;
+	}
+
 	private function rewriteDocument(string $html, GotenbergAssetBundle $bundle, array &$warnings): string {
 		if (preg_match('~<base\b~i', $html)) {
 			$warnings[] = 'the document carries a <base> element. Chromium resolves every relative '
@@ -656,14 +693,15 @@ final class GotenbergRenderer implements PdfRendererInterface {
 				.'element belongs to the browser preview only.';
 		}
 
-		$html = preg_replace_callback(
+		$html = $this->rewrite(
 			'~\b(href|src)\s*=\s*(["\'])(.*?)\2~i',
 			function (array $m) use ($bundle, &$warnings): string {
 				$name = $this->flatNameFor($m[3], '', $bundle, $warnings, true);
 				return $name === null ? $m[0] : $m[1].'='.$m[2].$name.$m[2];
 			},
-			$html
-		) ?? $html;
+			$html,
+			'href/src'
+		);
 
 		return $this->rewriteUrlTokens($html, '', $bundle, $warnings, true);
 	}
@@ -677,14 +715,15 @@ final class GotenbergRenderer implements PdfRendererInterface {
 	private function rewriteCss(string $css, string $relative, GotenbergAssetBundle $bundle, array &$warnings): string {
 		$base = str_contains($relative, '/') ? dirname($relative) : '';
 
-		$css = preg_replace_callback(
+		$css = $this->rewrite(
 			'~@import\s+(["\'])(.*?)\1~i',
 			function (array $m) use ($base, $bundle, &$warnings): string {
 				$name = $this->flatNameFor($m[2], $base, $bundle, $warnings);
 				return $name === null ? $m[0] : '@import '.$m[1].$name.$m[1];
 			},
-			$css
-		) ?? $css;
+			$css,
+			'@import'
+		);
 
 		return $this->rewriteUrlTokens($css, $base, $bundle, $warnings);
 	}
@@ -697,14 +736,90 @@ final class GotenbergRenderer implements PdfRendererInterface {
 		array &$warnings,
 		bool $inHtml = false
 	): string {
-		return preg_replace_callback(
+		return $this->rewrite(
 			'~url\(\s*(["\']?)([^"\'()]+)\1\s*\)~i',
 			function (array $m) use ($base, $bundle, &$warnings, $inHtml): string {
 				$name = $this->flatNameFor($m[2], $base, $bundle, $warnings, $inHtml);
 				return $name === null ? $m[0] : 'url('.$m[1].$name.$m[1].')';
 			},
-			$text
-		) ?? $text;
+			$text,
+			'url()'
+		);
+	}
+
+	/**
+	 * Directories an absolute reference may point into.
+	 *
+	 * Three, and no more: the theme (its own stylesheets and fonts), the media
+	 * library of the installation (the plates, written as absolute paths by the
+	 * HTML builder), and the directory holding the document being rendered
+	 * (where a caller writing images next to its HTML puts them).
+	 *
+	 * @return string[] absolute, symlink-resolved, no trailing slash
+	 */
+	private function allowedRoots(string $htmlPath, RenderOptions $opts): array {
+		$roots = [];
+
+		foreach ([self::localDirectory($opts->baseUrl), dirname($htmlPath)] as $directory) {
+			if ($directory === null) { continue; }
+			$real = realpath($directory);
+			if ($real !== false) { $roots[] = $real; }
+		}
+
+		// The media library, read from the volumes the installation actually
+		// declares rather than guessed at __CA_BASE_DIR__/media: media_volumes.conf
+		// is configurable, and several installations keep their derivatives on a
+		// separate mount. Guessing would have confined the plates out of their
+		// own book. Absent outside CollectiveAccess — a unit test simply gets one
+		// root fewer.
+		foreach ($this->mediaVolumeRoots() as $directory) {
+			$real = realpath($directory);
+			if ($real !== false) { $roots[] = $real; }
+		}
+
+		return array_values(array_unique($roots));
+	}
+
+	/**
+	 * absolutePath of every media volume declared by the installation.
+	 *
+	 * @return string[]
+	 */
+	private function mediaVolumeRoots(): array {
+		if (!class_exists('MediaVolumes')) { return []; }
+
+		try {
+			$volumes = (new MediaVolumes())->getAllVolumeInformation();
+		} catch (Throwable $e) {
+			return [];
+		}
+		if (!is_array($volumes)) { return []; }
+
+		$roots = [];
+		foreach ($volumes as $volume) {
+			if (is_array($volume) && isset($volume['absolutePath']) && is_string($volume['absolutePath'])) {
+				$roots[] = $volume['absolutePath'];
+			}
+		}
+		return $roots;
+	}
+
+	/**
+	 * Whether an absolute path resolves inside one of the allowed roots.
+	 *
+	 * realpath() first, so neither a "../" nor a symlink planted in the media
+	 * library walks out of them — the same rule as the covers.
+	 */
+	private function isWithinAllowedRoots(string $path): bool {
+		if ($this->absoluteRoots === []) { return false; }
+
+		$real = realpath($path);
+		if ($real === false) { return false; }
+
+		foreach ($this->absoluteRoots as $root) {
+			if ($real === $root || str_starts_with($real, $root.'/')) { return true; }
+		}
+		return false;
 	}
 
 	/**
@@ -727,8 +842,22 @@ final class GotenbergRenderer implements PdfRendererInterface {
 
 		if (str_starts_with($path, '/')) {
 			// An absolute local path: the media library plates, which exist on this
-			// machine and nowhere inside the Gotenberg container. They are admitted
-			// on sight, since nothing offered them.
+			// machine and nowhere inside the Gotenberg container. Nothing offered
+			// them, so they are picked up from the reference itself — but only
+			// from the directories this render is entitled to read.
+			//
+			// The text of a section is written by the editor, and it reaches the
+			// document as markup. Admitting any absolute path on sight, as this
+			// used to, meant an <img src="/etc/..."> or a <link href> to any
+			// readable .css or .svg was collected and posted to the service, and
+			// for a stylesheet it then shaped the PDF handed back. The covers were
+			// already confined this way (bookworker.php); this closes the same
+			// door on the document body.
+			if (!$this->isWithinAllowedRoots($path)) {
+				$warnings[] = 'assets: '.$path.' is outside the directories this render may read '
+					.'(the theme, the media library and the working directory); it was not sent.';
+				return null;
+			}
 			$name = $bundle->resolve($path) ?? $bundle->add($path, $path);
 			if ($name === null) {
 				$warnings[] = 'assets: '.$path.' is referenced by the document but was not sent; '
@@ -817,7 +946,21 @@ final class GotenbergRenderer implements PdfRendererInterface {
 		if (preg_match('~^[a-z][a-z0-9+.-]*:~i', $reference)) { return null; }  // http:, data:, file:
 
 		$path = preg_split('/[?#]/', $reference)[0];
-		return ($path === '') ? null : $path;
+		if ($path === '') { return null; }
+
+		// A reference is a URL, not a path: a plate called "Château vue.jpg" is
+		// written "Ch%C3%A2teau%20vue.jpg" in the markup. Without decoding it,
+		// the file is never found on disk, never sent, and Chromium renders a
+		// hole — or, with failOnResourceLoadingFailed on, the service answers
+		// 400 and the whole render dies. Only decode when it changes something
+		// and the result still looks like a path, so a literal per cent sign in
+		// a filename is not mangled.
+		if (str_contains($path, '%')) {
+			$decoded = rawurldecode($path);
+			if ($decoded !== $path && !str_contains($decoded, "\0")) { $path = $decoded; }
+		}
+
+		return $path;
 	}
 
 	/**
