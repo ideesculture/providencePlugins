@@ -18,6 +18,7 @@
  	require_once(__CA_MODELS_DIR__.'/ca_locales.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
+	require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/TemplateRegistry.php');
 
 	// Lib : markdown rendering, parser selected in bookCreator.conf
 	require_once(__CA_APP_DIR__."/plugins/bookCreator/lib/MarkdownRenderer.php");
@@ -62,6 +63,31 @@
 				$this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Install', 'Index'));
 				return;
 			}
+ 		}
+
+ 		/**
+ 		 * Layouts the book can actually use, keyed by code.
+ 		 *
+ 		 * Filtered by the page format of the book: a layout is calibrated for a
+ 		 * format, it does not adapt to it, so offering a six-per-page grid on a
+ 		 * 21x21 booklet would only produce an overflowing page. Falls back to the
+ 		 * thumbnails on disk while a theme has no manifests yet, which keeps the
+ 		 * editor usable during the migration.
+ 		 */
+ 		private function availableTemplates($vt_book) {
+ 			$theme  = $vt_book->getField('theme', 'default');
+ 			$format = $vt_book->getField('page_format', 'a4-landscape');
+
+ 			$registry  = new TemplateRegistry($theme);
+ 			$templates = $registry->getTemplates($format);
+ 			if (sizeof($templates)) { return $templates; }
+
+ 			$legacy = [];
+ 			foreach (glob($this->dir.'assets/styles/*.png') as $thumbnail) {
+ 				$code = basename($thumbnail, '.png');
+ 				$legacy[$code] = ['code' => $code, 'label' => $code];
+ 			}
+ 			return $legacy;
  		}
 
  		/**
@@ -143,6 +169,7 @@
 		    $this->view->setVar("book", $book_id);
 		    $this->view->setVar("section", $section_id);
 		    $this->view->setVar("section_details", $va_section_info);
+		    $this->view->setVar("templates", $this->availableTemplates($vt_book));
 		    // Single editor for every section type: it carries the set_id and
 		    // representation_id fields used by the "set" layouts.
 		    $this->render('section_text_editor_html.php');
@@ -162,6 +189,7 @@
 	        $this->view->setVar("book", $book_id);
 	        $this->view->setVar("section", $section_id);
 	        $this->view->setVar("section_details", $va_section_info);
+	        $this->view->setVar("templates", $this->availableTemplates($vt_book));
 	        $this->render('section_text_editor_html.php');
         }
 

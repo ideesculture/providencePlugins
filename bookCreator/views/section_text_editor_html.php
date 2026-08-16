@@ -17,15 +17,24 @@ $section = $this->getVar("section_details");
 $path = __CA_URL_ROOT__."/app/plugins/bookCreator/";
 $dir = __CA_BASE_DIR__."/app/plugins/bookCreator/";
 
-// Fetching all styles from style thumbnails
-$styles= array_slice(scandir($dir."assets/styles"), 2);
-foreach ($styles as &$style_pic) {
-	$style_pic = str_replace('.png', '', $style_pic);
-}
+// Layouts offered for this book, resolved by the controller from the theme and
+// the page format. Reading the thumbnail directory, as this view used to do,
+// listed every layout regardless of the format and turned any stray file
+// dropped there into a phantom layout.
+$templates = $this->getVar('templates');
+if (!is_array($templates)) { $templates = []; }
 ?>
 <div class="navBreadCrumbContainer">
 	<div class="navBreadCrumbs">
-<div class="crumb"><div class="crumbtext navBreadCrumbLabel"><?php print _t('Current location'); ?></div><img src="/gestion/themes/default/graphics/arrows/breadcrumbloc.png" width="16" height="19" border="0"></div><div class="crumb"><nobr><div class="crumbtext"><a href="/gestion/index.php/bookCreator/Editor/BookSections/book/1"><?php print _t('Book editor'); ?></a></div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div><div class="crumb"><nobr><div class="crumbtext"><?php print _t('Edit section'); ?></div><img src="/gestion/themes/default/graphics/arrows/breadcrumb.png" width="16" height="19" border="0"></nobr></div>
+<?php
+// Breadcrumb built from the request rather than from literals: the previous
+// version pointed at /gestion/, the URL root of one single installation, and at
+// book 1 whatever book was being edited.
+$arrow_loc = __CA_URL_ROOT__.'/themes/default/graphics/arrows/breadcrumbloc.png';
+$arrow = __CA_URL_ROOT__.'/themes/default/graphics/arrows/breadcrumb.png';
+$sections_url = caNavUrl($this->request, 'bookCreator', 'Editor', 'BookSections', ['book' => $book_id]);
+?>
+<div class="crumb"><div class="crumbtext navBreadCrumbLabel"><?php print _t('Current location'); ?></div><img src="<?php print $arrow_loc; ?>" width="16" height="19" border="0" alt=""></div><div class="crumb"><nobr><div class="crumbtext"><a href="<?php print $sections_url; ?>"><?php print _t('Book editor'); ?></a></div><img src="<?php print $arrow; ?>" width="16" height="19" border="0" alt=""></nobr></div><div class="crumb"><nobr><div class="crumbtext"><?php print _t('Edit section'); ?></div><img src="<?php print $arrow; ?>" width="16" height="19" border="0" alt=""></nobr></div>
 	</div><!-- end navBreadCrumbs-->
 </div>
 
@@ -68,12 +77,18 @@ print $vs_control_box = caFormControlBox(
 </h3>
 <div class="collapse" id="collapseStyle">
 	<div class="row">
-	<?php foreach($styles as $style) : ?>
+	<?php foreach($templates as $code => $template) :
+		$code = htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8');
+		$label = htmlspecialchars((string)($template['label'] ?? $code), ENT_QUOTES, 'UTF-8');
+	?>
 	<div class="col-md-6" style="margin-top:6px;">
-	<input type="radio" name="style" value="<?php print $style; ?>" <?php print ($section["style"] == $style ? "checked=\"checked\"" :""); ?>/>
-		<img class="style-pic" src="<?php print $path; ?>assets/styles/<?php print $style; ?>.png"/> <?php print $style; ?>
+	<input type="radio" name="style" value="<?php print $code; ?>" <?php print ($section["style"] == $code ? "checked=\"checked\"" :""); ?>/>
+		<img class="style-pic" src="<?php print $path; ?>assets/styles/<?php print $code; ?>.png" alt=""/> <?php print $label; ?>
 	</div>
 	<?php endforeach; ?>
+	<?php if (!sizeof($templates)) { ?>
+	<p><?php print _t('No layout is available for the page format of this book.'); ?></p>
+	<?php } ?>
 	</div>
 </div>
 

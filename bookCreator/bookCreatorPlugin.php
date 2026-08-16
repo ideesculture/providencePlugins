@@ -50,21 +50,31 @@
 					return $pa_menu_bar;
 				}
 
+				// The book list is the entry point, not the section editor: the
+				// plugin now handles several books, so landing straight in the
+				// sections of one of them would presuppose which.
 				$default_menu_action = array(
 					'displayName' => _t('Book'),
 					"default" => array(
 						'module' => 'bookCreator',
-						'controller' => 'Editor',
+						'controller' => 'Books',
 						'action' => 'Index'
 					),
 					'navigation' => array(
-						"Editor"=> array(
+						"Books" => array(
+							'displayName' => _t('Books'),
+							"default" => array(
+								'module' => 'bookCreator',
+								'controller' => 'Books',
+								'action' => 'Index'
+							)
+						),
+						"Editor" => array(
 							'displayName' => _t('Editor'),
 							"default" => array(
 								'module' => 'bookCreator',
 								'controller' => 'Editor',
 								'action' => 'Index'
-
 							)
 						)
 					)
