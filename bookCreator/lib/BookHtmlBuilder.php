@@ -103,6 +103,19 @@ class BookHtmlBuilder {
 		$this->font_pair = $font_pair;
 	}
 
+	/**
+	 * Sets the user whose permissions apply to the records pulled into the book.
+	 *
+	 * Both callers must supply one: the preview passes the logged-in user, the
+	 * worker the user recorded on the job. A caller that forgets it renders
+	 * without any check, which is how a private set used to end up in a PDF.
+	 *
+	 * @param ca_users|null $user
+	 */
+	public function setAccessUser($user) {
+		$this->loader->setAccessUser($user);
+	}
+
 	# -------------------------------------------------------
 	# Documents
 	# -------------------------------------------------------

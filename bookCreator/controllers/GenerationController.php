@@ -95,7 +95,7 @@ class GenerationController extends ActionController {
 			return;
 		}
 
-		$job_id = $this->opo_jobs->submit($book_id);
+		$job_id = $this->opo_jobs->submit($book_id, (int)$this->request->getUserID());
 
 		$this->view->setVar('book_id', $book_id);
 		$this->view->setVar('job', $this->opo_jobs->get($job_id));

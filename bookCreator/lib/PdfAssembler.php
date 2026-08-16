@@ -81,17 +81,6 @@ final class PdfAssembler {
 			.'its absolute path in the plugin configuration.';
 	}
 
-	/** Version string reported by qpdf, null when it cannot be run. */
-	public function getVersion(): ?string {
-		$binary = ProcessRunner::locate($this->binary);
-		if ($binary === null) { return null; }
-
-		$outcome = ProcessRunner::run(escapeshellarg($binary).' --version', 15);
-		if (!$outcome->ran()) { return null; }
-
-		$firstLine = strtok(trim($outcome->stdout), "\n");
-		return $firstLine === false ? null : $firstLine;
-	}
 
 	# -------------------------------------------------------
 	# Operations

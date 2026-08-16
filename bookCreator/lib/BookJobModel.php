@@ -47,7 +47,7 @@ class BookJobModel {
 
 	/** Columns read back by get()/claimNext(); also the shape returned to callers. */
 	const COLUMNS = [
-		'job_id', 'book_id', 'status', 'progress',
+		'job_id', 'book_id', 'user_id', 'status', 'progress',
 		'message', 'pdf_path', 'created_on', 'started_on', 'finished_on', 'worker_id',
 	];
 
@@ -136,17 +136,20 @@ class BookJobModel {
 	 *
 	 * @return int job id, or 0 when the insert failed
 	 */
-	public function submit(int $bookId): int {
+	public function submit(int $bookId, ?int $userId = null): int {
 		if ($bookId <= 0) { return 0; }
 
 		if ($existing = $this->getActiveForBook($bookId)) {
 			return (int)$existing['job_id'];
 		}
 
+		// The user is recorded because the worker runs without a session and
+		// still has to honour the permissions of whoever asked: a section can
+		// point at any set or representation by id.
 		$qr = $this->query(
-			"INSERT INTO `" . self::TABLE . "` (book_id, status, progress, created_on)
-			 VALUES (?, ?, 0, ?)",
-			[$bookId, self::STATUS_PENDING, time()]
+			"INSERT INTO `" . self::TABLE . "` (book_id, user_id, status, progress, created_on)
+			 VALUES (?, ?, ?, 0, ?)",
+			[$bookId, ($userId > 0 ? $userId : null), self::STATUS_PENDING, time()]
 		);
 		if (!$qr) { return 0; }
 
@@ -518,6 +521,7 @@ class BookJobModel {
 		return [
 			'job_id'      => (int)$row['job_id'],
 			'book_id'     => (int)$row['book_id'],
+			'user_id'     => isset($row['user_id']) ? (int)$row['user_id'] : null,
 			'status'      => (string)$row['status'],
 			'progress'    => (int)$row['progress'],
 			'message'     => isset($row['message']) ? (string)$row['message'] : null,

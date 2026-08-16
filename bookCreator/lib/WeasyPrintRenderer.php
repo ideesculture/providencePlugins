@@ -83,19 +83,6 @@ final class WeasyPrintRenderer implements PdfRendererInterface {
 			.'in a virtualenv the web server does not have on its PATH.';
 	}
 
-	/** Version string reported by the binary, null when it cannot be run. */
-	public function getVersion(): ?string {
-		$binary = ProcessRunner::locate($this->binary);
-		if ($binary === null) { return null; }
-
-		$outcome = ProcessRunner::run(escapeshellarg($binary).' --version', 30, null, $this->env);
-		if (!$outcome->ran()) { return null; }
-
-		// Version goes to stdout, but tolerate an engine that talks on stderr.
-		$text = trim($outcome->stdout) !== '' ? $outcome->stdout : $outcome->stderr;
-		$firstLine = strtok(trim($text), "\n");
-		return $firstLine === false ? null : $firstLine;
-	}
 
 	# -------------------------------------------------------
 	# Rendering

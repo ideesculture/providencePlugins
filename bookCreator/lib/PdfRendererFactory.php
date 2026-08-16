@@ -138,9 +138,11 @@ class PdfRendererFactory {
 	/**
 	 * Whether the whole chain can run, with the reason when it cannot.
 	 *
-	 * Used by the install screen: a plugin whose renderer is missing should say
-	 * so on a configuration page, not when a user has waited for a 200-page
-	 * catalogue that was never going to be produced.
+	 * Called before a generation is queued and by the worker on start-up: a
+	 * plugin whose renderer is missing must say so before a user waits for a
+	 * 200-page catalogue that was never going to be produced. The install
+	 * screen does not use it — it answers for the database schema, not for the
+	 * rendering chain.
 	 *
 	 * @return array ['ok' => bool, 'reasons' => string[]]
 	 */

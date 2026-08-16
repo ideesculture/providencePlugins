@@ -16,6 +16,7 @@ require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSchemaManager.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookCsrf.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/ThemeRegistry.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/TemplateRegistry.php');
 
 /**
  * Books dashboard: list, create, edit, duplicate, delete.
@@ -249,7 +250,10 @@ class BooksController extends ActionController {
 		$this->view->setVar('book_id', (int)$book_id);
 		$this->view->setVar('values', $values);
 		$this->view->setVar('themes', ThemeRegistry::getThemes());
-		$this->view->setVar('formats', $this->labelledCodes($registry->getFormats()));
+		$this->view->setVar('formats', $this->formatLabelsWithCapacity(
+			$registry->getFormats(),
+			isset($values['theme']) ? $values['theme'] : 'default'
+		));
 		$this->view->setVar('font_pairs', $this->labelledCodes($registry->getFontPairs()));
 		$this->view->setVar('notification', $notification);
 		$this->view->setVar('error', $error);
@@ -368,6 +372,53 @@ class BooksController extends ActionController {
 	 * accepted too, and the code itself is the last resort, so a theme written
 	 * without labels still produces a usable list.
 	 */
+	/**
+	 * Format labels, each saying how many content layouts it can actually use.
+	 *
+	 * Layouts are calibrated for one page format, not adapted to it: eleven of
+	 * the eighteen shipped with the default theme declare a4-landscape and
+	 * nothing else. Choosing "Booklet 21x21" therefore left an editor with the
+	 * seven front-matter layouts — title page, dedication, blank, colophon,
+	 * table of contents — and no way to add a chapter or a plate, with nothing
+	 * on screen saying so. The count is shown instead of the choice being
+	 * removed: a theme may legitimately ship a format for front matter only, and
+	 * that is the theme's business, not the editor's surprise.
+	 */
+	private function formatLabelsWithCapacity($formats, $theme_code) {
+		$labels = $this->labelledCodes($formats);
+		if (!sizeof($labels)) { return $labels; }
+
+		$templates = new TemplateRegistry($theme_code);
+		foreach ($labels as $code => $label) {
+			$content = 0;
+			foreach ($templates->getTemplates($code) as $layout => $manifest) {
+				// Front matter carries no work and no chapter: it is what every
+				// format has, so counting it would hide the very gap this is for.
+				$type = is_array($manifest) && isset($manifest['section_type']) ? $manifest['section_type'] : 'text';
+				if (in_array($type, ['set', 'mixed'], true) || $this->isContentTextLayout($layout)) { $content++; }
+			}
+
+			$labels[$code] = $content
+				? $label.' — '._t('%1 layouts', $content)
+				: $label.' — '._t('front matter only');
+		}
+		return $labels;
+	}
+
+	/**
+	 * Whether a text layout carries book content rather than front matter.
+	 *
+	 * Read from the layout's own page assignment: base.css puts title pages,
+	 * dedications, colophons and the table of contents on the named `liminaire`
+	 * page, and those are exactly the ones that are not content.
+	 */
+	private function isContentTextLayout($layout) {
+		$front_matter = ['page-de-titre', 'dos-page-de-titre', 'dedicace-centre', 'dedicace-droite',
+			'acheve-d-imprimer', 'sommaire', 'page-blanche'];
+
+		return !in_array($layout, $front_matter, true);
+	}
+
 	private function labelledCodes($entries) {
 		$labels = array();
 		if (!is_array($entries)) { return $labels; }

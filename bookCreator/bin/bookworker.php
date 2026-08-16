@@ -306,6 +306,13 @@ final class BookWorkerRenderBridge {
 			$book['font_pair'] ?? 'default'
 		);
 
+		// The permissions of whoever asked for the book, not those of the system
+		// account the worker runs under. Without this the generation would print
+		// records the preview refuses to show, which is the same leak by another
+		// door. A job with no user — one queued before this column existed —
+		// renders unchecked, as it did before.
+		$builder->setAccessUser(bookworker_job_user($book));
+
 		// first_page makes the section carry the folio it holds in the finished
 		// book, even though it is rendered on its own.
 		$html = $builder->buildDocument((int)$book['book_id'], $section_id, ['first_page' => $page_offset]);
@@ -569,6 +576,35 @@ function bookworker_directories(string $plugin_dir, string $claim = ''): array {
 }
 
 /**
+ * The ca_users instance recorded on a job, or null.
+ *
+ * Loaded once per job and kept, since every section of a book asks for the
+ * same one. Returns null when the job carries no user or the account has since
+ * been deleted, which leaves the loading unchecked — the behaviour of every
+ * job queued before the column existed.
+ */
+function bookworker_job_user(array $book) {
+	static $cache = [];
+
+	$user_id = (int)($book['bookworker_user_id'] ?? 0);
+	if ($user_id <= 0) { return null; }
+	if (array_key_exists($user_id, $cache)) { return $cache[$user_id]; }
+
+	// Loaded explicitly: the worker boots setup.php, not the web front
+	// controller, so the model is not guaranteed to be in scope yet.
+	if (!class_exists('ca_users') && defined('__CA_MODELS_DIR__')) {
+		require_once(__CA_MODELS_DIR__.'/ca_users.php');
+	}
+	if (!class_exists('ca_users')) {
+		bookworker_error('ca_users is unavailable: the book is rendered without permission checks');
+		return $cache[$user_id] = null;
+	}
+
+	$user = new ca_users($user_id);
+	return $cache[$user_id] = $user->getPrimaryKey() ? $user : null;
+}
+
+/**
  * A file-name-safe form of the claim token held by this job.
  *
  * The token is unique to one claim — worker id plus random bytes, stamped on
@@ -656,6 +692,9 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// the row would yield 0, the builder would load no sections at all, and the
 	// job would finish "done" on a book of blank pages without a single error.
 	$book_data['book_id'] = (int)$job['book_id'];
+
+	// Carried on the book row because that is what the render bridge receives.
+	$book_data['bookworker_user_id'] = (int)($job['user_id'] ?? 0);
 
 	$sections = $book->getSections();
 	if (!$sections) {

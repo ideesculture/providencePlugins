@@ -38,6 +38,35 @@ class RecordLoader {
 	private $skipped = [];
 
 	/**
+	 * User the records are loaded on behalf of, or null when nothing is checked.
+	 *
+	 * @var ca_users|null
+	 */
+	private $access_user = null;
+
+	/**
+	 * Sets the user whose permissions apply to everything loaded afterwards.
+	 *
+	 * set_id and representation_id are free-text fields in the section editor,
+	 * and nothing used to look at who was asking: any logged-in account could
+	 * type the id of a private set and have its works printed into a PDF it
+	 * then downloaded, or pull the derivative of a restricted representation.
+	 * The plugin was checking a CSRF token on the way in and no permission at
+	 * all on the way out.
+	 *
+	 * Note for the reader coming from Pawtucket: caGetUserAccessValues() returns
+	 * null under Providence (accessHelpers.php:54), so the public/private access
+	 * values are not the mechanism here. What applies in the back office is the
+	 * read right on the set and the per-record ACL, which is what this checks.
+	 *
+	 * @param ca_users|null $user null disables checking, for a context that has
+	 *                            no user at all.
+	 */
+	public function setAccessUser($user) {
+		$this->access_user = $user;
+	}
+
+	/**
 	 * Loads a record, or returns null when it cannot be used.
 	 *
 	 * @param string $table CollectiveAccess table name, eg. 'ca_objects'
@@ -60,6 +89,10 @@ class RecordLoader {
 		}
 		if ($instance->hasField('deleted') && (int)$instance->get('deleted')) {
 			$this->skip($table, $id, 'deleted', $context);
+			return null;
+		}
+		if (!$this->userMayRead($instance)) {
+			$this->skip($table, $id, 'no_access', $context);
 			return null;
 		}
 		return $instance;
@@ -94,8 +127,39 @@ class RecordLoader {
 		$set = $this->load('ca_sets', $set_id, $context);
 		if (!$set) { return []; }
 
+		// A set carries its own read right, separate from the ACL of the records
+		// it holds: haveAccessToSet() is what tells whether this user may see it
+		// at all. Without it, typing any set id into the section editor printed
+		// somebody else's private selection.
+		if ($this->access_user && method_exists($set, 'haveAccessToSet')) {
+			$user_id = (int)$this->access_user->getPrimaryKey();
+			$access  = defined('__CA_SET_READ_ACCESS__') ? __CA_SET_READ_ACCESS__ : 1;
+			if (!$set->haveAccessToSet($user_id, $access)) {
+				$this->skip('ca_sets', $set_id, 'no_access', $context);
+				return [];
+			}
+		}
+
 		$row_ids = $set->getItemRowIDs();
 		return is_array($row_ids) ? array_keys($row_ids) : [];
+	}
+
+	/**
+	 * Whether the current user may read this record.
+	 *
+	 * True when no user was set, which is the "no checking" mode; true as well
+	 * for a model that does not support ACL, since checkACLAccessForUser()
+	 * answers full access in that case.
+	 */
+	private function userMayRead($instance) {
+		if (!$this->access_user) { return true; }
+		if (!method_exists($instance, 'checkACLAccessForUser')) { return true; }
+
+		$level = $instance->checkACLAccessForUser($this->access_user);
+		$readonly = defined('__CA_ACL_READONLY_ACCESS__') ? __CA_ACL_READONLY_ACCESS__ : 1;
+
+		// null means "no id to check", which load() has already ruled out.
+		return !is_null($level) && (int)$level >= (int)$readonly;
 	}
 
 	# -------------------------------------------------------
@@ -122,6 +186,9 @@ class RecordLoader {
 					break;
 				case 'no_primary_representation':
 					$text = _t('Object %1 has no primary representation', $item['id']);
+					break;
+				case 'no_access':
+					$text = _t('%1 %2 is not readable with your permissions', $item['table'], $item['id']);
 					break;
 				default:
 					$text = _t('%1 %2 no longer exists', $item['table'], $item['id']);

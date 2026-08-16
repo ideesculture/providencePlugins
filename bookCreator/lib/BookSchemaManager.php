@@ -71,6 +71,9 @@ class BookSchemaManager {
 		'plugin_book_jobs' => [
 			'job_id'      => 'INT UNSIGNED NOT NULL AUTO_INCREMENT',
 			'book_id'     => 'INT UNSIGNED NOT NULL',
+			// Who asked for this book. The worker has no session, so this is the
+			// only way it can apply the same permissions as the preview.
+			'user_id'     => 'INT UNSIGNED DEFAULT NULL',
 			'status'      => "VARCHAR(16) NOT NULL DEFAULT 'pending'",
 			'progress'    => 'TINYINT UNSIGNED DEFAULT 0',
 			'message'     => 'TEXT DEFAULT NULL',

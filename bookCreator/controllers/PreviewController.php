@@ -96,6 +96,11 @@ class PreviewController extends ActionController {
 			$this->bookSetting($book, 'font_pair', 'default')
 		);
 
+		// The preview must show what THIS user is allowed to see: set_id and
+		// representation_id are free-text fields, so a section can point at any
+		// record in the database.
+		$builder->setAccessUser($this->request->user);
+
 		$options = ['preview' => true];
 
 		// A section previewed on its own carries the page number it holds in

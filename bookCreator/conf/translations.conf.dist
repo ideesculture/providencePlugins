@@ -195,5 +195,11 @@ strings = {
 	"“%1”: %2" = { fr_FR = "« %1 » : %2" },
 	"“%1” produced no content and prints as a blank page." = { fr_FR = "« %1 » n'a produit aucun contenu et s'imprime en page blanche." },
 	"Requeued: the previous worker stopped without finishing." = { fr_FR = "Remis en file : le worker précédent s'est arrêté avant la fin." },
-	"This section no longer exists." = { fr_FR = "Cette section n'existe plus." }
+	"This section no longer exists." = { fr_FR = "Cette section n'existe plus." },
+	"%1 %2 is not readable with your permissions" = { fr_FR = "%1 %2 n'est pas lisible avec vos droits" },
+	"“%1” printed on %2 pages instead of %3: its content does not fit the layout and the pages after it are shifted. Shorten the notices, or use a layout with fewer works per page." = { fr_FR = "« %1 » s'imprime sur %2 pages au lieu de %3 : son contenu ne tient pas dans le gabarit et les pages suivantes sont décalées. Raccourcissez les notices, ou choisissez un gabarit avec moins d'œuvres par page." },
+
+	# Page format capacity, shown next to each format in the book settings
+	"%1 layouts" = { fr_FR = "%1 gabarits" },
+	"front matter only" = { fr_FR = "pages liminaires seulement" }
 }
