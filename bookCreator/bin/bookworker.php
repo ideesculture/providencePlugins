@@ -269,9 +269,23 @@ final class BookWorkerRenderBridge {
 	 * Returns false while nothing is wired, which makes every job fail fast
 	 * with an explicit message rather than produce an empty PDF.
 	 */
+	/** @var PdfRendererFactory|null built once per worker process */
+	private static $factory = null;
+
+	private static function factory(): PdfRendererFactory {
+		if (self::$factory === null) { self::$factory = new PdfRendererFactory(); }
+		return self::$factory;
+	}
+
 	public static function isAvailable(): bool {
-		// TODO(plan2-A): probe the configured renderer and the qpdf assembler.
-		return false;
+		$check = self::factory()->checkAvailability();
+		return (bool)$check['ok'];
+	}
+
+	/** Why the chain cannot run, for the message carried by a failed job. */
+	public static function unavailableReason(): string {
+		$check = self::factory()->checkAvailability();
+		return join(' / ', $check['reasons']);
 	}
 
 	/**
@@ -284,8 +298,54 @@ final class BookWorkerRenderBridge {
 	 * @return array{path: string, pages: int}
 	 */
 	public static function renderSection(array $book, array $section, int $page_offset, string $work_dir): array {
-		// TODO(plan2-A): build the HTML then hand it to the configured renderer.
-		throw new RuntimeException('No PDF renderer is wired yet (BookWorkerRenderBridge::renderSection).');
+		$section_id = (int)$section['booksection_id'];
+
+		$builder = new BookHtmlBuilder(
+			$book['theme'] ?? 'default',
+			$book['page_format'] ?? 'a4-landscape',
+			$book['font_pair'] ?? 'default'
+		);
+
+		// first_page makes the section carry the folio it holds in the finished
+		// book, even though it is rendered on its own.
+		$html = $builder->buildDocument((int)$book['book_id'], $section_id, ['first_page' => $page_offset]);
+
+		$html_path = $work_dir . '/section-' . $section_id . '.html';
+		if (@file_put_contents($html_path, $html) === false) {
+			throw new RuntimeException("could not write {$html_path}");
+		}
+
+		$pdf_path = $work_dir . '/section-' . $section_id . '.pdf';
+		$factory  = self::factory();
+
+		// The base URL must be the theme directory: the stylesheets and fonts
+		// referenced by the document are relative to it.
+		$options = $factory->makeRenderOptions()
+			->withFirstPageNumber($page_offset)
+			->withBaseUrl(ThemeRegistry::themesPath() . '/' . ($book['theme'] ?? 'default') . '/');
+
+		$result = $factory->makeRenderer()->render($html_path, $pdf_path, $options);
+
+		if (!$result->success) {
+			throw new RuntimeException($result->errorMessage ?? 'rendering failed');
+		}
+
+		// WeasyPrint exits 0 with a hole in the page when an image is missing,
+		// so a successful render still has to be inspected: a lost plate would
+		// otherwise only surface on the printed copy.
+		foreach ($result->warnings as $warning) {
+			bookworker_error("section {$section_id}: {$warning}");
+		}
+		foreach ($builder->getSkippedMessages() as $skipped) {
+			bookworker_error("section {$section_id}: {$skipped}");
+		}
+
+		$pages = $result->pageCount;
+		if ($pages === null) {
+			$pages = $factory->makeAssembler()->countPages($pdf_path);
+		}
+
+		return ['path' => $pdf_path, 'pages' => (int)$pages];
 	}
 
 	/**
@@ -296,8 +356,25 @@ final class BookWorkerRenderBridge {
 	 * @param string $output_path absolute path of the PDF to produce
 	 */
 	public static function assemble(array $book, array $section_pdfs, string $output_path): void {
-		// TODO(plan2-A): PdfAssembler::concat(), covers taken from the book row.
-		throw new RuntimeException('No PDF assembler is wired yet (BookWorkerRenderBridge::assemble).');
+		// Covers stay static PDFs supplied by the client, as they always were:
+		// they are designed in a page layout application, not composed here.
+		$parts = [];
+		if (!empty($book['cover_pdf']) && is_readable($book['cover_pdf'])) {
+			$parts[] = $book['cover_pdf'];
+		}
+		$parts = array_merge($parts, $section_pdfs);
+		if (!empty($book['backcover_pdf']) && is_readable($book['backcover_pdf'])) {
+			$parts[] = $book['backcover_pdf'];
+		}
+
+		if (!sizeof($parts)) {
+			throw new RuntimeException('nothing to assemble: no section produced a PDF');
+		}
+
+		$assembler = self::factory()->makeAssembler();
+		if (!$assembler->concat($parts, $output_path)) {
+			throw new RuntimeException($assembler->getLastError() ?? 'assembly failed');
+		}
 	}
 }
 
@@ -351,7 +428,13 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	global $g_bookworker;
 
 	if (!BookWorkerRenderBridge::isAvailable()) {
-		throw new RuntimeException('No PDF renderer is available on this host. Install the renderer (see bin/README.md) before queueing jobs.');
+		// The reason names the missing binary and how to install it, which is
+		// what an operator reading a failed job actually needs.
+		throw new RuntimeException(
+			'No PDF renderer is available on this host: '
+			.BookWorkerRenderBridge::unavailableReason()
+			.' See bin/README.md.'
+		);
 	}
 
 	$directories = bookworker_directories($plugin_dir);
@@ -543,7 +626,12 @@ try {
 	bookworker_error('could not initialize the locale, messages will be untranslated: ' . $e->getMessage());
 }
 
-foreach ([$plugin_dir . '/lib/BookJobModel.php', $plugin_dir . '/models/plugin_books.php'] as $plugin_file) {
+foreach ([
+	$plugin_dir . '/lib/BookJobModel.php',
+	$plugin_dir . '/models/plugin_books.php',
+	$plugin_dir . '/lib/PdfRendererFactory.php',
+	$plugin_dir . '/lib/BookHtmlBuilder.php',
+] as $plugin_file) {
 	if (!is_file($plugin_file)) {
 		bookworker_error("missing plugin file {$plugin_file}");
 		exit(BOOKWORKER_EXIT_BOOTSTRAP);
