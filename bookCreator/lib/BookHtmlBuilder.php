@@ -159,10 +159,10 @@ class BookHtmlBuilder {
 			case 'set':
 				return $this->buildSetPages($section, $code);
 			case 'mixed':
-				return $this->wrapLayout($code, $this->buildTextContent($section))
+				return $this->wrapLayout($code, $this->buildTextContent($section, $code))
 					.$this->buildSetPages($section, $code);
 			default:
-				return $this->wrapLayout($code, $this->buildTextContent($section));
+				return $this->wrapLayout($code, $this->buildTextContent($section, $code));
 		}
 	}
 
@@ -221,21 +221,51 @@ class BookHtmlBuilder {
 		return 0;
 	}
 
-	/** Editorial content: the title when the layout shows one, plus Markdown. */
-	private function buildTextContent($section) {
+	/**
+	 * Editorial content: the section title when the layout shows one, then the
+	 * Markdown.
+	 *
+	 * The title is NOT emitted unconditionally. The v1 printed it only for
+	 * chapter layouts, and wrapped the body in .content only there too; on a
+	 * title page, a dedication or a colophon the section title is an editing
+	 * label, never something to print. Emitting it everywhere would add a
+	 * heading to a dozen pages of the Floutier catalogue and make the one-to-one
+	 * acceptance run fail for a reason that has nothing to do with the new
+	 * chain.
+	 *
+	 * Which layouts show it is declared by the manifest, so it stops being a
+	 * strpos() on the layout name — with a fallback on that very test for the
+	 * v1 layouts whose manifest says nothing.
+	 */
+	private function buildTextContent($section, $code) {
 		$html = '';
-		if (strlen((string)$section['title'])) {
+
+		if ($this->layoutShowsTitle($code) && strlen((string)$section['title'])) {
 			$html .= "<h1>".htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8')."</h1>\n";
 		}
 		if (strlen((string)$section['intro'])) {
 			$html .= "<div class=\"intro\">".$this->markdown->render($section['intro'])."</div>\n";
 		}
-		$html .= "<div class=\"content\">".$this->markdown->render($section['content'])."</div>\n";
+
+		$body = $this->markdown->render($section['content']);
+		$html .= $this->layoutShowsTitle($code)
+			? "<div class=\"content\">".$body."</div>\n"
+			: $body;
 
 		// A layout may also pin a single representation, independently of a set.
 		$html .= $this->buildRepresentationBlock($section);
 
 		return $html;
+	}
+
+	/** Whether the layout prints the section title, per its manifest. */
+	private function layoutShowsTitle($code) {
+		$manifest = $this->templates->getTemplate($code);
+		if ($manifest && isset($manifest['show_title'])) {
+			return (bool)$manifest['show_title'];
+		}
+		// v1 behaviour, kept for layouts whose manifest is silent.
+		return (strpos($code, 'chapter') !== false);
 	}
 
 	/**

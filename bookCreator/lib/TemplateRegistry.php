@@ -100,6 +100,7 @@ class TemplateRegistry {
 			'section_type' => $conf->get('section_type') ? $conf->get('section_type') : 'text',
 			'formats'      => is_array($formats) ? $formats : [],
 			'css'          => $conf->get('css'),
+			'show_title'   => $conf->get('show_title'),
 			'options'      => is_array($options) ? $options : [],
 			'path'         => $this->templatesPath().'/'.$code,
 		];
