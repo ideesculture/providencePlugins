@@ -160,9 +160,53 @@ class BookHtmlBuilder {
 				return $this->buildSetPages($section, $code);
 			case 'mixed':
 				return $this->buildMixedSection($section, $code);
+			case 'summary':
+				return $this->buildSummarySection($section, $code);
 			default:
 				return $this->wrapLayout($code, $this->buildTextContent($section, $code));
 		}
+	}
+
+	/**
+	 * Table of contents, built from the sections themselves.
+	 *
+	 * In the v1 the table of contents was an ordinary Markdown section, with the
+	 * page numbers typed by hand — so inserting a single page anywhere in the
+	 * book meant retyping them all, and the printed copy of the Floutier
+	 * catalogue carries numbers that were correct on the day they were written.
+	 *
+	 * Here it is generated: every section flagged is_in_summary contributes its
+	 * title and its first_page, which the worker writes as it renders. A section
+	 * never rendered has no page number yet and is listed without one rather
+	 * than with a wrong one.
+	 */
+	private function buildSummarySection($section, $code) {
+		$book = new plugin_books($section['book_id']);
+
+		$rows = '';
+		foreach ($book->getSections() as $entry) {
+			if (!$entry['is_in_summary']) { continue; }
+			if (!strlen((string)$entry['title'])) { continue; }
+
+			$title = htmlspecialchars($entry['title'], ENT_QUOTES, 'UTF-8');
+			$page  = (is_null($entry['first_page']) || (int)$entry['first_page'] < 1)
+				? ''
+				: (int)$entry['first_page'];
+
+			// The leader is an element of its own rather than a ::after on the
+			// entry: a pseudo-element is always the last child and would land
+			// after the folio instead of between the title and it.
+			$rows .= "<li class=\"summary-entry\">";
+			$rows .= "<span class=\"summary-title\">".$title."</span>";
+			$rows .= "<span class=\"summary-leader\"></span>";
+			$rows .= "<span class=\"summary-page\">".$page."</span>";
+			$rows .= "</li>\n";
+		}
+
+		$html = $this->buildTextContent($section, $code);
+		$html .= "<ul class=\"summary-list\">\n".$rows."</ul>\n";
+
+		return $this->wrapLayout($code, $html);
 	}
 
 	/**
