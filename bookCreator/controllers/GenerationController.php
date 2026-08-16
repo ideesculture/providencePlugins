@@ -117,14 +117,17 @@ class GenerationController extends ActionController {
 			return;
 		}
 
-		$job = $this->opo_jobs->getForBook($book_id);
+		// The ACTIVE job, not merely the last one: getForBook() returns the most
+		// recent whatever its state, so cancelling right after a finished
+		// generation used to answer "already started" about a job that was done.
+		$job = $this->opo_jobs->getActiveForBook($book_id);
 		$notification = null;
 		$error = null;
 
 		if (!is_array($job)) {
 			$error = _t('There is no generation to cancel for this book.');
 		} elseif ($this->opo_jobs->cancel((int)$job['job_id'])) {
-			$notification = _t('Generation cancelled.');
+			$notification = _t('Generation cancelled. You can start a new one.');
 		} else {
 			// cancel() only touches a pending job: a running one belongs to a
 			// worker that is writing right now, and is left to the reaper.

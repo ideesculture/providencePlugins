@@ -318,13 +318,20 @@ final class BookWorkerRenderBridge {
 		$pdf_path = $work_dir . '/section-' . $section_id . '.pdf';
 		$factory  = self::factory();
 
-		// The base URL must be the theme directory: the stylesheets and fonts
-		// referenced by the document are relative to it.
-		$options = $factory->makeRenderOptions()
-			->withFirstPageNumber($page_offset)
-			->withBaseUrl(ThemeRegistry::themesPath() . '/' . ($book['theme'] ?? 'default') . '/');
+		// The theme and format are passed, not merely the base URL. WeasyPrint
+		// reads the @page rule and would manage without them, but Gotenberg
+		// drives Chromium, whose page setup comes from the form fields of the
+		// request: left unsaid, every book leaves in A4 portrait, landscape
+		// catalogues included. Both come from ThemeRegistry, the source the
+		// @page rule is built from, so CSS and form fields cannot drift apart.
+		$options = $factory->makeRenderOptions(
+			$book['theme'] ?? 'default',
+			$book['page_format'] ?? 'a4-landscape'
+		)->withFirstPageNumber($page_offset);
 
-		$renderer = $factory->makeRenderer();
+		// The trace identifier makes a request findable in the service log,
+		// which is the only place a Gotenberg rendering leaves a mark.
+		$renderer = $factory->makeRenderer('book-'.(int)$book['book_id'].'-section-'.$section_id);
 		$result = $renderer->render($html_path, $pdf_path, $options);
 
 		if (!$result->success) {
@@ -408,10 +415,23 @@ function bookworker_cover_path(string $name): ?string {
 	if ($name === '') { return null; }
 
 	$directory = realpath(bookworker_covers_dir());
-	if (!$directory) { return null; }
+	if (!$directory) {
+		bookworker_error("the covers directory does not exist; cover {$name} was ignored");
+		return null;
+	}
 
 	$path = realpath($directory . '/' . basename($name));
-	if (!$path || !is_file($path) || !is_readable($path)) { return null; }
+	if (!$path || !is_file($path) || !is_readable($path)) {
+		// Said out loud, because it is the shape a v1 value takes: the old
+		// version stored full paths, basename() reduces them to a file name
+		// that is not in this directory, and the book would otherwise be
+		// assembled without its cover and no one the wiser.
+		bookworker_error(
+			"cover {$name} was not found in {$directory} and was ignored"
+			.(strpos($name, '/') !== false ? ' (it looks like a path from the previous version: put the file in the covers directory and save the book again)' : '')
+		);
+		return null;
+	}
 
 	// Confinement check, after realpath() has resolved every symlink.
 	if (strpos($path, $directory . DIRECTORY_SEPARATOR) !== 0) {
@@ -540,6 +560,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 	$total = sizeof($sections);
 	$section_pdfs = [];
+	$job_warnings = [];   // surfaced on the job at the very end, see below
 	$page_offset = 1;
 	$done = 0;
 
@@ -634,10 +655,10 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 				bookworker_error("job {$job['job_id']}: {$warning}");
 
-				// Also carried on the job itself. The editor never reads stderr:
-				// leaving the warning there alone means downloading a book with
-				// a wrong pagination and no way of knowing it.
-				$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, $warning);
+				// Held until the very end rather than written now: the very next
+				// updateProgress() would overwrite it, which is precisely what
+				// happened to the first version of this warning.
+				$job_warnings[] = $warning;
 			}
 		}
 	}
@@ -661,6 +682,14 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// Older deliverables of the same book are dropped too: only the latest is
 	// ever offered for download, the job carrying its path.
 	bookworker_clean_previous_outputs($directories['output'], (int)$job['book_id'], $output_path);
+
+	// Warnings are written last, and only here. finish() sets the status, the
+	// path and the progress but never touches the message, so what is written
+	// now is what the editor reads next to a finished book. Written any earlier,
+	// the following progress update would have wiped it.
+	if ($job_warnings) {
+		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, join(' ', $job_warnings));
+	}
 
 	return $output_path;
 }

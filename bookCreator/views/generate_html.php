@@ -31,9 +31,19 @@ $status_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Status', ['
 	<div class="alert alert-success"><?php print htmlspecialchars($notification, ENT_QUOTES, 'UTF-8'); ?></div>
 <?php } ?>
 
+<?php
+// Only pending and running are in progress. A done or cancelled job is history:
+// offering to cancel it answered nonsense, and leaving out the generate button
+// turned a cancellation into a dead end with no way back.
+$is_running = in_array($status, ['pending', 'running'], true);
+?>
 <div id="bookGenerationState">
-<?php if ($status === 'none') { ?>
-	<p><?php print _t('No generation is running for this book.'); ?></p>
+<?php if (!$is_running) { ?>
+	<?php if ($status === 'none') { ?>
+		<p><?php print _t('No generation is running for this book.'); ?></p>
+	<?php } else { ?>
+		<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
+	<?php } ?>
 	<?php print caNavButton($this->request, __CA_NAV_ICON_PDF__, _t('Generate the PDF'), '', '*', 'Generation', 'Submit', array_merge(['book' => $book_id], BookCsrf::param())); ?>
 <?php } else { ?>
 	<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
