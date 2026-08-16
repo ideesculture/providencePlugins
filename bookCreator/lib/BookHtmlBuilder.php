@@ -36,6 +36,16 @@ require_once(__CA_APP_DIR__.'/plugins/bookCreator/models/plugin_books.php');
  */
 class BookHtmlBuilder {
 
+	/**
+	 * Paged.js polyfill, served from the plugin rather than a CDN.
+	 *
+	 * Bundled locally on purpose: the preview must keep working on an
+	 * installation without outbound network access, and a CDN that dies takes
+	 * the pagination with it — which is exactly how the previous stylesheet
+	 * ended up pointing at a dead font host.
+	 */
+	const PAGEDJS_URL = '../../../assets/js/paged.polyfill.js';
+
 	/** @var ThemeRegistry */
 	private $theme;
 
@@ -117,6 +127,15 @@ class BookHtmlBuilder {
 
 		foreach ($this->theme->getStylesheets() as $sheet) {
 			$html .= "<link rel=\"stylesheet\" href=\"".htmlspecialchars($sheet, ENT_QUOTES, 'UTF-8')."\" />\n";
+		}
+
+		// Paged.js is the only thing the preview adds, and it is a paginating
+		// polyfill rather than content: it does in the browser what WeasyPrint
+		// does on the server. Everything else in this document is identical to
+		// what is sent to the PDF chain — interface chrome lives in the page
+		// that embeds this one in an iframe, never here.
+		if (caGetOption('preview', $options, false)) {
+			$html .= "<script src=\"".self::PAGEDJS_URL."\"></script>\n";
 		}
 
 		$html .= "</head>\n<body>\n".$body."</body>\n</html>\n";
