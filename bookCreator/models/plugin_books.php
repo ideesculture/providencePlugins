@@ -45,20 +45,28 @@ class plugin_books {
 	private $booksections_db_structure;
 
 	public function __construct($id) {
-		if(!$id) {
-			return false;
-		}
-		if($id > 0) {
-			$this->load($id);
-		} else {
-			// Insertion mode, with an id = 0, doing stuff here
-		}
+		// Column lists first, and unconditionally: the previous version returned
+		// before setting them when the id was empty, so any later setSection()
+		// ran in_array() against null and took the page down with a TypeError.
 		$this->books_db_structure = array("book_id", "idno", "title", "subtitle", "description", "theme", "font_pair", "page_format", "cover_pdf", "backcover_pdf", "locale_id", "created_on", "modified_on");
 		// Whitelist of writable section columns. Legacy v1 columns (sectiontype,
 		// parent_id, object_id, date) are deliberately absent: they were never
 		// populated and the v2 code does not use them.
 		$this->booksections_db_structure = array("booksection_id", "book_id", "sort", "title", "style", "content", "intro", "set_id", "representation_id", "pages", "first_page", "is_in_summary", "options", "content_hash", "rendered_on");
+
+		if ($id > 0) { $this->load($id); }
 	}
+
+	/**
+	 * Section columns a submitted form is never allowed to write.
+	 *
+	 * booksection_id and book_id are real columns, and they were in the
+	 * whitelist: a forged post could therefore move a section to another book
+	 * or change its primary key. The rendering counters are equally off limits
+	 * to a form — only the worker writes them, and it goes through
+	 * setSectionInternal().
+	 */
+	const SECTIONS_FORM_RESERVED = array("booksection_id", "book_id", "pages", "first_page", "content_hash", "rendered_on");
 
 	// Source : http://stackoverflow.com/questions/12330341/php-trying-to-create-dynamic-variables-in-classes/12330428#12330428
 	// This is a method to magically set and get variables inside the class, they are actually stored inside the data array container
@@ -196,13 +204,16 @@ class plugin_books {
 	 * bound; values go through placeholders, which removes the need for the
 	 * quote-escaping the v1 relied on.
 	 */
-	public function setSection($id, $data) {
+	public function setSection($id, $data, $from_form = true) {
 		$update_vars = array();
 		$values = array();
-		if(!isset($data["is_in_summary"])) {
-			$data["is_in_summary"]=0;
-		}
+
+		// Columns a form must never reach. The worker passes $from_form = false
+		// to write the rendering counters, which are its own business.
+		$reserved = $from_form ? self::SECTIONS_FORM_RESERVED : array("booksection_id", "book_id");
+
 		foreach($data as $field=>$value) {
+			if(in_array($field, $reserved)) { continue; }
 			if(in_array($field, $this->booksections_db_structure)) {
 				$update_vars[] = "`".$field."` = ?";
 				$values[] = $value;

@@ -324,17 +324,24 @@ final class BookWorkerRenderBridge {
 			->withFirstPageNumber($page_offset)
 			->withBaseUrl(ThemeRegistry::themesPath() . '/' . ($book['theme'] ?? 'default') . '/');
 
-		$result = $factory->makeRenderer()->render($html_path, $pdf_path, $options);
+		$renderer = $factory->makeRenderer();
+		$result = $renderer->render($html_path, $pdf_path, $options);
 
 		if (!$result->success) {
 			throw new RuntimeException($result->errorMessage ?? 'rendering failed');
 		}
 
+		// RenderResult::$warnings is a string, not a list: iterating it did
+		// nothing at all. And a successful render still has to be inspected —
 		// WeasyPrint exits 0 with a hole in the page when an image is missing,
-		// so a successful render still has to be inspected: a lost plate would
-		// otherwise only surface on the printed copy.
-		foreach ($result->warnings as $warning) {
-			bookworker_error("section {$section_id}: {$warning}");
+		// so a lost plate would otherwise only surface on the printed copy.
+		if (strlen(trim($result->warnings))) {
+			bookworker_error("section {$section_id}: ".trim($result->warnings));
+		}
+		if ($renderer instanceof WeasyPrintRenderer) {
+			foreach (WeasyPrintRenderer::extractResourceErrors($result->warnings) as $missing) {
+				bookworker_error("section {$section_id}: missing resource, {$missing}");
+			}
 		}
 		foreach ($builder->getSkippedMessages() as $skipped) {
 			bookworker_error("section {$section_id}: {$skipped}");
@@ -449,6 +456,12 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	}
 	$book_data = $book_row['data'];
 
+	// book_id is a declared property of plugin_books, so load() assigns it
+	// directly and it never goes through __set() into $data. Reading it from
+	// the row would yield 0, the builder would load no sections at all, and the
+	// job would finish "done" on a book of blank pages without a single error.
+	$book_data['book_id'] = (int)$job['book_id'];
+
 	$sections = $book->getSections();
 	if ($job['job_type'] === BookJobModel::TYPE_SECTION && $job['section_id']) {
 		// Single section job: the page offset of a lone section is unknown, so
@@ -482,6 +495,18 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 		$rendered = BookWorkerRenderBridge::renderSection($book_data, $section, $page_offset, $directories['work']);
 		$section_pdfs[] = $rendered['path'];
+
+		// Record what this section weighs and where it starts, before moving the
+		// offset on. Nothing else writes these two columns: without this the
+		// generated table of contents has no folios, the cumulated page count of
+		// the interface stays at zero, and a section previewed on its own cannot
+		// carry the number it holds in the book.
+		$book->setSection((int)$section['booksection_id'], [
+			'pages'       => (int)$rendered['pages'],
+			'first_page'  => $page_offset,
+			'rendered_on' => time(),
+		], false);   // false: these columns are the worker's, not a form's
+
 		$page_offset += max(0, (int)$rendered['pages']);
 		$done++;
 

@@ -45,7 +45,6 @@ print caFormTag($this->request, "SaveSection/book/$book_id/section/$section_id",
 print $vs_control_box = caFormControlBox(
 	//left
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'editSectiontext').' '.
-	//caFormSubmitButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("Save and redirect"), 'editSectiontext').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' ',
 	//middle
 	'',
@@ -58,7 +57,7 @@ print $vs_control_box = caFormControlBox(
 <input name="section" type="hidden" value="<?php print $section_id; ?>"/>
 
 <h3><?php print _t('Title'); ?></h3>
-<input name="title" class="section-titre-input" type="text" value="<?php print $section["title"]; ?>" />
+<input name="title" class="section-titre-input" type="text" value="<?php print htmlspecialchars((string)$section["title"], ENT_QUOTES, "UTF-8"); ?>" />
 
 <label style="font-weight: normal;" class="pull-right">
   <input type="checkbox" name="is_in_summary" id="is_in_summary" value="1" <?php print ($section["is_in_summary"]*1 ? "checked=\"checked\"" : ""); ?>>
@@ -69,7 +68,7 @@ print $vs_control_box = caFormControlBox(
 	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Introduction/summary'); ?>
 </h3>
 <div class="collapse" id="collapseIntro">
-	<input name="intro" class="section-intro-input" type="text" value="<?php print $section["intro"]; ?>" />
+	<input name="intro" class="section-intro-input" type="text" value="<?php print htmlspecialchars((string)$section["intro"], ENT_QUOTES, "UTF-8"); ?>" />
 </div>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseStyle" aria-expanded="false" aria-controls="collapseExample">
@@ -93,26 +92,25 @@ print $vs_control_box = caFormControlBox(
 </div>
 
 <h3><?php print _t('Content'); ?></h3>
-<textarea name="content" class="section-contenu-textarea" id="section-contenu-textarea"><?php print $section["content"]; ?></textarea>
+<textarea name="content" class="section-contenu-textarea" id="section-contenu-textarea"><?php print htmlspecialchars((string)$section["content"], ENT_QUOTES, "UTF-8"); ?></textarea>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseRepresentation" aria-expanded="false" aria-controls="collapseRepresentation">
 	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Representation'); ?>
 </h3>
 <div class="collapse" id="collapseRepresentation">
-	<input name="representation_id" class="section-representation_id-input" type="text" value="<?php print $section["representation_id"]; ?>" />
+	<input name="representation_id" class="section-representation_id-input" type="text" value="<?php print htmlspecialchars((string)$section["representation_id"], ENT_QUOTES, "UTF-8"); ?>" />
 </div>
 
 <h3 type="button" data-toggle="collapse" data-target="#collapseSet" aria-expanded="false" aria-controls="collapseSet">
 	<i class="fa fa-plus-square-o" aria-hidden="true"></i> <?php print _t('Set'); ?>
 </h3>
 <div class="collapse" id="collapseSet">
-	<input name="set_id" class="section-set_id-input" type="text" value="<?php print $section["set_id"]; ?>" />
+	<input name="set_id" class="section-set_id-input" type="text" value="<?php print htmlspecialchars((string)$section["set_id"], ENT_QUOTES, "UTF-8"); ?>" />
 </div>
 <br/><br/>
 <?php
 print $vs_control_box = caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'editSectiontext').' '.
-	//caFormSubmitButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("Save and redirect"), 'editSectiontext').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' '.
 	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("Preview this section"), '', "bookCreator", "Preview", "Section", array('book' => $book_id, 'section' => $section_id)),
 	'',

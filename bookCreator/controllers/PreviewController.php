@@ -120,15 +120,16 @@ class PreviewController extends ActionController {
 		exit;
 	}
 
-	/** One book setting, with a fallback when the book could not be loaded. */
+	/**
+	 * One book setting, with a fallback when the book could not be loaded.
+	 *
+	 * Goes through getField(), written for exactly this case. The magic getter
+	 * is not merely inconvenient here: on a book that does not exist $data is
+	 * null, so it reaches array_key_exists(name, null) and raises a TypeError —
+	 * which is not an Exception and would escape any catch written for one.
+	 */
 	private function bookSetting($book, $name, $default) {
-		try {
-			$value = $book->{$name};
-			return strlen((string)$value) ? $value : $default;
-		} catch (Exception $e) {
-			// The magic getter throws on an unknown property, which is what
-			// happens for a book that does not exist.
-			return $default;
-		}
+		$value = $book->getField($name, $default);
+		return strlen((string)$value) ? $value : $default;
 	}
 }

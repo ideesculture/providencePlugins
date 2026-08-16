@@ -23,7 +23,7 @@ $nb_pages = $this->getVar('nb_pages');
 		if($section["is_in_summary"]):
 ?>
 	<tr>
-		<td style="width: auto;"><?php print $section["title"]; ?> </td>
+		<td style="width: auto;"><?php print htmlspecialchars((string)$section["title"], ENT_QUOTES, "UTF-8"); ?> </td>
 		<td style="text-align: right;width: 20%;"><?php print $count; ?></td>
 	</tr>
 <?php
@@ -33,9 +33,3 @@ $nb_pages = $this->getVar('nb_pages');
 ?>
 </table>
 
-<?php
-/*print $vs_control_box = caFormControlBox(
-	//caFormSubmitButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("Save and redirect"), 'editSectiontext').' '.
-	caNavButton($this->request, __CA_NAV_BUTTON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array())
-);*/
-?>

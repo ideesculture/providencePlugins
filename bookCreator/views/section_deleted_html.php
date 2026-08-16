@@ -21,7 +21,7 @@ $section = $this->getVar("section_details");
 
 <?php
 print $vs_control_box = caFormControlBox(
-	caNavButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("OK"), '', "*", "*", "BookSections/book/$book_id", array()),
+	caNavButton($this->request, __CA_NAV_ICON_SAVE__, _t("OK"), '', "*", "*", "BookSections/book/$book_id", array()),
 	'',
 	''
 );?>

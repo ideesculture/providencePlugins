@@ -179,7 +179,14 @@
         	$book_id = $this->request->getParameter("book", pInteger);
 	        $section_id = $this->request->getParameter("section", pInteger);
 	        $vt_book = new plugin_books($book_id);
-	        $result = $vt_book->setSection($section_id, $_POST);
+	        // An unchecked checkbox is simply absent from the payload, so the
+	        // flag has to be forced here. It used to be forced inside the model,
+	        // which meant every write that did not mention it — the worker
+	        // recording page counts, for one — silently cleared it.
+	        $post = $_POST;
+	        if (!isset($post['is_in_summary'])) { $post['is_in_summary'] = 0; }
+
+	        $result = $vt_book->setSection($section_id, $post);
 			if(is_array($result)) {
 				$this->view->setVar("error", implode(" – ", $result));
 			} else {

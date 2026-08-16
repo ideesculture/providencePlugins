@@ -11,6 +11,7 @@
  * ----------------------------------------------------------------------
  */
 
+require_once(__CA_LIB_DIR__.'/Configuration.php');
 require_once(__CA_MODELS_DIR__.'/ca_sets.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/ThemeRegistry.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/TemplateRegistry.php');
@@ -43,8 +44,14 @@ class BookHtmlBuilder {
 	 * installation without outbound network access, and a CDN that dies takes
 	 * the pagination with it — which is exactly how the previous stylesheet
 	 * ended up pointing at a dead font host.
+	 *
+	 * Path relative to the plugin, resolved against __CA_URL_ROOT__ at render
+	 * time. A relative URL cannot work here: the preview is served from
+	 * /index.php/bookCreator/Preview/Book/book/12, whose depth differs from
+	 * that of a section preview, so any fixed number of ../ is wrong for one of
+	 * the two.
 	 */
-	const PAGEDJS_URL = '../../../assets/js/paged.polyfill.js';
+	const PAGEDJS_PATH = '/app/plugins/bookCreator/assets/js/paged.polyfill.js';
 
 	/** @var ThemeRegistry */
 	private $theme;
@@ -63,6 +70,17 @@ class BookHtmlBuilder {
 
 	/** @var string font pair code of the book being rendered */
 	private $font_pair;
+
+	/**
+	 * Whether media are referenced by local path rather than by URL.
+	 *
+	 * The PDF chain must not go through the network: WeasyPrint would fetch
+	 * every plate over HTTP from the site itself, which fails when the media are
+	 * behind authentication, and makes the rendering depend on the front end
+	 * being reachable from the worker. A browser preview, on the other hand, can
+	 * only use URLs. Set from the preview option in buildDocument().
+	 */
+	private $use_local_media = true;
 
 	public function __construct($theme_code = 'default', $format = 'a4-landscape', $font_pair = 'default', $parser = null) {
 		$this->theme     = new ThemeRegistry($theme_code);
@@ -88,6 +106,9 @@ class BookHtmlBuilder {
 	 *                              bleed => bool  printer-ready output.
 	 */
 	public function buildDocument($book_id, $section_id = null, $options = []) {
+		// A browser can only follow URLs; the renderer must not need the network.
+		$this->use_local_media = !caGetOption('preview', $options, false);
+
 		$book = new plugin_books($book_id);
 
 		$body = '';
@@ -123,6 +144,12 @@ class BookHtmlBuilder {
 
 		$html  = "<!DOCTYPE html>\n<html><head>\n";
 		$html .= "<meta charset=\"UTF-8\" />\n";
+
+		// The stylesheets and fonts of a theme are declared relative to its own
+		// directory. WeasyPrint is told where that is through --base-url; a
+		// browser has to be told in the document itself, otherwise the relative
+		// hrefs resolve against the preview URL and every one of them 404s.
+		$html .= "<base href=\"".htmlspecialchars($this->themeBaseUrl(), ENT_QUOTES, 'UTF-8')."\" />\n";
 		$html .= "<style>\n".$css."</style>\n";
 
 		foreach ($this->theme->getStylesheets() as $sheet) {
@@ -134,12 +161,54 @@ class BookHtmlBuilder {
 		// does on the server. Everything else in this document is identical to
 		// what is sent to the PDF chain — interface chrome lives in the page
 		// that embeds this one in an iframe, never here.
+		//
+		// Its src is absolute for the same reason as the base above: the depth
+		// of the preview URL is not the same for a book and for a section.
 		if (caGetOption('preview', $options, false)) {
-			$html .= "<script src=\"".self::PAGEDJS_URL."\"></script>\n";
+			$src = __CA_URL_ROOT__.self::PAGEDJS_PATH;
+			$html .= "<script src=\"".htmlspecialchars($src, ENT_QUOTES, 'UTF-8')."\"></script>\n";
 		}
 
 		$html .= "</head>\n<body>\n".$body."</body>\n</html>\n";
 		return $html;
+	}
+
+	/** Web URL of the theme directory, with its trailing slash. */
+	private function themeBaseUrl() {
+		return __CA_URL_ROOT__.'/app/plugins/bookCreator/themes/'.$this->theme->getCode().'/';
+	}
+
+	/**
+	 * Where to point an <img> for a representation.
+	 *
+	 * A local path for the PDF chain, a URL for the browser preview. The
+	 * difference matters: with a URL, WeasyPrint fetches every plate over HTTP
+	 * from the site it is part of — which turns a rendering into a network
+	 * operation, fails outright when the media are behind authentication, and
+	 * ties a worker pod to the reachability of the front end.
+	 *
+	 * The derivative version is configurable rather than frozen: an installation
+	 * whose media profile names it differently would otherwise get nothing.
+	 */
+	private function mediaSource($representation) {
+		$version = $this->mediaVersion();
+
+		if ($this->use_local_media) {
+			$path = $representation->getMediaPath('media', $version);
+			if ($path && is_readable($path)) { return $path; }
+			// No derivative on disk: fall back to the URL rather than emitting
+			// an empty src, so the plate is at least attempted.
+		}
+		return $representation->getMediaUrl('media', $version);
+	}
+
+	/** Media derivative used for plates, from the plugin configuration. */
+	private function mediaVersion() {
+		$configured = trim((string)Configuration::load(
+			__CA_APP_DIR__.'/plugins/bookCreator/conf/bookCreator.conf'
+		)->get('media_version'));
+
+		return strlen($configured) ? $configured : 'page';
 	}
 
 	# -------------------------------------------------------
@@ -382,7 +451,7 @@ class BookHtmlBuilder {
 
 			$html = "<div class=\"media\">\n";
 			if ($representation) {
-				$url = $representation->getMediaUrl('media', 'page');
+				$url = $this->mediaSource($representation);
 				if ($url) {
 					$html .= "<div class=\"image\" style=\"background-image:url('".htmlspecialchars($url, ENT_QUOTES, 'UTF-8')."');\"></div>\n";
 				}
@@ -416,7 +485,7 @@ class BookHtmlBuilder {
 		$representation = $this->loader->load('ca_object_representations', $section['representation_id'], $context);
 		if (!$representation) { return ''; }
 
-		$url = $representation->getMediaUrl('media', 'page');
+		$url = $this->mediaSource($representation);
 		if (!$url) { return ''; }
 
 		$container = $manifest['media_container'] ?? 'media';

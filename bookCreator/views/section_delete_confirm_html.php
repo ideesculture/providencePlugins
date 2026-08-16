@@ -25,8 +25,8 @@ print caFormTag($this->request, "DeleteSection/book/$book_id/section/$section_id
 
 <?php
 print $vs_control_box = caFormControlBox(
-	caFormSubmitButton($this->request, __CA_NAV_BUTTON_DELETE__, _t("Delete"), 'editSectiontext').' '.
-	caNavButton($this->request, __CA_NAV_BUTTON_CANCEL__, _t("Cancel"), '', "*", "*", "editSection/book/$book_id/section/$section_id", array()),
+	caFormSubmitButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), 'editSectiontext').' '.
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "editSection/book/$book_id/section/$section_id", array()),
 	'',
 	''
 );?>
