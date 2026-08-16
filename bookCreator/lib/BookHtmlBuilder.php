@@ -367,9 +367,14 @@ class BookHtmlBuilder {
 	 * The title is therefore emitted as a literal in a rule of its own, scoped
 	 * to this section. A literal rather than content() or attr(): both would
 	 * need an element in the flow to hang off, and a literal is plain CSS 2.1
-	 * that no renderer can decline. The h1 rule of base.css still applies on top
-	 * for chapter layouts, which is what we want — a chapter titled differently
-	 * from its section shows its own title.
+	 * that no renderer can decline.
+	 *
+	 * Which of the two wins, measured rather than assumed: the margin boxes use
+	 * `string(chapter)`, whose default is the `first` value — the first one
+	 * assigned on the page. The section div carries this rule and opens the
+	 * page, so it is assigned before the h1 of base.css and it is the section
+	 * title that prints, on chapter layouts too. Changing that means passing
+	 * `start` or `last` to string() in ThemeRegistry, not editing here.
 	 */
 	private function collectRunningHead($section) {
 		$this->current_section_class = null;
@@ -380,13 +385,27 @@ class BookHtmlBuilder {
 
 		$this->current_section_class = 'bc-section-'.$id;
 
-		// A CSS string literal: backslashes first, then the quote that delimits
-		// it, then the newlines a title pasted from a document may carry — an
-		// unescaped one would terminate the declaration and drop the rest of the
+		// This string is read by two parsers in turn, and escaping for only one
+		// of them is what makes the naive version dangerous.
+		//
+		// CSS first: backslashes, then the quote that delimits the literal, then
+		// the newlines a title pasted from a word processor carries — an
+		// unescaped one terminates the declaration and drops the rest of the
 		// stylesheet.
+		//
+		// HTML second, and this is the part the first version of this method
+		// missed: the rule is written inside a <style> element, and the HTML
+		// tokeniser closes that element at the first "</style>" it sees, wherever
+		// it sits — inside a CSS string included. A section titled
+		// "</style><script>…</script>" therefore left the stylesheet and became
+		// executable script in the preview, running with the editor's session.
+		// "<" and ">" go out as CSS hexadecimal escapes: the CSS parser reads
+		// them back as the characters themselves, so the running head still
+		// prints the title as typed, while the HTML tokeniser never sees a tag.
+		// The trailing space terminates each escape, and is consumed with it.
 		$escaped = str_replace(
-			['\\', '"', "\r\n", "\r", "\n"],
-			['\\\\', '\\"', ' ', ' ', ' '],
+			['\\', '"', "\r\n", "\r", "\n", '<', '>'],
+			['\\\\', '\\"', ' ', ' ', ' ', '\\3c ', '\\3e '],
 			$title
 		);
 
