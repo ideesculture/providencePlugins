@@ -45,13 +45,9 @@ class BookJobModel {
 	/** Statuses that mean "this job still has work to do". */
 	const ACTIVE_STATUSES = [self::STATUS_PENDING, self::STATUS_RUNNING];
 
-	/** Whole book, or a single section (job_type / section_id). */
-	const TYPE_BOOK    = 'book';
-	const TYPE_SECTION = 'section';
-
 	/** Columns read back by get()/claimNext(); also the shape returned to callers. */
 	const COLUMNS = [
-		'job_id', 'book_id', 'job_type', 'section_id', 'status', 'progress',
+		'job_id', 'book_id', 'status', 'progress',
 		'message', 'pdf_path', 'created_on', 'started_on', 'finished_on', 'worker_id',
 	];
 
@@ -133,36 +129,24 @@ class BookJobModel {
 	 * and its id is returned instead. The caller cannot tell the difference,
 	 * and does not need to: it polls that id either way.
 	 *
-	 * @param int $bookId
-	 * @param string $type self::TYPE_BOOK or self::TYPE_SECTION; anything else falls back to book
-	 * @param int|null $sectionId section to render when $type is 'section'
+	 * A job is a whole book. The queue carried a second kind — one section on
+	 * its own — that nothing ever submitted: the editor previews a section as
+	 * HTML, it never queues it. What it did do was rot, and its half-valid
+	 * states rendered books without folios and with an empty table of contents.
+	 *
 	 * @return int job id, or 0 when the insert failed
 	 */
-	public function submit(int $bookId, string $type = self::TYPE_BOOK, ?int $sectionId = null): int {
+	public function submit(int $bookId): int {
 		if ($bookId <= 0) { return 0; }
 
-		$type = ($type === self::TYPE_SECTION) ? self::TYPE_SECTION : self::TYPE_BOOK;
-		if ($type === self::TYPE_BOOK) { $sectionId = null; }
-
-		// A section job with no section is not a section job. The row used to be
-		// accepted as it came, and the worker then took the "whole book" branch
-		// for the rendering while keeping the "section" branch for everything
-		// else: the book was rendered without recording a single first_page and
-		// without the second pass over the table of contents — a complete book,
-		// unfolioed, with an empty summary, in status done.
-		if ($type === self::TYPE_SECTION && !($sectionId > 0)) {
-			$type = self::TYPE_BOOK;
-			$sectionId = null;
-		}
-
-		if ($existing = $this->getActiveForBook($bookId, $type, $sectionId)) {
+		if ($existing = $this->getActiveForBook($bookId)) {
 			return (int)$existing['job_id'];
 		}
 
 		$qr = $this->query(
-			"INSERT INTO `" . self::TABLE . "` (book_id, job_type, section_id, status, progress, created_on)
-			 VALUES (?, ?, ?, ?, 0, ?)",
-			[$bookId, $type, $sectionId, self::STATUS_PENDING, time()]
+			"INSERT INTO `" . self::TABLE . "` (book_id, status, progress, created_on)
+			 VALUES (?, ?, 0, ?)",
+			[$bookId, self::STATUS_PENDING, time()]
 		);
 		if (!$qr) { return 0; }
 
@@ -399,27 +383,16 @@ class BookJobModel {
 	}
 
 	/** Pending or running job of a book, used by submit() to refuse duplicates. */
-	public function getActiveForBook(int $bookId, ?string $type = null, ?int $sectionId = null): ?array {
+	public function getActiveForBook(int $bookId): ?array {
 		if ($bookId <= 0) { return null; }
 
-		// The type narrows the search when one is given. Without it, submit()
-		// handed back whatever job the book already had: asking for the whole
-		// book while a single section was queued returned the section job, and
-		// the download that followed held one section instead of the catalogue.
-		// Polling cannot tell the difference — the result can.
-		$sql = "SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
-			 WHERE book_id = ? AND status IN (?, ?)";
-		$params = [$bookId, self::STATUS_PENDING, self::STATUS_RUNNING];
-
-		if ($type !== null) {
-			$sql .= " AND job_type = ?";
-			$params[] = $type;
-
-			$sql .= is_null($sectionId) ? " AND section_id IS NULL" : " AND section_id = ?";
-			if (!is_null($sectionId)) { $params[] = $sectionId; }
-		}
-
-		$qr = $this->query($sql . " ORDER BY created_on, job_id LIMIT 1", $params);
+		$qr = $this->query(
+			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
+			 WHERE book_id = ? AND status IN (?, ?)
+			 ORDER BY created_on, job_id
+			 LIMIT 1",
+			[$bookId, self::STATUS_PENDING, self::STATUS_RUNNING]
+		);
 		if (!$qr || !$qr->nextRow()) { return null; }
 
 		return $this->hydrate($qr->getRow());
@@ -514,8 +487,6 @@ class BookJobModel {
 		return [
 			'job_id'      => (int)$row['job_id'],
 			'book_id'     => (int)$row['book_id'],
-			'job_type'    => (string)$row['job_type'],
-			'section_id'  => isset($row['section_id']) ? (int)$row['section_id'] : null,
 			'status'      => (string)$row['status'],
 			'progress'    => (int)$row['progress'],
 			'message'     => isset($row['message']) ? (string)$row['message'] : null,

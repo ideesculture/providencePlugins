@@ -594,17 +594,6 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	$book_data['book_id'] = (int)$job['book_id'];
 
 	$sections = $book->getSections();
-	if ($job['job_type'] === BookJobModel::TYPE_SECTION && $job['section_id']) {
-		// Single section job: the page offset of a lone section is unknown, so
-		// it is rendered starting at page 1 and only used as a proof.
-		$sections = array_values(array_filter(
-			$sections,
-			static fn(array $section): bool => (int)$section['booksection_id'] === (int)$job['section_id']
-		));
-		if (!$sections) {
-			throw new RuntimeException("Section {$job['section_id']} does not belong to book {$job['book_id']}.");
-		}
-	}
 	if (!$sections) {
 		throw new RuntimeException("Book {$job['book_id']} has no section to render.");
 	}
@@ -634,15 +623,11 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// generated table of contents has no folios, the cumulated page count of
 		// the interface stays at zero, and a section previewed on its own cannot
 		// carry the number it holds in the book.
-		// A single-section job renders that section alone, starting at page 1:
-		// its offset is a placeholder, not its place in the book. Writing it
-		// would overwrite the real folio computed by the last full generation,
-		// so only the page count is recorded in that case.
-		$counters = ['pages' => (int)$rendered['pages'], 'rendered_on' => time()];
-		if ($job['job_type'] !== BookJobModel::TYPE_SECTION) {
-			$counters['first_page'] = $page_offset;
-		}
-		$book->setSection((int)$section['booksection_id'], $counters, false);   // false: worker columns, not a form's
+		$book->setSection(
+			(int)$section['booksection_id'],
+			['pages' => (int)$rendered['pages'], 'first_page' => $page_offset, 'rendered_on' => time()],
+			false   // worker columns, not a form's
+		);
 
 		$page_offset += max(0, (int)$rendered['pages']);
 		$done++;
@@ -666,7 +651,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// once the whole book has been laid out is the only way it can carry real
 	// numbers. Only summary sections are rendered again, and their PDF replaces
 	// the one produced by the first pass.
-	if ($job['job_type'] !== BookJobModel::TYPE_SECTION) {
+	{
 		foreach ($sections as $index => $section) {
 			if (!bookworker_is_summary_section($book_data, $section)) { continue; }
 
@@ -975,7 +960,7 @@ while (true) {
 	}
 
 	$g_bookworker['current_job_id'] = (int)$job['job_id'];
-	bookworker_log("job {$job['job_id']}: claimed (book {$job['book_id']}, type {$job['job_type']})");
+	bookworker_log("job {$job['job_id']}: claimed (book {$job['book_id']})");
 
 	try {
 		$pdf_path = bookworker_process_job($job, $jobs, $plugin_dir);

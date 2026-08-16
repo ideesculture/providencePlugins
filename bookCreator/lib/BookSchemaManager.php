@@ -71,8 +71,6 @@ class BookSchemaManager {
 		'plugin_book_jobs' => [
 			'job_id'      => 'INT UNSIGNED NOT NULL AUTO_INCREMENT',
 			'book_id'     => 'INT UNSIGNED NOT NULL',
-			'job_type'    => "VARCHAR(32) NOT NULL DEFAULT 'book'",
-			'section_id'  => 'INT UNSIGNED DEFAULT NULL',
 			'status'      => "VARCHAR(16) NOT NULL DEFAULT 'pending'",
 			'progress'    => 'TINYINT UNSIGNED DEFAULT 0',
 			'message'     => 'TEXT DEFAULT NULL',
