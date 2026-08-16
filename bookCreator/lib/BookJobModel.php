@@ -1,0 +1,433 @@
+<?php
+/* Book Creator plugin for CollectiveAccess
+ *
+ * Plugin by idéesculture – Gautier MICHELIN
+ *
+ * This source code is free and modifiable under the terms of
+ * GNU General Public License v3. (http://www.gnu.org/copyleft/gpl.html). See
+ * the "license.txt" file for details, or visit the CollectiveAccess web site at
+ * http://www.CollectiveAccess.org
+ *
+ * ----------------------------------------------------------------------
+ */
+
+/**
+ * Generation queue of the bookCreator plugin (table `plugin_book_jobs`).
+ *
+ * One row per generation request. The web side only ever submits a job and
+ * polls its status; the rendering itself happens in bin/bookworker.php, which
+ * is the only consumer of claimNext()/updateProgress()/finish()/fail().
+ *
+ * Design rules, deliberate:
+ *  - prepared statements only. Every value goes through a placeholder, exactly
+ *    like plugin_books; no value is ever concatenated into SQL.
+ *  - the queue holds no business logic. It does not know what a book is, what
+ *    a section is or how a PDF is produced: it hands out work and records
+ *    state, so that it can be reasoned about (and locked) on its own.
+ *  - a claim is a single UPDATE. Reading a pending row and then updating it
+ *    would let two workers pick the same job in the window between the two
+ *    statements; see claimNext() for why the single statement cannot.
+ *  - nothing here writes to stdout or throws on a database error. Callers get
+ *    false or null and decide what to do, because the same methods are used
+ *    from a controller (where an exception is a 500) and from a CLI worker
+ *    (where it is an exit code).
+ */
+class BookJobModel {
+
+	const TABLE = 'plugin_book_jobs';
+
+	/** Job lifecycle. pending -> running -> done | error, with running -> pending on requeue. */
+	const STATUS_PENDING = 'pending';
+	const STATUS_RUNNING = 'running';
+	const STATUS_DONE    = 'done';
+	const STATUS_ERROR   = 'error';
+
+	/** Statuses that mean "this job still has work to do". */
+	const ACTIVE_STATUSES = [self::STATUS_PENDING, self::STATUS_RUNNING];
+
+	/** Whole book, or a single section (job_type / section_id). */
+	const TYPE_BOOK    = 'book';
+	const TYPE_SECTION = 'section';
+
+	/** Columns read back by get()/claimNext(); also the shape returned to callers. */
+	const COLUMNS = [
+		'job_id', 'book_id', 'job_type', 'section_id', 'status', 'progress',
+		'message', 'pdf_path', 'created_on', 'started_on', 'finished_on', 'worker_id',
+	];
+
+	/** @var Db */
+	private $db;
+
+	public function __construct($db = null) {
+		$this->db = $db ? $db : new Db();
+	}
+
+	# -------------------------------------------------------
+	# Submission (web side)
+	# -------------------------------------------------------
+
+	/**
+	 * Queues a generation job for a book and returns its id.
+	 *
+	 * Submitting twice is the normal case, not an edge case: the editor clicks
+	 * "Generate", nothing visible happens for a few seconds, and the click is
+	 * repeated. A second row would mean the same 200-page book rendered twice
+	 * in parallel, so an already pending or running job for the same book wins
+	 * and its id is returned instead. The caller cannot tell the difference,
+	 * and does not need to: it polls that id either way.
+	 *
+	 * @param int $bookId
+	 * @param string $type self::TYPE_BOOK or self::TYPE_SECTION; anything else falls back to book
+	 * @param int|null $sectionId section to render when $type is 'section'
+	 * @return int job id, or 0 when the insert failed
+	 */
+	public function submit(int $bookId, string $type = self::TYPE_BOOK, ?int $sectionId = null): int {
+		if ($bookId <= 0) { return 0; }
+
+		$type = ($type === self::TYPE_SECTION) ? self::TYPE_SECTION : self::TYPE_BOOK;
+		if ($type === self::TYPE_BOOK) { $sectionId = null; }
+
+		if ($existing = $this->getActiveForBook($bookId)) {
+			return (int)$existing['job_id'];
+		}
+
+		$qr = $this->db->query(
+			"INSERT INTO `" . self::TABLE . "` (book_id, job_type, section_id, status, progress, created_on)
+			 VALUES (?, ?, ?, ?, 0, ?)",
+			[$bookId, $type, $sectionId, self::STATUS_PENDING, time()]
+		);
+		if (!$qr) { return 0; }
+
+		return (int)$this->db->getLastInsertID();
+	}
+
+	# -------------------------------------------------------
+	# Claiming (worker side)
+	# -------------------------------------------------------
+
+	/**
+	 * Atomically claims the oldest pending job for the given worker.
+	 *
+	 * Why the single UPDATE is safe, and a SELECT-then-UPDATE is not:
+	 *
+	 *  - InnoDB evaluates the WHERE clause and writes the row inside the same
+	 *    statement, holding an exclusive lock on the row it touches. A second
+	 *    worker issuing the same UPDATE at the same instant blocks on that
+	 *    lock; when it is released, the UPDATE re-reads the freshly committed
+	 *    version of the row (an UPDATE always reads the latest committed data,
+	 *    whatever the isolation level) and finds status = 'running', so the row
+	 *    no longer matches `WHERE status = 'pending'`. It moves on to the next
+	 *    pending row, or matches nothing at all. Two workers can therefore
+	 *    never leave this statement holding the same job_id.
+	 *  - a SELECT ... WHERE status='pending' followed by an UPDATE has a window
+	 *    between the two statements during which both workers have read the
+	 *    same row and both believe they own it. The window is short, which is
+	 *    exactly what makes the bug rare enough to reach production.
+	 *
+	 * The read-back is not a second chance to lose the race: the row is stamped
+	 * with a token unique to this claim (worker id plus 8 random bytes), never
+	 * reused, so `WHERE worker_id = <token>` can only ever match the row this
+	 * very statement just took. Reusing the plain worker id would be ambiguous
+	 * — a worker restarted with the same pid on the same host could read back a
+	 * stale row left behind by its predecessor.
+	 *
+	 * MySQL's LAST_INSERT_ID(job_id) trick is an equally atomic alternative;
+	 * the token was preferred because it survives connection pooling and reads
+	 * as what it is.
+	 *
+	 * @param string $workerId human readable worker identity, e.g. host:pid
+	 * @return array|null the claimed job, already running, or null when the queue is empty
+	 */
+	public function claimNext(string $workerId): ?array {
+		$token = $this->claimToken($workerId);
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, worker_id = ?, started_on = ?, progress = 0, message = NULL
+			 WHERE status = ?
+			 ORDER BY created_on, job_id
+			 LIMIT 1",
+			[self::STATUS_RUNNING, $token, time(), self::STATUS_PENDING]
+		);
+		if (!$qr || (int)$this->db->affectedRows() < 1) { return null; }
+
+		return $this->getByClaimToken($token);
+	}
+
+	/**
+	 * Claims one specific job, for `bookworker.php --job=N`.
+	 *
+	 * Same statement as claimNext(), narrowed to a single id: a job already
+	 * running or already finished does not match and null is returned, so a
+	 * manual replay can never fight with the cron worker over the same row.
+	 */
+	public function claim(int $jobId, string $workerId): ?array {
+		if ($jobId <= 0) { return null; }
+		$token = $this->claimToken($workerId);
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, worker_id = ?, started_on = ?, progress = 0, message = NULL
+			 WHERE job_id = ? AND status = ?",
+			[self::STATUS_RUNNING, $token, time(), $jobId, self::STATUS_PENDING]
+		);
+		if (!$qr || (int)$this->db->affectedRows() < 1) { return null; }
+
+		return $this->getByClaimToken($token);
+	}
+
+	# -------------------------------------------------------
+	# Progress and completion (worker side)
+	# -------------------------------------------------------
+
+	/**
+	 * Records progress of a running job, after each rendered section.
+	 *
+	 * A null message leaves the current one untouched, so a caller can push a
+	 * percentage without erasing the label the user is reading. The percentage
+	 * is clamped rather than rejected: the column is a TINYINT UNSIGNED and a
+	 * rounding error upstream must not abort a two-minute render.
+	 */
+	public function updateProgress(int $jobId, int $percent, ?string $message = null): bool {
+		if ($jobId <= 0) { return false; }
+		$percent = max(0, min(100, $percent));
+
+		if ($message === null) {
+			$qr = $this->db->query(
+				"UPDATE `" . self::TABLE . "` SET progress = ? WHERE job_id = ? AND status = ?",
+				[$percent, $jobId, self::STATUS_RUNNING]
+			);
+		} else {
+			$qr = $this->db->query(
+				"UPDATE `" . self::TABLE . "` SET progress = ?, message = ? WHERE job_id = ? AND status = ?",
+				[$percent, $message, $jobId, self::STATUS_RUNNING]
+			);
+		}
+		return (bool)$qr;
+	}
+
+	/**
+	 * Marks a job done and records where the PDF landed.
+	 *
+	 * Restricted to a running job on purpose. A job reaped as stale (see
+	 * reapStale) may already have been claimed by another worker; the late
+	 * worker then gets false here instead of overwriting a fresher run.
+	 */
+	public function finish(int $jobId, string $pdfPath): bool {
+		if ($jobId <= 0) { return false; }
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, progress = 100, pdf_path = ?, finished_on = ?
+			 WHERE job_id = ? AND status = ?",
+			[self::STATUS_DONE, $pdfPath, time(), $jobId, self::STATUS_RUNNING]
+		);
+		return ($qr && (int)$this->db->affectedRows() > 0);
+	}
+
+	/**
+	 * Marks a job failed, keeping the message the UI will display.
+	 *
+	 * The message is truncated to something a TEXT column and a notification
+	 * can both carry: a PHP stack trace or a full WeasyPrint log belongs in the
+	 * worker output, not in a row polled every two seconds.
+	 */
+	public function fail(int $jobId, string $message): bool {
+		if ($jobId <= 0) { return false; }
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, message = ?, finished_on = ?
+			 WHERE job_id = ? AND status = ?",
+			[self::STATUS_ERROR, $this->truncateMessage($message), time(), $jobId, self::STATUS_RUNNING]
+		);
+		return ($qr && (int)$this->db->affectedRows() > 0);
+	}
+
+	/**
+	 * Puts a running job back in the queue, without counting it as a failure.
+	 *
+	 * Used when the worker is asked to stop (SIGTERM from a cron wrapper, pod
+	 * eviction under Kubernetes): the job returns to pending and the next
+	 * worker picks it up from the start, rather than sitting in running until
+	 * the reaper notices an hour later.
+	 */
+	public function release(int $jobId, ?string $message = null): bool {
+		if ($jobId <= 0) { return false; }
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
+			 WHERE job_id = ? AND status = ?",
+			[self::STATUS_PENDING, ($message === null ? null : $this->truncateMessage($message)), $jobId, self::STATUS_RUNNING]
+		);
+		return ($qr && (int)$this->db->affectedRows() > 0);
+	}
+
+	# -------------------------------------------------------
+	# Reads (AJAX polling, diagnostics)
+	# -------------------------------------------------------
+
+	/** One job by id, or null when it does not exist. */
+	public function get(int $jobId): ?array {
+		if ($jobId <= 0) { return null; }
+
+		$qr = $this->db->query(
+			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "` WHERE job_id = ?",
+			[$jobId]
+		);
+		if (!$qr || !$qr->nextRow()) { return null; }
+
+		return $this->hydrate($qr->getRow());
+	}
+
+	/**
+	 * Most recent job of a book, whatever its status.
+	 *
+	 * This is what the progress endpoint polls: while the job runs it returns
+	 * the live percentage, and once it is over it keeps returning the finished
+	 * row, so the page can show the download link (or the error) without a
+	 * second query and without the client having to remember a job id.
+	 */
+	public function getForBook(int $bookId): ?array {
+		if ($bookId <= 0) { return null; }
+
+		$qr = $this->db->query(
+			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
+			 WHERE book_id = ?
+			 ORDER BY created_on DESC, job_id DESC
+			 LIMIT 1",
+			[$bookId]
+		);
+		if (!$qr || !$qr->nextRow()) { return null; }
+
+		return $this->hydrate($qr->getRow());
+	}
+
+	/** Pending or running job of a book, used by submit() to refuse duplicates. */
+	public function getActiveForBook(int $bookId): ?array {
+		if ($bookId <= 0) { return null; }
+
+		$qr = $this->db->query(
+			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
+			 WHERE book_id = ? AND status IN (?, ?)
+			 ORDER BY created_on, job_id
+			 LIMIT 1",
+			[$bookId, self::STATUS_PENDING, self::STATUS_RUNNING]
+		);
+		if (!$qr || !$qr->nextRow()) { return null; }
+
+		return $this->hydrate($qr->getRow());
+	}
+
+	/** Number of jobs waiting in the queue, for monitoring and for the worker log. */
+	public function countPending(): int {
+		$qr = $this->db->query(
+			"SELECT COUNT(*) AS c FROM `" . self::TABLE . "` WHERE status = ?",
+			[self::STATUS_PENDING]
+		);
+		if (!$qr || !$qr->nextRow()) { return 0; }
+		return (int)$qr->get('c');
+	}
+
+	# -------------------------------------------------------
+	# Housekeeping
+	# -------------------------------------------------------
+
+	/**
+	 * Requeues jobs left running by a worker that died without finishing.
+	 *
+	 * A killed pod, an OOM, a cron worker cut short mid-render: the row stays
+	 * in running for ever, submit() then keeps returning that dead job and the
+	 * book can never be generated again. Anything running for longer than the
+	 * threshold goes back to pending, and the next worker starts it over.
+	 *
+	 * The threshold has to stay well above the longest legitimate render — the
+	 * 220-page catalogue takes minutes, not an hour — because a job requeued
+	 * while its worker is still alive would be rendered twice. The live worker
+	 * loses the race harmlessly: its finish() no longer matches a running row
+	 * and returns false.
+	 *
+	 * @return int number of jobs requeued
+	 */
+	public function reapStale(int $olderThanSeconds = 3600): int {
+		if ($olderThanSeconds < 1) { return 0; }
+		$cutoff = time() - $olderThanSeconds;
+
+		$qr = $this->db->query(
+			"UPDATE `" . self::TABLE . "`
+			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
+			 WHERE status = ? AND (started_on IS NULL OR started_on < ?)",
+			[self::STATUS_PENDING, 'Requeued: previous worker stopped without finishing', self::STATUS_RUNNING, $cutoff]
+		);
+		if (!$qr) { return 0; }
+
+		return (int)$this->db->affectedRows();
+	}
+
+	# -------------------------------------------------------
+	# Internals
+	# -------------------------------------------------------
+
+	/**
+	 * Token stamped on a claimed row, unique to one claim.
+	 *
+	 * Shape: <worker id, trimmed>#<16 hex chars>, at most 57 characters, which
+	 * fits worker_id VARCHAR(64) with room to spare. The readable prefix is
+	 * what an operator greps for when hunting a stuck job; the suffix is what
+	 * makes the read-back unambiguous.
+	 */
+	private function claimToken(string $workerId): string {
+		$workerId = preg_replace('/[^A-Za-z0-9_.:\-]/', '-', $workerId);
+		if ($workerId === '') { $workerId = 'worker'; }
+		return substr($workerId, 0, 40) . '#' . bin2hex(random_bytes(8));
+	}
+
+	/** Reads back the row a claim statement just stamped. */
+	private function getByClaimToken(string $token): ?array {
+		$qr = $this->db->query(
+			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
+			 WHERE worker_id = ? AND status = ?
+			 LIMIT 1",
+			[$token, self::STATUS_RUNNING]
+		);
+		if (!$qr || !$qr->nextRow()) { return null; }
+
+		return $this->hydrate($qr->getRow());
+	}
+
+	/** Backtick-quoted column list; built from the constant, never from input. */
+	private function columnList(): string {
+		return '`' . join('`, `', self::COLUMNS) . '`';
+	}
+
+	/** Keeps a message short enough to be displayed as is by the UI. */
+	private function truncateMessage(string $message): string {
+		$message = trim($message);
+		return (mb_strlen($message) > 2000) ? mb_substr($message, 0, 1997) . '...' : $message;
+	}
+
+	/**
+	 * Turns a raw row into the array the rest of the plugin works with.
+	 *
+	 * Integers come back as strings from the driver; the polling endpoint
+	 * encodes them to JSON, where "progress": "42" and "progress": 42 are not
+	 * the same thing for the JavaScript reading it.
+	 */
+	private function hydrate(array $row): array {
+		return [
+			'job_id'      => (int)$row['job_id'],
+			'book_id'     => (int)$row['book_id'],
+			'job_type'    => (string)$row['job_type'],
+			'section_id'  => isset($row['section_id']) ? (int)$row['section_id'] : null,
+			'status'      => (string)$row['status'],
+			'progress'    => (int)$row['progress'],
+			'message'     => isset($row['message']) ? (string)$row['message'] : null,
+			'pdf_path'    => isset($row['pdf_path']) ? (string)$row['pdf_path'] : null,
+			'created_on'  => isset($row['created_on']) ? (int)$row['created_on'] : null,
+			'started_on'  => isset($row['started_on']) ? (int)$row['started_on'] : null,
+			'finished_on' => isset($row['finished_on']) ? (int)$row['finished_on'] : null,
+			'worker_id'   => isset($row['worker_id']) ? (string)$row['worker_id'] : null,
+		];
+	}
+}

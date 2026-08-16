@@ -14,7 +14,7 @@
 /**
  * Self-contained schema installer for the bookCreator plugin.
  *
- * The plugin owns its two tables and never touches the CollectiveAccess core
+ * The plugin owns its three tables and never touches the CollectiveAccess core
  * schema. On every controller call the current state is compared against the
  * expected one; when something is missing the user is sent to the install
  * controller, which applies what is needed and comes back.
@@ -66,17 +66,35 @@ class BookSchemaManager {
 			'content_hash' => 'CHAR(40) DEFAULT NULL',
 			'rendered_on'  => 'INT UNSIGNED DEFAULT NULL',
 		],
+		// Background generation queue. Purely additive: this table did not exist
+		// in v1, so it is always created rather than altered.
+		'plugin_book_jobs' => [
+			'job_id'      => 'INT UNSIGNED NOT NULL AUTO_INCREMENT',
+			'book_id'     => 'INT UNSIGNED NOT NULL',
+			'job_type'    => "VARCHAR(32) NOT NULL DEFAULT 'book'",
+			'section_id'  => 'INT UNSIGNED DEFAULT NULL',
+			'status'      => "VARCHAR(16) NOT NULL DEFAULT 'pending'",
+			'progress'    => 'TINYINT UNSIGNED DEFAULT 0',
+			'message'     => 'TEXT DEFAULT NULL',
+			'pdf_path'    => 'VARCHAR(1024) DEFAULT NULL',
+			'created_on'  => 'INT UNSIGNED DEFAULT NULL',
+			'started_on'  => 'INT UNSIGNED DEFAULT NULL',
+			'finished_on' => 'INT UNSIGNED DEFAULT NULL',
+			'worker_id'   => 'VARCHAR(64) DEFAULT NULL',
+		],
 	];
 
 	/** Primary key of each table, used when creating it from scratch. */
 	const PRIMARY_KEYS = [
 		'plugin_books'        => 'book_id',
 		'plugin_booksections' => 'booksection_id',
+		'plugin_book_jobs'    => 'job_id',
 	];
 
 	/** Indexes the plugin needs. Name => [table, columns]. */
 	const EXPECTED_INDEXES = [
 		'i_book' => ['plugin_booksections', '(book_id, sort)'],
+		'i_status' => ['plugin_book_jobs', '(status, created_on)'],
 	];
 
 	/**
@@ -113,7 +131,7 @@ class BookSchemaManager {
 	}
 
 	/**
-	 * Reads the current state of the two tables.
+	 * Reads the current state of the plugin tables.
 	 *
 	 * Returns an array with 'missing_tables', 'missing_columns' and
 	 * 'missing_indexes'. All three empty means the schema is usable.

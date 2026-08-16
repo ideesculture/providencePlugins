@@ -127,7 +127,7 @@ class BookHtmlBuilder {
 	# Sections
 	# -------------------------------------------------------
 
-	/** One section, wrapped in a div carrying its layout code as a class. */
+	/** One section, as one or more divs carrying its layout code as a class. */
 	public function buildSection($section) {
 		$code = $section['style'];
 		$manifest = $this->templates->getTemplate($code);
@@ -138,16 +138,68 @@ class BookHtmlBuilder {
 
 		switch ($type) {
 			case 'set':
-				$content = $this->buildSetSection($section, $code);
-				break;
+				return $this->buildSetPages($section, $code);
 			case 'mixed':
-				$content = $this->buildTextContent($section).$this->buildSetSection($section, $code);
-				break;
+				return $this->wrapLayout($code, $this->buildTextContent($section))
+					.$this->buildSetPages($section, $code);
 			default:
-				$content = $this->buildTextContent($section);
+				return $this->wrapLayout($code, $this->buildTextContent($section));
+		}
+	}
+
+	/** Wraps rendered content in the div the stylesheets style. */
+	private function wrapLayout($code, $content) {
+		return "<div class=\"".htmlspecialchars($code, ENT_QUOTES, 'UTF-8')."\">\n".$content."</div>\n";
+	}
+
+	/**
+	 * The works of a set, split into one div per printed page.
+	 *
+	 * This split is not cosmetic. The grid layouts carry `break-inside: avoid`,
+	 * and WeasyPrint does not fragment a grid container across pages: a single
+	 * div holding twenty works would overflow the page instead of continuing on
+	 * the next one. The float-based layout it replaces paginated on its own.
+	 * Emitting one complete grid per page keeps the stylesheets unchanged —
+	 * each div is exactly one page — and restores the pagination.
+	 */
+	private function buildSetPages($section, $code) {
+		$blocks = $this->buildSetItems($section, $code);
+		if (!sizeof($blocks)) { return ''; }
+
+		$per_page = $this->getItemsPerPage($code, $section);
+		if ($per_page < 1) {
+			// Layout with no declared capacity: leave the flow alone.
+			return $this->wrapLayout($code, join('', $blocks));
 		}
 
-		return "<div class=\"".htmlspecialchars($code, ENT_QUOTES, 'UTF-8')."\">\n".$content."</div>\n";
+		$html = '';
+		foreach (array_chunk($blocks, $per_page) as $page_blocks) {
+			$html .= $this->wrapLayout($code, join('', $page_blocks));
+		}
+		return $html;
+	}
+
+	/**
+	 * How many works the layout holds on one page.
+	 *
+	 * Read from the section options or the manifest default; failing that, from
+	 * the layout code itself, which names its capacity ("ensemble-6-par-page").
+	 * The fallback matters: it keeps the pagination correct for the seventeen
+	 * layouts inherited from v1, whose manifests do not exist yet.
+	 */
+	private function getItemsPerPage($code, $section) {
+		$options = [];
+		if (!empty($section['options'])) {
+			$decoded = json_decode($section['options'], true);
+			if (is_array($decoded)) { $options = $decoded; }
+		}
+
+		$declared = $this->templates->getOptionValue($code, 'items_per_page', $options);
+		if ($declared !== null && (int)$declared > 0) { return (int)$declared; }
+
+		if (preg_match('/(\d+)-par-page/', $code, $matches)) { return (int)$matches[1]; }
+
+		return 0;
 	}
 
 	/** Editorial content: the title when the layout shows one, plus Markdown. */
@@ -168,22 +220,25 @@ class BookHtmlBuilder {
 	}
 
 	/**
-	 * The works of a set, each rendered through the merge template declared by
-	 * the layout.
+	 * The works of a set, one rendered block each, through the merge templates
+	 * declared by the layout.
+	 *
+	 * Returns a list rather than a string so the caller can lay the blocks out
+	 * page by page.
 	 */
-	private function buildSetSection($section, $code) {
+	private function buildSetItems($section, $code) {
 		$context = _t('section %1', $section['booksection_id']);
 		$object_template = $this->templates->getMergeTemplate($code, 'object_block');
 		$caption_template = $this->templates->getMergeTemplate($code, 'caption');
 
-		$html = '';
+		$blocks = [];
 		foreach ($this->loader->loadSetItemIDs($section['set_id'], $context) as $object_id) {
 			$object = $this->loader->load('ca_objects', $object_id, $context);
 			if (!$object) { continue; }
 
 			$representation = $this->loader->loadPrimaryRepresentation($object, $context);
 
-			$html .= "<div class=\"media\">\n";
+			$html = "<div class=\"media\">\n";
 			if ($representation) {
 				$url = $representation->getMediaUrl('media', 'page');
 				if ($url) {
@@ -197,8 +252,10 @@ class BookHtmlBuilder {
 				$html .= $object->getWithTemplate($object_template)."\n";
 			}
 			$html .= "</div>\n";
+
+			$blocks[] = $html;
 		}
-		return $html;
+		return $blocks;
 	}
 
 	/** Single representation pinned on a section, when the layout uses one. */
