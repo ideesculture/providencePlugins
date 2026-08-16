@@ -86,5 +86,48 @@ strings = {
 	"The plugin tables could not be fully installed. Check the database user privileges." = { fr_FR = "Les tables du plugin n'ont pas pu être entièrement installées. Vérifiez les droits de l'utilisateur de la base." },
 	"The following statements were applied:" = { fr_FR = "Les instructions suivantes ont été appliquées :" },
 	"Apply these changes" = { fr_FR = "Appliquer ces modifications" },
-	"The plugin needs the following changes before it can run. Nothing is deleted or renamed: tables, columns and indexes are only added." = { fr_FR = "Le plugin nécessite les modifications suivantes pour fonctionner. Rien n'est supprimé ni renommé : seuls des tables, des colonnes et des index sont ajoutés." }
+	"The plugin needs the following changes before it can run. Nothing is deleted or renamed: tables, columns and indexes are only added." = { fr_FR = "Le plugin nécessite les modifications suivantes pour fonctionner. Rien n'est supprimé ni renommé : seuls des tables, des colonnes et des index sont ajoutés." },
+
+	# Books dashboard
+	Books = { fr_FR = "Livres" },
+	Title = { fr_FR = "Titre" },
+	Subtitle = { fr_FR = "Sous-titre" },
+	Identifier = { fr_FR = "Identifiant" },
+	Description = { fr_FR = "Description" },
+	Theme = { fr_FR = "Thème" },
+	Format = { fr_FR = "Format" },
+	Sections = { fr_FR = "Sections" },
+	Pages = { fr_FR = "Pages" },
+	Actions = { fr_FR = "Actions" },
+	Duplicate = { fr_FR = "Dupliquer" },
+	"Last modified" = { fr_FR = "Dernière modification" },
+	"Add a book" = { fr_FR = "Ajouter un livre" },
+	"Edit the book settings" = { fr_FR = "Modifier les réglages du livre" },
+	"(untitled)" = { fr_FR = "(sans titre)" },
+	"No book yet. Create the first one to start composing." = { fr_FR = "Aucun livre pour l'instant. Créez le premier pour commencer la composition." },
+	"Delete the book &laquo; %1 &raquo; and its %2 sections? This cannot be undone." = { fr_FR = "Supprimer le livre &laquo; %1 &raquo; et ses %2 sections ? L'opération est irréversible." },
+
+	# Book editor
+	"Book settings" = { fr_FR = "Réglages du livre" },
+	"New book" = { fr_FR = "Nouveau livre" },
+	"Page format" = { fr_FR = "Format de page" },
+	"Typographic pair" = { fr_FR = "Couple typographique" },
+	"Cover PDF" = { fr_FR = "PDF de couverture" },
+	"Back cover PDF" = { fr_FR = "PDF de quatrième de couverture" },
+	"(not declared by this theme)" = { fr_FR = "(non déclaré par ce thème)" },
+	"Page formats and typographic pairs are declared by the theme: save the book after changing it to see the lists below refreshed." = { fr_FR = "Les formats de page et les couples typographiques sont déclarés par le thème : enregistrez le livre après l'avoir changé pour voir les listes ci-dessous mises à jour." },
+	"Path of a PDF bound before the content. Leave empty for a book without a separate cover." = { fr_FR = "Chemin d'un PDF relié avant le contenu. Laissez vide pour un livre sans couverture séparée." },
+
+	# Books notifications
+	"Book saved." = { fr_FR = "Livre enregistré." },
+	"Book created." = { fr_FR = "Livre créé." },
+	"Book deleted." = { fr_FR = "Livre supprimé." },
+	"Book duplicated. Its sections were copied; nothing has been rendered yet." = { fr_FR = "Livre dupliqué. Ses sections ont été copiées ; rien n'a encore été généré." },
+	"%1 (copy)" = { fr_FR = "%1 (copie)" },
+	"The book needs a title." = { fr_FR = "Le livre doit avoir un titre." },
+	"The book could not be saved." = { fr_FR = "Le livre n'a pas pu être enregistré." },
+	"The book could not be created." = { fr_FR = "Le livre n'a pas pu être créé." },
+	"The book could not be deleted." = { fr_FR = "Le livre n'a pas pu être supprimé." },
+	"The book could not be duplicated." = { fr_FR = "Le livre n'a pas pu être dupliqué." },
+	"This book no longer exists." = { fr_FR = "Ce livre n'existe plus." }
 }

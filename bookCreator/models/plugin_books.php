@@ -20,6 +20,21 @@
  * before being written into the statement.
  */
 class plugin_books {
+
+	/**
+	 * Book columns a form is allowed to write.
+	 *
+	 * Mirrors the $books_db_structure list built by the constructor, less
+	 * book_id, created_on and modified_on: the identity of a row and its
+	 * timestamps belong to the model, never to a payload. Kept as a constant
+	 * because the static creation and duplication helpers have no instance to
+	 * read the constructor list from.
+	 */
+	const BOOKS_WRITABLE_COLUMNS = array("idno", "title", "subtitle", "description", "theme", "font_pair", "page_format", "cover_pdf", "backcover_pdf", "locale_id");
+
+	/** Columns never taken from a payload, even though they are real columns. */
+	const BOOKS_RESERVED_COLUMNS = array("book_id", "created_on", "modified_on");
+
 	protected $book_id;
 
 	// Container for magical setter and getter vars
@@ -92,6 +107,33 @@ class plugin_books {
 	 */
 	public function getTitle() {
 		return isset($this->data['title']) ? $this->data['title'] : '';
+	}
+
+	/**
+	 * True when the row was found and loaded.
+	 *
+	 * A controller has no other safe way to tell a deleted book from a live
+	 * one: reading any property of an unloaded book goes through the magic
+	 * getter, which throws.
+	 */
+	public function isLoaded(): bool {
+		// load() sets book_id before running its query, so the identifier alone
+		// proves nothing; the row contents are the signal. book_id itself never
+		// reaches $data, being a declared property assigned directly.
+		return ($this->book_id > 0) && is_array($this->data) && sizeof($this->data) > 0;
+	}
+
+	/**
+	 * One column of the loaded book, or $default when it is not there.
+	 *
+	 * Same reasoning as getTitle(), generalised: views and controllers read
+	 * through this rather than through $book->column, so a book that could not
+	 * be loaded renders an empty field instead of taking the page down.
+	 */
+	public function getField(string $name, $default = '') {
+		return (is_array($this->data) && array_key_exists($name, $this->data) && !is_null($this->data[$name]))
+			? $this->data[$name]
+			: $default;
 	}
 
 	/**
@@ -204,6 +246,201 @@ class plugin_books {
 			return $o_data->getErrors();
 		}
 		return true;
+	}
+
+	# -------------------------------------------------------
+	# Book level operations
+	# -------------------------------------------------------
+
+	/**
+	 * Every book, sorted by title, with its section count and its cumulated
+	 * page count.
+	 *
+	 * One statement, deliberately. Counting the sections of each book from the
+	 * dashboard loop would issue one query per row, which is exactly what turns
+	 * a list of thirty books into thirty-one round trips. The aggregate is
+	 * computed once in a derived table and joined back.
+	 *
+	 * The aggregate sits in a subquery rather than in a GROUP BY over the outer
+	 * SELECT so that `b.*` stays legal under ONLY_FULL_GROUP_BY, whatever the
+	 * sql_mode of the installation.
+	 *
+	 * Sections never rendered hold NULL in `pages`; SUM() skips them, and
+	 * COALESCE turns the "no section at all" case into 0 rather than NULL.
+	 */
+	public static function getBooks(): array {
+		$o_data = new Db();
+		$qr_result = $o_data->query("
+		    SELECT b.*,
+		           COALESCE(s.nb_sections, 0) AS nb_sections,
+		           COALESCE(s.nb_pages, 0) AS nb_pages
+		    FROM plugin_books b
+		    LEFT JOIN (
+		        SELECT book_id, COUNT(*) AS nb_sections, SUM(pages) AS nb_pages
+		        FROM plugin_booksections
+		        GROUP BY book_id
+		    ) s ON s.book_id = b.book_id
+		    ORDER BY b.title");
+
+		$result = array();
+		if(!$qr_result) { return $result; }
+		while($qr_result->nextRow()) {
+			$row = $qr_result->getRow();
+			$row["nb_sections"] = (int)$row["nb_sections"];
+			$row["nb_pages"] = (int)$row["nb_pages"];
+			$result[] = $row;
+		}
+		return $result;
+	}
+
+	/**
+	 * Inserts a book and returns its identifier.
+	 *
+	 * Column names come from the constant whitelist, never from the payload:
+	 * they cannot be bound, so anything else in $data is simply ignored. Values
+	 * all go through placeholders.
+	 *
+	 * @param array $data column => value
+	 * @return int|null the new book_id, or null when the insert failed
+	 */
+	public static function createBook(array $data): ?int {
+		$columns = array();
+		$placeholders = array();
+		$values = array();
+
+		foreach(self::BOOKS_WRITABLE_COLUMNS as $field) {
+			if(!array_key_exists($field, $data)) { continue; }
+			$columns[] = "`".$field."`";
+			$placeholders[] = "?";
+			$values[] = $data[$field];
+		}
+
+		// Unix timestamps, like every other date the plugin stores.
+		$now = time();
+		$columns[] = "`created_on`";  $placeholders[] = "?"; $values[] = $now;
+		$columns[] = "`modified_on`"; $placeholders[] = "?"; $values[] = $now;
+
+		$o_data = new Db();
+		$request = "INSERT INTO plugin_books (".implode(", ", $columns).") VALUES (".implode(", ", $placeholders).")";
+		$o_data->query($request, $values);
+		if($o_data->numErrors()) { return null; }
+
+		$new_id = (int)$o_data->getLastInsertID();
+		return ($new_id > 0) ? $new_id : null;
+	}
+
+	/**
+	 * Updates the loaded book from an array of column => value.
+	 *
+	 * Same shape as setSection(): the whitelist filters the column names, the
+	 * values are bound, and the return is either true or the array of database
+	 * errors so the caller can show them.
+	 *
+	 * @param array $data
+	 * @return bool|array true on success, false when no book is loaded, or the
+	 *                    array of database errors
+	 */
+	public function save(array $data): bool|array {
+		if(!($this->book_id > 0)) { return false; }
+
+		// The constructor builds the whitelist; fall back to the constant for
+		// an instance built in insertion mode, where it was never assigned.
+		$whitelist = is_array($this->books_db_structure) ? $this->books_db_structure : self::BOOKS_WRITABLE_COLUMNS;
+
+		$update_vars = array();
+		$values = array();
+		foreach($data as $field=>$value) {
+			// book_id, created_on and modified_on are columns of the table, so
+			// they are in the whitelist, but they are not editable: a form must
+			// not be able to move a book to another id or rewrite its history.
+			if(in_array($field, self::BOOKS_RESERVED_COLUMNS)) { continue; }
+			if(in_array($field, $whitelist)) {
+				$update_vars[] = "`".$field."` = ?";
+				$values[] = $value;
+			}
+		}
+		if(!sizeof($update_vars)) { return true; }		// nothing writable in the payload
+
+		$update_vars[] = "`modified_on` = ?";
+		$values[] = time();
+		$values[] = $this->book_id;
+
+		$o_data = new Db();
+		$request = "UPDATE plugin_books SET ".implode(", ", $update_vars)." WHERE book_id = ?";
+		$o_data->query($request, $values);
+		if($o_data->numErrors()) {
+			return $o_data->getErrors();
+		}
+		return true;
+	}
+
+	/**
+	 * Deletes a book and its sections.
+	 *
+	 * plugin_booksections carries no foreign key on book_id, so nothing cascades
+	 * and both deletions are issued explicitly. Sections go first: should the
+	 * second statement fail, the book is still listed and can be deleted again,
+	 * which is recoverable — the reverse order would leave sections nobody can
+	 * reach from the interface.
+	 *
+	 * @return bool false when the id is not usable or a statement failed
+	 */
+	public static function deleteBook(int $id): bool {
+		if($id <= 0) { return false; }
+
+		$o_data = new Db();
+		$o_data->query("DELETE FROM plugin_booksections WHERE book_id = ?", array($id));
+		if($o_data->numErrors()) { return false; }
+
+		$o_data->query("DELETE FROM plugin_books WHERE book_id = ?", array($id));
+		if($o_data->numErrors()) { return false; }
+
+		return true;
+	}
+
+	/**
+	 * Copies a book and all of its sections under a new title.
+	 *
+	 * Both copies are INSERT ... SELECT statements: the sections are duplicated
+	 * by the database in a single round trip, whatever their number, instead of
+	 * being read into PHP and written back one by one.
+	 *
+	 * pages, first_page, content_hash and rendered_on are reset to NULL on the
+	 * copies: a duplicate has rendered nothing yet, and carrying over the page
+	 * counts of the original would produce a table of contents and a pagination
+	 * that describe a PDF which does not exist.
+	 *
+	 * @return int|null the new book_id, or null when the source book does not
+	 *                  exist or a statement failed
+	 */
+	public static function duplicateBook(int $id, string $new_title): ?int {
+		if($id <= 0) { return null; }
+
+		$o_data = new Db();
+		$now = time();
+
+		$o_data->query("
+		    INSERT INTO plugin_books
+		        (idno, title, subtitle, description, theme, font_pair, page_format, cover_pdf, backcover_pdf, locale_id, created_on, modified_on)
+		    SELECT idno, ?, subtitle, description, theme, font_pair, page_format, cover_pdf, backcover_pdf, locale_id, ?, ?
+		    FROM plugin_books
+		    WHERE book_id = ?", array($new_title, $now, $now, $id));
+		if($o_data->numErrors()) { return null; }
+
+		// An unknown source book selects no row, so nothing is inserted and the
+		// insert id stays at 0.
+		$new_id = (int)$o_data->getLastInsertID();
+		if($new_id <= 0) { return null; }
+
+		$o_data->query("
+		    INSERT INTO plugin_booksections
+		        (book_id, sort, title, style, content, intro, set_id, representation_id, is_in_summary, options, pages, first_page, content_hash, rendered_on)
+		    SELECT ?, sort, title, style, content, intro, set_id, representation_id, is_in_summary, options, NULL, NULL, NULL, NULL
+		    FROM plugin_booksections
+		    WHERE book_id = ?", array($new_id, $id));
+		if($o_data->numErrors()) { return null; }
+
+		return $new_id;
 	}
 }
 ?>

@@ -114,8 +114,7 @@ print $vs_control_box = caFormControlBox(
 	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'editSectiontext').' '.
 	//caFormSubmitButton($this->request, __CA_NAV_BUTTON_SAVE__, _t("Save and redirect"), 'editSectiontext').' '.
 	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections/book/$book_id/section/$section_id", array()).' '.
-	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("PDF"), '', "*", "*", "renderSectionPDF/book/$book_id/section/$section_id", array()).' '.
-	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("HTML preview"), '', "*", "*", "renderSectionPDF/book/$book_id/section/$section_id/debug/1", array()),
+	caNavButton($this->request, __CA_NAV_ICON_PDF__, _t("Preview this section"), '', "bookCreator", "Preview", "Section", array('book' => $book_id, 'section' => $section_id)),
 	'',
 	caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', "*", "*", "deleteSection/book/$book_id/section/$section_id", array())
 
@@ -135,20 +134,19 @@ print $vs_control_box = caFormControlBox(
 </style>
 <div style="margin-bottom:100px"></div>
 <!-- Bootstrap -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/css/vendor/bootstrap.min.css">
+<script src="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/js/vendor/bootstrap.min.js"></script>
 
-<!-- SimpleMDE -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
-<script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+<!-- EasyMDE, the maintained fork of the abandoned SimpleMDE -->
+<link rel="stylesheet" href="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/css/vendor/easymde.min.css">
+<script src="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/js/vendor/easymde.min.js"></script>
 
 
 <!-- BookEditor editor CSS -->
 <link rel="stylesheet" href="<?php print $path."assets/css/editor.css"; ?>" />
 
 <script>
-	new SimpleMDE({
+	new EasyMDE({
 		element: document.getElementById("section-contenu-textarea"),
 		spellChecker: false,
 	});

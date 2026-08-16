@@ -43,12 +43,11 @@ print $vs_control_box = caFormControlBox(
 </style>
 
 
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
-<script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+<link rel="stylesheet" href="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/css/vendor/easymde.min.css">
+<script src="<?php print __CA_URL_ROOT__; ?>/app/plugins/bookCreator/assets/js/vendor/easymde.min.js"></script>
 
 <script>
-	new SimpleMDE({
+	new EasyMDE({
 		element: document.getElementById("section-contenu-textarea"),
 		spellChecker: false,
 	});

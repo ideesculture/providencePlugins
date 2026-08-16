@@ -39,13 +39,22 @@ $i++;
 endforeach;
 ?>
 </ul>
+<?php print caNavButton($this->request, __CA_NAV_ICON_GO__, _t("All books"), "", "bookCreator", "Books", "Index"); ?>
 <?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, _t("Add a section"), '', '*', '*', "addSection", array('book' => $book_id), array(), array()); ?>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderHTML/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Preview first pages'); ?></span></a>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/renderSectionsPDF/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Generate the full PDF (section by section)'); ?></span></a>
 <?php
-		print "<a href='".__CA_URL_ROOT__."/app/plugins/bookCreator/tmp/book_".$book_id."_with_cover.pdf' class='form-button' target='_blank'><span class='form-button'><i class=\"fa fa-book fa-2x\" aria-hidden=\"true\"></i> "._t('Display the latest generated version')."</span></a>";
+// Actions built with caNavUrl rather than assembled by hand: the previous
+// version wrote /index.php/... itself, and pointed the download straight at a
+// file under tmp/, which both exposed the layout of the plugin directory and
+// offered a link to a PDF that might be half written.
+$preview_url  = caNavUrl($this->request, 'bookCreator', 'Preview', 'Book', ['book' => $book_id]);
+$generate_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Submit', ['book' => $book_id]);
+$download_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Download', ['book' => $book_id]);
+$summary_url  = caNavUrl($this->request, 'bookCreator', 'Editor', 'Summary', ['book' => $book_id]);
 ?>
-<a href="<?php print __CA_URL_ROOT__; ?>/index.php/bookCreator/Editor/Summary/book/<?php print $book_id; ?>" class="form-button" target="_blank"><span class="form-button "><i class="fa fa-book fa-2x" aria-hidden="true"></i> <?php print _t('Generate the table of contents'); ?></span></a>
+<a href="<?php print $preview_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Preview the book'); ?></span></a>
+<a href="<?php print $generate_url; ?>" class="form-button"><span class="form-button "><?php print _t('Generate the PDF'); ?></span></a>
+<a href="<?php print $download_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Display the latest generated version'); ?></span></a>
+<a href="<?php print $summary_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Table of contents'); ?></span></a>
 
 <br/><br/><br/><br/>
 <?php
@@ -58,8 +67,6 @@ print $vs_control_box = caFormControlBox(
 
 );?>
 <div style="margin-bottom:100px;"></div>
-<!-- Font awesome -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css">
 
 <script>
 jQuery(document).ready(function() {
