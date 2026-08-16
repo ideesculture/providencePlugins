@@ -101,6 +101,9 @@ class TemplateRegistry {
 			'formats'      => is_array($formats) ? $formats : [],
 			'css'          => $conf->get('css'),
 			'show_title'   => $conf->get('show_title'),
+			'outer_container' => $conf->get('outer_container'),
+			'text_container'  => $conf->get('text_container'),
+			'media_container' => $conf->get('media_container'),
 			'options'      => is_array($options) ? $options : [],
 			'path'         => $this->templatesPath().'/'.$code,
 		];

@@ -159,11 +159,40 @@ class BookHtmlBuilder {
 			case 'set':
 				return $this->buildSetPages($section, $code);
 			case 'mixed':
-				return $this->wrapLayout($code, $this->buildTextContent($section, $code))
-					.$this->buildSetPages($section, $code);
+				return $this->buildMixedSection($section, $code);
 			default:
 				return $this->wrapLayout($code, $this->buildTextContent($section, $code));
 		}
+	}
+
+	/**
+	 * Text and plates in a single root, as the stylesheets expect.
+	 *
+	 * The layouts that mix both are two-track grids: the stylesheet selects
+	 * `.layout > .content + .media-bar > .media`. Emitting the text and the
+	 * plates as two sibling roots — which is what the naive reading of "mixed"
+	 * produces — breaks the grid AND, since the layout class carries
+	 * `break-before: page`, sends the text and its plates to two different
+	 * pages.
+	 *
+	 * Which wrappers to emit is declared by the manifest, so the shape of a
+	 * layout stays with the layout instead of returning to a switch on its name.
+	 */
+	private function buildMixedSection($section, $code) {
+		$manifest = $this->templates->getTemplate($code);
+		$media_container = $manifest['media_container'] ?? 'media-bar';
+
+		$blocks = $this->buildSetItems($section, $code);
+		$media = '';
+		if (sizeof($blocks)) {
+			$media = "<div class=\"".htmlspecialchars($media_container, ENT_QUOTES, 'UTF-8')."\">\n"
+				.join('', $blocks)
+				."</div>\n";
+		}
+
+		$text = "<div class=\"content\">".$this->markdown->render($section['content'])."</div>\n";
+
+		return $this->wrapLayout($code, $text.$media);
 	}
 
 	/** Wraps rendered content in the div the stylesheets style. */
@@ -238,8 +267,9 @@ class BookHtmlBuilder {
 	 * v1 layouts whose manifest says nothing.
 	 */
 	private function buildTextContent($section, $code) {
-		$html = '';
+		$manifest = $this->templates->getTemplate($code);
 
+		$html = '';
 		if ($this->layoutShowsTitle($code) && strlen((string)$section['title'])) {
 			$html .= "<h1>".htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8')."</h1>\n";
 		}
@@ -253,7 +283,26 @@ class BookHtmlBuilder {
 			: $body;
 
 		// A layout may also pin a single representation, independently of a set.
-		$html .= $this->buildRepresentationBlock($section);
+		$media = $this->buildRepresentationBlock($section, $manifest);
+
+		// Layouts that set the plate beside the text are two-track grids, and
+		// the stylesheet selects the two tracks by name. When the manifest
+		// declares them, the text is wrapped and the plate placed first — the
+		// order the grid expects. Without that, both fall into the same track
+		// and the image lands under the text.
+		$text_container  = $manifest['text_container'] ?? null;
+		$outer_container = $manifest['outer_container'] ?? null;
+
+		if ($text_container) {
+			$html = "<div class=\"".htmlspecialchars($text_container, ENT_QUOTES, 'UTF-8')."\">\n".$html."</div>\n";
+			$html = $media.$html;
+		} else {
+			$html .= $media;
+		}
+
+		if ($outer_container) {
+			$html = "<div class=\"".htmlspecialchars($outer_container, ENT_QUOTES, 'UTF-8')."\">\n".$html."</div>\n";
+		}
 
 		return $html;
 	}
@@ -307,10 +356,18 @@ class BookHtmlBuilder {
 		return $blocks;
 	}
 
-	/** Single representation pinned on a section, when the layout uses one. */
-	private function buildRepresentationBlock($section) {
+	/**
+	 * Single representation pinned on a section, when the layout uses one.
+	 *
+	 * The wrapper class comes from the manifest: a plate set beside the text
+	 * sits in a named grid track, while a full-page plate is a plain media
+	 * block. Its caption goes through a merge template like everything else, so
+	 * it stays configurable per installation instead of being frozen here.
+	 */
+	private function buildRepresentationBlock($section, $manifest = null) {
 		if (!$section['representation_id']) { return ''; }
 
+		$code = $section['style'];
 		$context = _t('section %1', $section['booksection_id']);
 		$representation = $this->loader->load('ca_object_representations', $section['representation_id'], $context);
 		if (!$representation) { return ''; }
@@ -318,9 +375,14 @@ class BookHtmlBuilder {
 		$url = $representation->getMediaUrl('media', 'page');
 		if (!$url) { return ''; }
 
-		$html  = "<div class=\"media\">\n";
+		$container = $manifest['media_container'] ?? 'media';
+		$template  = $this->templates->getMergeTemplate($code, 'representation_block');
+
+		$html  = "<div class=\"".htmlspecialchars($container, ENT_QUOTES, 'UTF-8')."\">\n";
 		$html .= "<img src=\"".htmlspecialchars($url, ENT_QUOTES, 'UTF-8')."\" alt=\"\" />\n";
-		$html .= "<p class=\"caption\">".$representation->get('preferred_labels')."</p>\n";
+		$html .= $template
+			? $representation->getWithTemplate($template)."\n"
+			: "<p class=\"caption\">".$representation->get('preferred_labels')."</p>\n";
 		$html .= "</div>\n";
 		return $html;
 	}
