@@ -35,6 +35,22 @@ Le plugin embarque tout le reste : dépendances PHP dans `vendor/`, Bootstrap, E
 3. Fusionner le bloc `strings` de `conf/translations.conf.dist` dans `app/conf/local/translations.conf`, puis vider le cache applicatif. **Sans cette étape l'interface reste en anglais** : un plugin ne peut pas livrer son propre catalogue de traduction.
 4. Vérifier `conf/bookCreator.conf` — au minimum `renderer`, et les chemins des binaires s'ils ne sont pas dans le `PATH` du serveur web.
 
+## Configuration
+
+Tout est dans `conf/bookCreator.conf`, commenté sur place. Les réglages qui demandent une décision à l'installation :
+
+| Clé | Rôle |
+|---|---|
+| `renderer` | `weasyprint` (défaut) ou `gotenberg` |
+| `weasyprint_path`, `qpdf_path` | chemins absolus si les binaires ne sont pas dans le `PATH` du serveur web — cas courant quand WeasyPrint vient d'un virtualenv |
+| `default_access` | `1` ouvre le plugin à tout utilisateur connecté qu'aucun rôle n'autorise explicitement |
+| `markdown_parser` | `parsedown` (référence de la recette) ou `commonmark` |
+| `media_version` | version dérivée utilisée pour les planches, jamais l'original |
+| `covers_dir` | répertoire des couvertures ; vide signifie `assets/covers` |
+| `job_work_dir`, `job_output_dir` | vides, ils pointent sur `tmp/` ; sur Kubernetes, un volume partagé entre le pod worker et le pod Providence |
+
+**Les couvertures sont désignées par un nom de fichier, jamais par un chemin.** Le fichier doit être déposé dans `covers_dir`, qui porte un `.htaccess` interdisant l'accès web direct : une couverture est reliée dans le livre, elle n'a pas à être servie telle quelle.
+
 ## Le worker de génération
 
 La génération ne se fait pas dans la requête HTTP : le bouton met un job en file, un worker CLI le traite. Voir `bin/README.md` pour l'installation en cron ou en Deployment Kubernetes.
