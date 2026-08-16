@@ -23,8 +23,20 @@
  * ------------------------------------------------------------------------- */
 :root {
 	--content-height: calc(var(--page-height, 210mm) - 2 * var(--page-margin, 12mm));
-	/* Height of one cell in a two-row full-page grid, gutter deducted. */
-	--grid-row-height: calc((var(--content-height) - var(--gutter, 10mm)) / 2);
+	/* Height of one cell in a two-row full-page grid, gutter deducted.
+	 *
+	 * Written out from page-height and page-margin rather than from
+	 * --content-height, which would be correct CSS but does not survive the
+	 * renderer: substituting a custom property that is itself a calc() yields a
+	 * calc() nested inside a calc(), and WeasyPrint 69 rejects that as an
+	 * invalid value ("Ignored `grid-auto-rows: calc((calc(...) - 10mm) / 2)`").
+	 * The declaration was dropped, the three set layouts lost the fixed row
+	 * height their manifests specify, and the plates of a catalogue sized
+	 * themselves to their content instead of to half the page — works no longer
+	 * aligned from one page to the next, on the very layouts a catalogue
+	 * raisonné is made of. The flattened form is accepted; --content-height is
+	 * kept, since using it directly as a length works. */
+	--grid-row-height: calc((var(--page-height, 210mm) - 2 * var(--page-margin, 12mm) - var(--gutter, 10mm)) / 2);
 }
 
 /* ---------------------------------------------------------------------------
