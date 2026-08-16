@@ -65,9 +65,8 @@ interface PdfRendererInterface {
  * Outcome of one render.
  *
  * Immutable, and deliberately dumb: it reports, it does not decide. Page count
- * is optional because no renderer knows it — it is read back from the produced
- * file by PdfAssembler, which is why success results can be completed after the
- * fact with withPageCount().
+ * is optional because no renderer knows it — the caller reads it back from the
+ * produced file with PdfAssembler::countPages() when a driver leaves it null.
  *
  * Warnings are kept apart from errors on purpose. WeasyPrint writes plenty on
  * stderr — a font it substituted, a property it ignored — while exiting 0 and
@@ -113,13 +112,6 @@ final class RenderResult {
 		return new self(false, $pdfPath, null, $errorMessage, $durationSeconds, $warnings, $renderer);
 	}
 
-	/** Same result, with the page count filled in once it has been read. */
-	public function withPageCount(?int $pageCount): self {
-		return new self(
-			$this->success, $this->pdfPath, $pageCount, $this->errorMessage,
-			$this->durationSeconds, $this->warnings, $this->renderer
-		);
-	}
 
 
 	/** One line for a log or a job message. */

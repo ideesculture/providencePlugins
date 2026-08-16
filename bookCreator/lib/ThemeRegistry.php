@@ -274,7 +274,16 @@ class ThemeRegistry {
 			$family = '"'.$pair['body']['family'].'", serif';
 		}
 
-		$style = "font-family: {$family}; font-size: {$size}; color: {$color};";
+		// line-height and font-weight for the same reason as the family: a margin
+		// box inherits nothing from body, so it falls back to the initial value
+		// — `normal` and 400. Invisible with the theme as shipped, whose body
+		// weight is 400, and a trap that reopens for any theme setting a
+		// different text weight or leading.
+		$line   = isset($tokens['line-height']) ? $tokens['line-height'] : '1.2';
+		$weight = isset($tokens['font-weight-body']) ? $tokens['font-weight-body'] : '400';
+
+		$style = "font-family: {$family}; font-size: {$size}; line-height: {$line}; "
+			."font-weight: {$weight}; font-style: normal; color: {$color};";
 
 		// Which selector carries the left-hand page furniture.
 		$verso = $mirrored ? ':right' : ':left';

@@ -85,11 +85,31 @@ class BookJobModel {
 			$this->last_error = $e->getMessage();
 			return false;
 		}
-		if ($this->db->numErrors()) {
-			$this->last_error = join(' – ', $this->db->getErrors());
-			return false;
-		}
+		// Same as plugin_books::run(): a SQL error arrives as an exception, never
+		// as numErrors(), so the catch above is the whole mechanism.
 		return $qr;
+	}
+
+	/**
+	 * Clears the recorded output path of jobs whose file has been deleted.
+	 *
+	 * Called by the worker after it removes the superseded PDF of a book. The
+	 * status is left alone — the job did run and did produce a file — only the
+	 * path is forgotten, so a caller reading an old job knows there is nothing
+	 * to serve rather than pointing at a missing file.
+	 *
+	 * @param string[] $paths absolute paths that no longer exist
+	 */
+	public function forgetOutputs(array $paths): int {
+		$paths = array_values(array_filter($paths, 'strlen'));
+		if (!$paths) { return 0; }
+
+		$placeholders = join(', ', array_fill(0, sizeof($paths), '?'));
+		$qr = $this->query(
+			"UPDATE `" . self::TABLE . "` SET pdf_path = NULL WHERE pdf_path IN ({$placeholders})",
+			$paths
+		);
+		return $qr ? (int)$this->db->affectedRows() : 0;
 	}
 
 	/**
@@ -124,7 +144,18 @@ class BookJobModel {
 		$type = ($type === self::TYPE_SECTION) ? self::TYPE_SECTION : self::TYPE_BOOK;
 		if ($type === self::TYPE_BOOK) { $sectionId = null; }
 
-		if ($existing = $this->getActiveForBook($bookId)) {
+		// A section job with no section is not a section job. The row used to be
+		// accepted as it came, and the worker then took the "whole book" branch
+		// for the rendering while keeping the "section" branch for everything
+		// else: the book was rendered without recording a single first_page and
+		// without the second pass over the table of contents — a complete book,
+		// unfolioed, with an empty summary, in status done.
+		if ($type === self::TYPE_SECTION && !($sectionId > 0)) {
+			$type = self::TYPE_BOOK;
+			$sectionId = null;
+		}
+
+		if ($existing = $this->getActiveForBook($bookId, $type, $sectionId)) {
 			return (int)$existing['job_id'];
 		}
 
@@ -368,30 +399,32 @@ class BookJobModel {
 	}
 
 	/** Pending or running job of a book, used by submit() to refuse duplicates. */
-	public function getActiveForBook(int $bookId): ?array {
+	public function getActiveForBook(int $bookId, ?string $type = null, ?int $sectionId = null): ?array {
 		if ($bookId <= 0) { return null; }
 
-		$qr = $this->query(
-			"SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
-			 WHERE book_id = ? AND status IN (?, ?)
-			 ORDER BY created_on, job_id
-			 LIMIT 1",
-			[$bookId, self::STATUS_PENDING, self::STATUS_RUNNING]
-		);
+		// The type narrows the search when one is given. Without it, submit()
+		// handed back whatever job the book already had: asking for the whole
+		// book while a single section was queued returned the section job, and
+		// the download that followed held one section instead of the catalogue.
+		// Polling cannot tell the difference — the result can.
+		$sql = "SELECT " . $this->columnList() . " FROM `" . self::TABLE . "`
+			 WHERE book_id = ? AND status IN (?, ?)";
+		$params = [$bookId, self::STATUS_PENDING, self::STATUS_RUNNING];
+
+		if ($type !== null) {
+			$sql .= " AND job_type = ?";
+			$params[] = $type;
+
+			$sql .= is_null($sectionId) ? " AND section_id IS NULL" : " AND section_id = ?";
+			if (!is_null($sectionId)) { $params[] = $sectionId; }
+		}
+
+		$qr = $this->query($sql . " ORDER BY created_on, job_id LIMIT 1", $params);
 		if (!$qr || !$qr->nextRow()) { return null; }
 
 		return $this->hydrate($qr->getRow());
 	}
 
-	/** Number of jobs waiting in the queue, for monitoring and for the worker log. */
-	public function countPending(): int {
-		$qr = $this->query(
-			"SELECT COUNT(*) AS c FROM `" . self::TABLE . "` WHERE status = ?",
-			[self::STATUS_PENDING]
-		);
-		if (!$qr || !$qr->nextRow()) { return 0; }
-		return (int)$qr->get('c');
-	}
 
 	# -------------------------------------------------------
 	# Housekeeping
@@ -421,7 +454,7 @@ class BookJobModel {
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
 			 WHERE status = ? AND (started_on IS NULL OR started_on < ?)",
-			[self::STATUS_PENDING, 'Requeued: previous worker stopped without finishing', self::STATUS_RUNNING, $cutoff]
+			[self::STATUS_PENDING, _t('Requeued: the previous worker stopped without finishing.'), self::STATUS_RUNNING, $cutoff]
 		);
 		if (!$qr) { return 0; }
 

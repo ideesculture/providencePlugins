@@ -219,10 +219,6 @@ final class PdfAssembler {
 		return $this->lastError;
 	}
 
-	/** What qpdf said during the last operation, whether or not it succeeded. */
-	public function getLastWarnings(): string {
-		return $this->lastWarnings;
-	}
 
 	# -------------------------------------------------------
 

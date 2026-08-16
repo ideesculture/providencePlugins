@@ -32,9 +32,7 @@ strings = {
 	Editor = { fr_FR = "Éditeur" },
 	"Book editor" = { fr_FR = "Éditeur de livre" },
 	"Create printed books directly from CollectiveAccess" = { fr_FR = "Créer des livres imprimés directement depuis CollectiveAccess" },
-	"Book Creator plugin for CollectiveAccess" = { fr_FR = "Plugin Book Creator pour CollectiveAccess" },
 	"bookCreator plugin for CollectiveAccess" = { fr_FR = "Plugin bookCreator pour CollectiveAccess" },
-	"Books available in this database:" = { fr_FR = "Livres disponibles dans cette base :" },
 
 	# Access rights
 	"Can use book creator functions" = { fr_FR = "Peut utiliser les fonctions de création de livres" },
@@ -45,7 +43,6 @@ strings = {
 	"Edit section" = { fr_FR = "Modifier la section" },
 	"Delete section" = { fr_FR = "Supprimer la section" },
 	"Drag and drop the sections to reorder them." = { fr_FR = "Glissez-déposez les sections pour les réordonner." },
-	"Confirm deletion of section" = { fr_FR = "Confirmer la suppression de la section" },
 	"Section deleted" = { fr_FR = "Section supprimée" },
 
 	# Section editor
@@ -54,8 +51,6 @@ strings = {
 	Content = { fr_FR = "Contenu" },
 	"Introduction/summary" = { fr_FR = "Introduction / résumé" },
 	"This section appears in the table of contents" = { fr_FR = "Cette section figure au sommaire" },
-	"HTML preview" = { fr_FR = "Aperçu HTML" },
-	"Save and redirect" = { fr_FR = "Enregistrer et rediriger" },
 
 	# Notifications
 	"Section saved." = { fr_FR = "Section enregistrée." },
@@ -63,20 +58,8 @@ strings = {
 	"Section deleted." = { fr_FR = "Section supprimée." },
 
 	# Generation
-	"Preview first pages" = { fr_FR = "Aperçu des premières pages" },
-	"Generate the full PDF (section by section)" = { fr_FR = "Générer le PDF complet (section par section)" },
-	"Generate the table of contents" = { fr_FR = "Générer le sommaire" },
 	"Display the latest generated version" = { fr_FR = "Afficher la dernière version générée" },
 	"Table of contents" = { fr_FR = "Sommaire" },
-	"Content generated" = { fr_FR = "Contenu généré" },
-	"Page numbers added" = { fr_FR = "Pagination ajoutée" },
-	"Covers added" = { fr_FR = "Couvertures ajoutées" },
-	"The book has been generated" = { fr_FR = "Le livre a été généré" },
-	"Unable to delete the previous output file." = { fr_FR = "Impossible de supprimer la génération précédente." },
-	"Unable to delete the previous paginated output file." = { fr_FR = "Impossible de supprimer la génération précédente (avec pagination)." },
-	"Unable to delete the previous output file with covers." = { fr_FR = "Impossible de supprimer la génération précédente (avec couvertures)." },
-	"PDF assembly failed." = { fr_FR = "L'assemblage du PDF a échoué." },
-	"PDF rendering failed." = { fr_FR = "Le rendu du PDF a échoué." },
 
 	# Schema installer
 	"Book Creator — database setup" = { fr_FR = "Book Creator — installation de la base" },
@@ -205,5 +188,12 @@ strings = {
 	"Table %1 is missing and will be created." = { fr_FR = "La table %1 est absente et va être créée." },
 	"Column %1 is missing from table %2 and will be added." = { fr_FR = "La colonne %1 est absente de la table %2 et va être ajoutée." },
 	"Column %1 of table %2 must default to NULL and will be altered." = { fr_FR = "La colonne %1 de la table %2 doit avoir NULL pour valeur par défaut et va être modifiée." },
-	"Index %1 is missing from table %2 and will be added." = { fr_FR = "L'index %1 est absent de la table %2 et va être ajouté." }
+	"Index %1 is missing from table %2 and will be added." = { fr_FR = "L'index %1 est absent de la table %2 et va être ajouté." },
+
+	# Worker warnings surfaced on the job
+	"“%1”: a plate could not be loaded (%2)." = { fr_FR = "« %1 » : une planche n'a pas pu être chargée (%2)." },
+	"“%1”: %2" = { fr_FR = "« %1 » : %2" },
+	"“%1” produced no content and prints as a blank page." = { fr_FR = "« %1 » n'a produit aucun contenu et s'imprime en page blanche." },
+	"Requeued: the previous worker stopped without finishing." = { fr_FR = "Remis en file : le worker précédent s'est arrêté avant la fin." },
+	"This section no longer exists." = { fr_FR = "Cette section n'existe plus." }
 }

@@ -164,8 +164,6 @@ final class GotenbergRenderer implements PdfRendererInterface {
 
 	public function getName(): string { return 'gotenberg'; }
 
-	/** Configured base URL, normalised. */
-	public function getBaseUrl(): string { return $this->baseUrl; }
 
 	# -------------------------------------------------------
 	# Configuration and availability
@@ -411,7 +409,7 @@ final class GotenbergRenderer implements PdfRendererInterface {
 	/**
 	 * Whether this render can honour the folio numbering it was asked for.
 	 *
-	 * RenderOptions::counterResetCss() emits "@page :first { counter-reset: page N }",
+	 * BookHtmlBuilder emits "@page :first { counter-reset: page N }" into the document,
 	 * which WeasyPrint honours and Chromium ignores — Chrome 131 shipped @page
 	 * margin boxes and the page counter, not the ability to set it. A section
 	 * rendered here therefore numbers from 1 whatever N is, and a book assembled

@@ -56,9 +56,9 @@ final class RenderOptions {
 	 * @param bool        $cropMarks       Adds crop and cross marks, ignored unless $bleed.
 	 * @param int|null    $firstPageNumber Page number of the first page of this fragment. Sections
 	 *                                     are rendered one by one and numbered from the running
-	 *                                     total of the ones before, so the caller injects
-	 *                                     counterResetCss() into the document it renders. null
-	 *                                     leaves the numbering alone (page 1).
+	 *                                     total of the ones before. BookHtmlBuilder writes the
+	 *                                     matching "@page :first { counter-reset: page N }" into
+	 *                                     the document. null leaves the numbering alone (page 1).
 	 * @param int         $timeoutSeconds  Wall clock budget for one render. Past it the driver
 	 *                                     kills the process, or gives up on the HTTP call, and
 	 *                                     returns a failed RenderResult.
@@ -105,29 +105,6 @@ final class RenderOptions {
 	# Derived values
 	# -------------------------------------------------------
 
-	/**
-	 * The counter-reset rule that numbers this fragment from its real first page.
-	 *
-	 * The rule is scoped to :first. Written against plain @page it would apply to
-	 * every page of the fragment, which prints the same folio throughout — a
-	 * mistake with no visible symptom until someone reads the PDF. Verified
-	 * against WeasyPrint 69: with counter-reset: page 5 on :first, a five page
-	 * section folios 5 to 9. The value is the page number itself, not one less,
-	 * because the reset happens after the counter has been incremented for that
-	 * page.
-	 *
-	 * Caveat for the Gotenberg driver: Chromium ignores this, so a fragment
-	 * rendered there always numbers from 1.
-	 *
-	 * The caller inlines the returned rule with the theme CSS; renderers never
-	 * touch the document.
-	 *
-	 * @return string A @page rule, or an empty string when numbering starts at 1.
-	 */
-	public function counterResetCss(): string {
-		if ($this->firstPageNumber === null || $this->firstPageNumber <= 1) { return ''; }
-		return "@page :first { counter-reset: page ".$this->firstPageNumber."; }\n";
-	}
 
 	/**
 	 * Same options, renumbered. Used by the worker as it walks the sections in

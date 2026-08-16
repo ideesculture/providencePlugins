@@ -345,21 +345,60 @@ final class BookWorkerRenderBridge {
 		if (strlen(trim($result->warnings))) {
 			bookworker_error("section {$section_id}: ".trim($result->warnings));
 		}
+
+		// Everything worth telling the editor is collected rather than only
+		// logged. stderr is read by whoever reads the cron mail, which is nobody
+		// on the day a catalogue comes back from the printer with ten holes in
+		// it; the job row is what the interface shows.
+		$warnings = [];
+		$label = $section['title'] !== null && strlen(trim((string)$section['title']))
+			? trim((string)$section['title'])
+			: _t('section %1', $section_id);
+
 		if ($renderer instanceof WeasyPrintRenderer) {
 			foreach (WeasyPrintRenderer::extractResourceErrors($result->warnings) as $missing) {
 				bookworker_error("section {$section_id}: missing resource, {$missing}");
+				$warnings[] = _t('“%1”: a plate could not be loaded (%2).', $label, $missing);
 			}
 		}
 		foreach ($builder->getSkippedMessages() as $skipped) {
 			bookworker_error("section {$section_id}: {$skipped}");
+			$warnings[] = _t('“%1”: %2', $label, $skipped);
 		}
 
+		// A set section whose works have all gone — set deleted, set emptied, no
+		// primary representation on any of them — builds an empty body, which
+		// still renders as one page. That blank page is bound into the book,
+		// counted in the folios and, when the section is flagged, listed in the
+		// table of contents. Saying nothing is what makes it dangerous: the
+		// pagination around it stays perfectly consistent.
+		if ($builder->lastDocumentWasEmpty()) {
+			$message = _t('“%1” produced no content and prints as a blank page.', $label);
+			bookworker_error("section {$section_id}: empty document");
+			$warnings[] = $message;
+		}
+
+		// null is not zero. countPages() documents the distinction: a section
+		// that renders to no page is a legitimate result, an unreadable file is
+		// not. Casting the failure to 0 left every following section folioed too
+		// low — measured at 4 instead of 18, then 24 instead of 38 — and the job
+		// still finished "done". A section whose length cannot be established
+		// fails the job instead: a book that stops is recoverable, a book with
+		// wrong folios reaches the printer.
 		$pages = $result->pageCount;
 		if ($pages === null) {
-			$pages = $factory->makeAssembler()->countPages($pdf_path);
+			$assembler = $factory->makeAssembler();
+			$pages = $assembler->countPages($pdf_path);
+			if ($pages === null) {
+				throw new RuntimeException(
+					"could not count the pages of section {$section_id} ({$pdf_path}): "
+					.($assembler->getLastError() ?? 'unknown error')
+					.'. Every following section would be folioed from a wrong count.'
+				);
+			}
 		}
 
-		return ['path' => $pdf_path, 'pages' => (int)$pages];
+		return ['path' => $pdf_path, 'pages' => (int)$pages, 'warnings' => $warnings];
 	}
 
 	/**
@@ -479,13 +518,25 @@ function bookworker_is_summary_section(array $book, array $section): bool {
  *
  * @return array{work: string, output: string}
  */
-function bookworker_directories(string $plugin_dir): array {
+function bookworker_directories(string $plugin_dir, int $job_id = 0): array {
 	$config  = Configuration::load($plugin_dir . '/conf/bookCreator.conf');
 	$work    = trim((string)$config->get('job_work_dir'));
 	$output  = trim((string)$config->get('job_output_dir'));
 
 	if ($work === '')   { $work = $plugin_dir . '/tmp'; }
 	if ($output === '') { $output = $plugin_dir . '/tmp'; }
+
+	// One working directory per job. The fragments used to be named after the
+	// section alone, so two workers rendering the same book wrote to the very
+	// same files. reapStale() makes that a real case rather than a theoretical
+	// one: it requeues a job running for more than an hour without checking
+	// that its worker is still alive, and a catalogue can take longer than
+	// that. The requeued render then overwrote the fragments of the live one,
+	// and its clean-up deleted the files the other was assembling — producing
+	// either a failed assembly or, worse, a book mixing pages from two renders
+	// with folios consistent throughout. The queue row was never the whole
+	// race; the disk was.
+	if ($job_id > 0) { $work .= '/job-' . $job_id; }
 
 	foreach ([$work, $output] as $directory) {
 		if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
@@ -524,7 +575,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		);
 	}
 
-	$directories = bookworker_directories($plugin_dir);
+	$directories = bookworker_directories($plugin_dir, (int)$job['job_id']);
 
 	// plugin_books exposes the whole row only through its magic getter called
 	// with no property name; every named access throws on a book that could
@@ -576,6 +627,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 		$rendered = BookWorkerRenderBridge::renderSection($book_data, $section, $page_offset, $directories['work']);
 		$section_pdfs[] = $rendered['path'];
+		foreach ($rendered['warnings'] as $warning) { $job_warnings[] = $warning; }
 
 		// Record what this section weighs and where it starts, before moving the
 		// offset on. Nothing else writes these two columns: without this the
@@ -634,6 +686,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 				$directories['work']
 			);
 			$section_pdfs[$index] = $rendered['path'];
+			foreach ($rendered['warnings'] as $warning) { $job_warnings[] = $warning; }
 
 			// Keep the recorded length in step with what was actually produced,
 			// otherwise the page counts of the interface stay on the first pass.
@@ -681,7 +734,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 	// Older deliverables of the same book are dropped too: only the latest is
 	// ever offered for download, the job carrying its path.
-	bookworker_clean_previous_outputs($directories['output'], (int)$job['book_id'], $output_path);
+	bookworker_clean_previous_outputs($directories['output'], (int)$job['book_id'], $output_path, $jobs);
 
 	// Warnings are written last, and only here. finish() sets the status, the
 	// path and the progress but never touches the message, so what is written
@@ -702,13 +755,27 @@ function bookworker_clean_work_files(array $section_pdfs, string $work_dir): voi
 		$html = preg_replace('/\.pdf$/', '.html', $pdf);
 		if ($html !== $pdf && is_file($html)) { @unlink($html); }
 	}
+
+	// The per-job directory goes too, but only if this job left nothing else in
+	// it: rmdir() on a non-empty directory fails and is meant to. A directory
+	// belonging to another job is never touched, since each one has its own.
+	if (preg_match('~/job-\d+$~', $work_dir) && is_dir($work_dir)) { @rmdir($work_dir); }
 }
 
 /** Removes the previous PDFs of a book, keeping the one just produced. */
-function bookworker_clean_previous_outputs(string $output_dir, int $book_id, string $keep): void {
+function bookworker_clean_previous_outputs(string $output_dir, int $book_id, string $keep, ?BookJobModel $jobs = null): void {
+	$removed = [];
 	foreach (glob($output_dir . '/book-' . $book_id . '-job-*.pdf') ?: [] as $previous) {
-		if ($previous !== $keep && is_file($previous)) { @unlink($previous); }
+		if ($previous !== $keep && is_file($previous) && @unlink($previous)) { $removed[] = $previous; }
 	}
+
+	// The rows of those jobs keep their status and their pdf_path, so anything
+	// reaching an earlier job — a replay, a history screen, --job=N — found a
+	// job marked done pointing at a file that no longer exists, and answered
+	// "The generated file is no longer available." with no way to tell why.
+	// Forgetting the path is what makes the row honest: the job did run, its
+	// file has been superseded.
+	if ($jobs && $removed) { $jobs->forgetOutputs($removed); }
 }
 
 # -------------------------------------------------------

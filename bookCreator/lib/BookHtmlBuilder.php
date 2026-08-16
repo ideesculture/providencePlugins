@@ -88,6 +88,9 @@ class BookHtmlBuilder {
 	/** Class scoping the section being built, or null when it has no title. */
 	private $current_section_class = null;
 
+	/** Whether the last document built carried no content at all; see lastDocumentWasEmpty(). */
+	private $last_document_empty = false;
+
 	public function __construct($theme_code = 'default', $format = 'a4-landscape', $font_pair = 'default', $parser = null) {
 		$this->theme     = new ThemeRegistry($theme_code);
 		$this->templates = new TemplateRegistry($theme_code);
@@ -126,6 +129,11 @@ class BookHtmlBuilder {
 			if ($section_id !== null && (int)$section['booksection_id'] !== (int)$section_id) { continue; }
 			$body .= $this->buildSection($section);
 		}
+
+		// A set whose works have all disappeared builds nothing, and an empty
+		// body still renders as one blank page — bound, folioed and listed in
+		// the table of contents. The caller has to be able to tell.
+		$this->last_document_empty = (trim(strip_tags($body)) === '' && !preg_match('~<img\b|background-image~i', $body));
 
 		return $this->wrapDocument($body, $options);
 	}
@@ -239,6 +247,18 @@ class BookHtmlBuilder {
 	# -------------------------------------------------------
 	# Sections
 	# -------------------------------------------------------
+
+	/**
+	 * Whether the last buildDocument() produced a document with no content.
+	 *
+	 * Not merely "no text": a full-bleed plate is a legitimate page with no
+	 * text at all, so an image reference counts as content. What this reports is
+	 * the case where nothing at all was built — typically a set section whose
+	 * works were all skipped.
+	 */
+	public function lastDocumentWasEmpty() {
+		return $this->last_document_empty;
+	}
 
 	/** One section, as one or more divs carrying its layout code as a class. */
 	public function buildSection($section) {

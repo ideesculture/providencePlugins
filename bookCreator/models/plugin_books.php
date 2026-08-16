@@ -78,7 +78,12 @@ class plugin_books {
 	 * save fails. These columns therefore have their empty values turned into
 	 * NULL, which is what "not set" means here.
 	 */
-	const SECTIONS_INTEGER_COLUMNS = array("booksection_id", "book_id", "sort", "set_id", "representation_id", "pages", "first_page", "is_in_summary", "rendered_on");
+	// sort is deliberately absent: it is the only integer column where NULL is
+	// worse than an empty string. MariaDB sorts NULL first on "ORDER BY sort",
+	// so a blank position would silently move a section to the front of the
+	// book. An empty value is rejected by the column instead, which is what we
+	// want — the form always posts an integer.
+	const SECTIONS_INTEGER_COLUMNS = array("booksection_id", "book_id", "set_id", "representation_id", "pages", "first_page", "is_in_summary", "rendered_on");
 
 	/** Book columns typed as integers, same reasoning. */
 	const BOOKS_INTEGER_COLUMNS = array("book_id", "locale_id", "created_on", "modified_on");
@@ -104,9 +109,9 @@ class plugin_books {
 			return ['ok' => false, 'result' => null, 'error' => $e->getMessage()];
 		}
 
-		if ($db->numErrors()) {
-			return ['ok' => false, 'result' => $result, 'error' => join(' – ', $db->getErrors())];
-		}
+		// No numErrors() check: the framework never sets it on a SQL error, it
+		// throws, and the catch above is the only path that exists. Testing it
+		// as well suggested a second safety net that was never there.
 		return ['ok' => true, 'result' => $result, 'error' => null];
 	}
 
@@ -311,6 +316,20 @@ class plugin_books {
 		if(!$outcome['ok']) {
 			return array($outcome['error']);
 		}
+
+		// A statement that matched no row is not a successful save. The section
+		// was deleted from another tab, or belongs to another book: returning
+		// true told the editor "Section saved.", cleared the form, and lost the
+		// text that had just been typed — a confirmed, silent loss, which is the
+		// worst kind.
+		//
+		// affectedRows() is 0 for an untouched row as well as for a missing one,
+		// since MySQL does not count a write that changes nothing. Saving a
+		// section without editing it is therefore checked separately, and only
+		// when the count is 0: the extra read costs nothing on the normal path.
+		if ((int)$o_data->affectedRows() === 0 && !is_array($this->getSection($id))) {
+			return array(_t('This section no longer exists.'));
+		}
 		return true;
 	}
 
@@ -319,10 +338,15 @@ class plugin_books {
 		$outcome = self::run($o_data, "SELECT MAX(sort) AS max_sort FROM plugin_booksections WHERE book_id = ?", array($this->book_id));
 		if(!$outcome['ok']) { return array($outcome['error']); }
 
+		// MAX(sort) over an empty table returns one row holding NULL, so
+		// nextRow() succeeds and (int)NULL + 1 gave 1 to the very first section.
+		// The jQuery sortable of the editor rewrites positions as 0..n-1, so the
+		// two conventions coexisted in the same column.
 		$sort = 0;
 		$qr_result = $outcome['result'];
 		if($qr_result && $qr_result->nextRow()) {
-			$sort = (int)$qr_result->get("max_sort") + 1;
+			$max = $qr_result->get("max_sort");
+			$sort = is_null($max) ? 0 : (int)$max + 1;
 		}
 		// booksection_id is left out so the AUTO_INCREMENT does its job.
 		$request = "INSERT INTO plugin_booksections (book_id, title, sort, style) VALUES (?, ?, ?, ?)";
@@ -470,6 +494,14 @@ class plugin_books {
 		$outcome = self::run($o_data, $request, $values);
 		if(!$outcome['ok']) {
 			return array($outcome['error']);
+		}
+
+		// Same rule as setSection(): a book deleted elsewhere must not report a
+		// successful save. modified_on is always part of the statement, so a row
+		// that exists is always touched and the count can only be 0 when the row
+		// is gone.
+		if ((int)$o_data->affectedRows() === 0) {
+			return array(_t('This book no longer exists.'));
 		}
 		return true;
 	}

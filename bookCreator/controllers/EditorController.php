@@ -246,6 +246,14 @@
 				$this->view->setVar("notification", _t("Section saved."));
 			}
 	        $va_section_info = $vt_book->getSection($section_id);
+	        // The section may have gone while it was being edited. getSection()
+	        // then returns false, which the view indexed as an array: a form of
+	        // empty fields, and the text just typed lost without a word. What was
+	        // posted is shown back instead, so it can at least be copied out.
+	        if (!is_array($va_section_info)) {
+		        $va_section_info = $this->mergePostedSection($this->blankSection($book_id, $section_id), $post);
+	        }
+
 
 	        $this->view->setVar("book", $book_id);
 	        $this->view->setVar("section", $section_id);
@@ -257,6 +265,13 @@
         public function addSection() {
 	        $book_id = ($this->request->getParameter("book", pInteger));
 	        $vt_book = new plugin_books($book_id);
+
+	        // Without this, an unknown book id inserted a row carrying it: a
+	        // section belonging to no book, that no screen can ever reach.
+	        if (!$vt_book->isLoaded()) {
+		        $this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
+		        return;
+	        }
 
 	        if (!$this->isTrustedRequest()) {
 		        $this->view->setVar("error", _t('Invalid or expired request. Reload this page and try again.'));
@@ -295,6 +310,23 @@
 		        if (array_key_exists($field, $post)) { $section[$field] = $post[$field]; }
 	        }
 	        return $section;
+        }
+
+        /**
+         * An empty section row, to hang a rejected payload on.
+         *
+         * Carries every column the editor view reads, so that showing a section
+         * that no longer exists does not become a page of PHP warnings.
+         */
+        private function blankSection($book_id, $section_id) {
+	        return [
+		        'booksection_id' => (int)$section_id,
+		        'book_id' => (int)$book_id,
+		        'title' => '', 'intro' => '', 'content' => '', 'style' => '',
+		        'set_id' => null, 'representation_id' => null, 'is_in_summary' => 0,
+		        'sort' => 0, 'options' => null, 'pages' => null, 'first_page' => null,
+		        'content_hash' => null, 'rendered_on' => null,
+	        ];
         }
 
         public function deleteSection() {

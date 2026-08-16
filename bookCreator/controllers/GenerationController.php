@@ -231,10 +231,36 @@ class GenerationController extends ActionController {
 		return ($output_dir && strpos($path, $output_dir.DIRECTORY_SEPARATOR) === 0);
 	}
 
+	/**
+	 * Latin letters a book title is likely to carry, and their ASCII form.
+	 *
+	 * Covers French and its neighbours, which is what these catalogues are
+	 * written in. Anything absent is stripped by the filter below, as before.
+	 */
+	private const TRANSLITERATIONS = [
+		'À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A','à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
+		'Ç'=>'C','ç'=>'c','È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E','è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
+		'Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I','ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
+		'Ñ'=>'N','ñ'=>'n','Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+		'Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U','ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
+		'Ý'=>'Y','ý'=>'y','ÿ'=>'y','Æ'=>'AE','æ'=>'ae','Œ'=>'OE','œ'=>'oe','ß'=>'ss','Ø'=>'O','ø'=>'o',
+		'—'=>'-','–'=>'-','’'=>"'",
+	];
+
 	/** A download name built from the book title, safe for a Content-Disposition. */
 	private function downloadFilename($book, $book_id) {
 		$title = $book->getTitle();
+
+		// Transliterate before stripping, otherwise every accent and ligature
+		// becomes a dash: "Œuvres de Floutier" came out "-uvres-de-Floutier".
+		//
+		// An explicit table rather than iconv('ASCII//TRANSLIT'): its output
+		// depends on the C library, and the same title gives "ete" on glibc and
+		// "-'e?t'e" on macOS. A download name has to be the same everywhere.
+		$title = strtr($title, self::TRANSLITERATIONS);
+
 		$slug = preg_replace('/[^A-Za-z0-9_-]+/', '-', $title);
+		$slug = preg_replace('/-{2,}/', '-', (string)$slug);   // "a — b" gave "a---b"
 		$slug = trim((string)$slug, '-');
 		return (strlen($slug) ? $slug : 'book-'.$book_id).'.pdf';
 	}

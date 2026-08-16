@@ -62,8 +62,6 @@ class MarkdownRenderer {
 			: self::PARSER_PARSEDOWN;   // anything unknown falls back to the reference parser
 	}
 
-	/** Which parser this instance uses. */
-	public function getParser() { return $this->parser; }
 
 	/** Renders Markdown to HTML. */
 	public function render($markdown) {

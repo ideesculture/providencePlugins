@@ -132,6 +132,4 @@ class RecordLoader {
 		return $messages;
 	}
 
-	/** Forgets what was skipped, between two renderings sharing one loader. */
-	public function reset() { $this->skipped = []; }
 }
