@@ -201,5 +201,12 @@ strings = {
 
 	# Page format capacity, shown next to each format in the book settings
 	"%1 layouts" = { fr_FR = "%1 gabarits" },
-	"front matter only" = { fr_FR = "pages liminaires seulement" }
+	"front matter only" = { fr_FR = "pages liminaires seulement" },
+
+	# Rendering chain, reported on the setup screen
+	"The rendering chain is available." = { fr_FR = "La chaîne de rendu est disponible." },
+	"The database is one half of the setup; the rendering chain is the other, and it is not ready:" = { fr_FR = "La base de données n'est qu'une moitié de l'installation ; la chaîne de rendu est l'autre, et elle n'est pas prête :" },
+	"Books can be composed without it, but no PDF will be produced. See bin/README.md for the installation of the renderer." = { fr_FR = "Les livres peuvent être composés sans elle, mais aucun PDF ne sera produit. Voir bin/README.md pour l'installation du moteur de rendu." },
+	"The book has been generated." = { fr_FR = "Le livre a été généré." },
+	"The change could not be saved. The details are in the application log." = { fr_FR = "La modification n'a pas pu être enregistrée. Le détail figure dans le journal de l'application." }
 }

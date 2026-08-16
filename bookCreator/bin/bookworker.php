@@ -379,10 +379,13 @@ final class BookWorkerRenderBridge {
 		// counted in the folios and, when the section is flagged, listed in the
 		// table of contents. Saying nothing is what makes it dangerous: the
 		// pagination around it stays perfectly consistent.
-		if ($builder->lastDocumentWasEmpty()) {
-			$message = _t('“%1” produced no content and prints as a blank page.', $label);
+		// Unless the layout is meant to be empty. A blank page and the back of a
+		// title page are deliberately empty; warning on them on every generation
+		// put two false alarms in the same channel as the real ones, which is
+		// how an editor learns to stop reading them.
+		if ($builder->lastDocumentWasEmpty() && !bookworker_layout_allows_empty($book, $section)) {
 			bookworker_error("section {$section_id}: empty document");
-			$warnings[] = $message;
+			$warnings[] = _t('“%1” produced no content and prints as a blank page.', $label);
 		}
 
 		// null is not zero. countPages() documents the distinction: a section
@@ -435,6 +438,14 @@ final class BookWorkerRenderBridge {
 	public static function assemble(array $book, array $section_pdfs, string $output_path): void {
 		// Covers stay static PDFs supplied by the client, as they always were:
 		// they are designed in a page layout application, not composed here.
+		//
+		// They are not folioed, which is the printing convention — a cover never
+		// carries a page number, and the counter starts at 1 on the first
+		// section. Worth knowing when checking a proof: a cover file of more
+		// than one page (cover plus endpapers) shifts every physical page of the
+		// assembled file against the number printed on it. The printer works
+		// from the imposition and expects exactly that; someone counting pages
+		// in a PDF viewer will find them off by the length of the cover.
 		$parts = [];
 		if ($cover = bookworker_cover_path($book['cover_pdf'] ?? '')) {
 			$parts[] = $cover;
@@ -530,6 +541,23 @@ function bookworker_is_summary_section(array $book, array $section): bool {
 
 	$manifest = $registries[$theme]->getTemplate($section['style']);
 	return is_array($manifest) && ($manifest['section_type'] ?? '') === 'summary';
+}
+
+/**
+ * True when the layout of this section declares that an empty body is normal.
+ *
+ * Read from the manifest (allows_empty), like every other layout property, so a
+ * theme decides for its own layouts rather than the worker carrying a list of
+ * names.
+ */
+function bookworker_layout_allows_empty(array $book, array $section): bool {
+	static $registries = [];
+
+	$theme = $book['theme'] ?? 'default';
+	if (!isset($registries[$theme])) { $registries[$theme] = new TemplateRegistry($theme); }
+
+	$manifest = $registries[$theme]->getTemplate($section['style']);
+	return is_array($manifest) && !empty($manifest['allows_empty']);
 }
 
 /**
@@ -726,11 +754,23 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// generated table of contents has no folios, the cumulated page count of
 		// the interface stays at zero, and a section previewed on its own cannot
 		// carry the number it holds in the book.
-		$book->setSection(
+		// This is the only place pages and first_page are ever written, so a
+		// failure here is not something to carry on from: the table of contents
+		// of the second pass would print folios from an earlier generation while
+		// the PDF finished in status done. Same rule as a page count that cannot
+		// be established — a book that stops is recoverable, a book with wrong
+		// folios goes to the printer.
+		$written = $book->setSection(
 			(int)$section['booksection_id'],
 			['pages' => (int)$rendered['pages'], 'first_page' => $page_offset, 'rendered_on' => time()],
 			false   // worker columns, not a form's
 		);
+		if ($written !== true) {
+			$detail = is_array($written) ? join(' – ', $written) : 'unknown error';
+			throw new RuntimeException(
+				"could not record the page counters of section {$section['booksection_id']}: {$detail}"
+			);
+		}
 
 		$page_offset += max(0, (int)$rendered['pages']);
 		$done++;
@@ -738,11 +778,23 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// Progress after EVERY section, not every n sections: the editor is
 		// watching a bar that must not stall on a long chapter.
 		$percent = (int)floor(($done / $total) * BOOKWORKER_RENDER_BUDGET);
-		$jobs->updateProgress(
+		$still_ours = $jobs->updateProgress(
 			$job['job_id'],
 			$percent,
-			_t('Section %1 of %2 rendered', $done, $total)
+			_t('Section %1 of %2 rendered', $done, $total),
+			$job['worker_id']
 		);
+
+		// The write is scoped to this worker's claim token, so it stops matching
+		// the moment the job is requeued and taken by someone else. That is the
+		// earliest this worker can learn it has lost the job — and the point at
+		// which continuing is pure waste: whatever it renders from here can only
+		// collide with the run that now owns the work.
+		if (!$still_ours) {
+			throw new BookWorkerInterrupted(
+				'The job was requeued and picked up by another worker after ' . $done . '/' . $total . ' sections'
+			);
+		}
 		bookworker_log("job {$job['job_id']}: section {$done}/{$total} rendered ({$percent}%)");
 	}
 
@@ -778,10 +830,16 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 			// Keep the recorded length in step with what was actually produced,
 			// otherwise the page counts of the interface stay on the first pass.
-			$book->setSection((int)$section['booksection_id'], [
+			$written = $book->setSection((int)$section['booksection_id'], [
 				'pages'       => (int)$rendered['pages'],
 				'rendered_on' => time(),
 			], false);
+			if ($written !== true) {
+				$detail = is_array($written) ? join(' – ', $written) : 'unknown error';
+				throw new RuntimeException(
+					"could not record the length of the table of contents: {$detail}"
+				);
+			}
 
 			// A table of contents that grew or shrank between the two passes
 			// shifts everything after it, so the folios it now prints are off
@@ -831,6 +889,12 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// the following progress update would have wiped it.
 	if ($job_warnings) {
 		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, join(' ', $job_warnings), $job['worker_id']);
+	} else {
+		// finish() deliberately leaves `message` alone, so that the warnings
+		// written just above survive. With nothing to say, that meant a book
+		// generated without a hitch kept displaying "Assembling the PDF" for
+		// ever, as if it had stopped there.
+		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('The book has been generated.'), $job['worker_id']);
 	}
 
 	return $output_path;

@@ -327,6 +327,25 @@ class BooksController extends ActionController {
 			if (!strlen($values[$field])) { $values[$field] = $defaults[$field]; }
 		}
 
+		// A code that no longer exists is worse than an empty one, because the
+		// two registries disagree about it: ThemeRegistry::getFormat() falls
+		// back to the first declared format, so the book prints in A4 landscape,
+		// while TemplateRegistry::supportsFormat() matches nothing, so the
+		// editor is offered no layout calibrated for A4 landscape. A book
+		// printing in a format whose layouts it cannot use. It happens without
+		// anyone forging a request — renaming a format in theme.conf, or
+		// switching to a theme that declares different ones, is enough.
+		$registry = new ThemeRegistry($values['theme']);
+		$formats  = array_keys($registry->getFormats());
+		if (sizeof($formats) && !in_array($values['page_format'], $formats, true)) {
+			$values['page_format'] = $formats[0];
+		}
+
+		$pairs = array_keys($registry->getFontPairs());
+		if (sizeof($pairs) && !in_array($values['font_pair'], $pairs, true)) {
+			$values['font_pair'] = $pairs[0];
+		}
+
 		// Covers are file NAMES, resolved inside the covers directory. Reducing
 		// them here rather than at assembly time is what makes the change
 		// visible: the v1 stored full paths, and silently keeping one would

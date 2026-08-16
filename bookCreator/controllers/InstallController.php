@@ -65,6 +65,7 @@ class InstallController extends ActionController {
 		$this->view->setVar('is_usable', $this->opo_schema->isUsable());
 		$this->view->setVar('changes', $this->opo_schema->describeState($state));
 		$this->view->setVar('applied', null);
+		$this->view->setVar('renderer', $this->rendererState());
 		$this->render('install_html.php');
 	}
 
@@ -101,6 +102,26 @@ class InstallController extends ActionController {
 
 		$this->view->setVar('is_usable', $this->opo_schema->isUsable());
 		$this->view->setVar('applied', $applied);
+		$this->view->setVar('renderer', $this->rendererState());
 		$this->render('install_html.php');
+	}
+	/**
+	 * State of the rendering chain, for the setup screen.
+	 *
+	 * This is the page an administrator opens when nothing generates, and it
+	 * used to answer only about the database. A missing WeasyPrint or qpdf was
+	 * discovered by an editor waiting on a job that failed — the check existed,
+	 * it simply was not shown anywhere before a generation was attempted.
+	 *
+	 * @return array ['ok' => bool, 'reasons' => string[]]
+	 */
+	private function rendererState() {
+		require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/PdfRendererFactory.php');
+
+		try {
+			return (new PdfRendererFactory())->checkAvailability();
+		} catch (Exception $e) {
+			return ['ok' => false, 'reasons' => [$e->getMessage()]];
+		}
 	}
 }

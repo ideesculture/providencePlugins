@@ -269,7 +269,12 @@ class BookJobModel {
 			$params[] = $claimToken;
 		}
 
-		return (bool)$this->query($sql, $params);
+		// affectedRows(), like finish(), fail(), cancel() and release(). Returning
+		// true as soon as the statement ran meant a worker whose job had been
+		// requeued kept "progressing" successfully through an entire render and
+		// never found out.
+		$qr = $this->query($sql, $params);
+		return ($qr && (int)$this->db->affectedRows() > 0);
 	}
 
 	/**

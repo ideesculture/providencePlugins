@@ -188,6 +188,16 @@ class GenerationController extends ActionController {
 	 */
 	public function Download() {
 		$book_id = (int)$this->request->getParameter('book', pInteger);
+
+		// A deleted book has no PDF to offer. The check was missing entirely:
+		// the controller read the last job of the book_id and served its file,
+		// so a catalogue could be downloaded long after it was deleted.
+		$book = new plugin_books($book_id);
+		if (!$book->isLoaded()) {
+			$this->response->setRedirect(caNavUrl($this->request, 'bookCreator', 'Books', 'Index'));
+			return;
+		}
+
 		$job = $this->opo_jobs->getForBook($book_id);
 
 		if (!is_array($job) || $job['status'] !== 'done' || empty($job['pdf_path'])) {
@@ -207,7 +217,6 @@ class GenerationController extends ActionController {
 			return;
 		}
 
-		$book = new plugin_books($book_id);
 		$filename = $this->downloadFilename($book, $book_id);
 
 		$this->response->addHeader('Content-Type', 'application/pdf');

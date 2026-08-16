@@ -106,13 +106,36 @@ class plugin_books {
 		} catch (Exception $e) {
 			// Exception, not DatabaseException: the class is not guaranteed to
 			// be loaded in a CLI context, and any other failure is just as bad.
-			return ['ok' => false, 'result' => null, 'error' => $e->getMessage()];
+			//
+			// The engine's own message goes to the log, never to the screen. It
+			// names the database, the table, the column and the error code, and
+			// the controllers print what this returns straight into the page —
+			// so anyone able to provoke a type error was answered with a
+			// description of the schema. The caller gets a sentence to show.
+			self::logError($e->getMessage(), $sql);
+			return [
+				'ok' => false,
+				'result' => null,
+				'error' => _t('The change could not be saved. The details are in the application log.'),
+			];
 		}
 
 		// No numErrors() check: the framework never sets it on a SQL error, it
 		// throws, and the catch above is the only path that exists. Testing it
 		// as well suggested a second safety net that was never there.
 		return ['ok' => true, 'result' => $result, 'error' => null];
+	}
+
+	/**
+	 * Writes a database failure where an administrator will find it.
+	 *
+	 * error_log() rather than CollectiveAccess's Eventlog: that one records
+	 * through a SQL INSERT, and this runs precisely when a statement has just
+	 * failed. It is also where the CLI worker's diagnostics already go.
+	 */
+	private static function logError($message, $sql) {
+		error_log('bookCreator: database error: '.$message
+			.' [statement: '.preg_replace('/\s+/', ' ', $sql).']');
 	}
 
 	/**
@@ -539,7 +562,35 @@ class plugin_books {
 		$outcome = self::run($o_data, "DELETE FROM plugin_books WHERE book_id = ?", array($id));
 		if(!$outcome['ok']) { return false; }
 
+		// The generation queue too. Nothing cascades, so its rows survived their
+		// book: getForBook() kept answering for a deleted catalogue, and the
+		// download controller served the PDF it pointed at. The files are
+		// removed with them — they are the whole reason the rows mattered.
+		self::deleteJobsAndOutputs($id, $o_data);
+
 		return true;
+	}
+
+	/**
+	 * Removes the queue rows of a book and the PDF files they name.
+	 *
+	 * Deliberately tolerant: a file already gone, or one written outside the
+	 * plugin's own directories by a host that configured job_output_dir
+	 * elsewhere, is skipped rather than treated as a failure. Deleting the rows
+	 * is what closes the hole; deleting the files is housekeeping.
+	 */
+	private static function deleteJobsAndOutputs(int $book_id, $o_data): void {
+		$outcome = self::run($o_data, "SELECT pdf_path FROM plugin_book_jobs WHERE book_id = ?", array($book_id));
+		$qr = $outcome['result'];
+
+		if ($outcome['ok'] && $qr) {
+			while ($qr->nextRow()) {
+				$path = (string)$qr->get('pdf_path');
+				if ($path !== '' && is_file($path) && is_writable($path)) { @unlink($path); }
+			}
+		}
+
+		self::run($o_data, "DELETE FROM plugin_book_jobs WHERE book_id = ?", array($book_id));
 	}
 
 	/**

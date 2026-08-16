@@ -141,9 +141,18 @@ class BookHtmlBuilder {
 		$this->running_head_css = [];
 		$this->last_document_blocks = 0;
 
+		// One section asked for, one section read. The worker renders a book
+		// section by section and built a whole document each time: on a
+		// 200-section catalogue that was 200 full reads of the section table to
+		// use one row from each — quadratic work in the only loop that matters.
+		// A summary section still sees the whole book, because
+		// buildSummarySection() loads it for itself.
+		$sections = ($section_id !== null)
+			? array_filter([$book->getSection((int)$section_id)], 'is_array')
+			: $book->getSections();
+
 		$body = '';
-		foreach ($book->getSections() as $section) {
-			if ($section_id !== null && (int)$section['booksection_id'] !== (int)$section_id) { continue; }
+		foreach ($sections as $section) {
 			$body .= $this->buildSection($section);
 		}
 
@@ -226,6 +235,31 @@ class BookHtmlBuilder {
 	/** Web URL of the theme directory, with its trailing slash. */
 	private function themeBaseUrl() {
 		return __CA_URL_ROOT__.'/app/plugins/bookCreator/themes/'.$this->theme->getCode().'/';
+	}
+
+	/**
+	 * A media path, safe inside a CSS url() written into a style attribute.
+	 *
+	 * Three nested syntaxes read this string: the HTML attribute, then the CSS
+	 * declaration, then the quoted url() token. htmlspecialchars() alone
+	 * satisfies the first and breaks the third — it turns an apostrophe into
+	 * &#039;, the HTML parser hands a real apostrophe back to the CSS parser,
+	 * and that apostrophe closes the url() early. WeasyPrint then reports
+	 * "Ignored `background-image`", exits 0, and every plate of the book is
+	 * missing from a page that otherwise looks finished. A path like
+	 * /home/o'brien/media is enough.
+	 *
+	 * Percent-encoding settles all three at once: the characters that could end
+	 * a token in any of them cannot appear in the output, and both WeasyPrint
+	 * and Chromium decode the escapes when they open the file. The slashes are
+	 * kept so the path stays a path.
+	 */
+	private static function cssUrl($url) {
+		$encoded = str_replace('%2F', '/', rawurlencode($url));
+
+		// A remote URL keeps its scheme separator; rawurlencode() would have
+		// escaped the colon and the double slash.
+		return str_replace(['%3A%2F%2F', '%3A'], ['://', ':'], $encoded);
 	}
 
 	/**
@@ -646,7 +680,7 @@ class BookHtmlBuilder {
 			if ($representation) {
 				$url = $this->mediaSource($representation);
 				if ($url) {
-					$html .= "<div class=\"image\" style=\"background-image:url('".htmlspecialchars($url, ENT_QUOTES, 'UTF-8')."');\"></div>\n";
+					$html .= "<div class=\"image\" style=\"background-image:url('".self::cssUrl($url)."');\"></div>\n";
 				}
 				if ($caption_template) {
 					$html .= "<p class=\"caption\">".$representation->getWithTemplate($caption_template)."</p>\n";

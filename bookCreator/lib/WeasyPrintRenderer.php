@@ -237,6 +237,18 @@ final class WeasyPrintRenderer implements PdfRendererInterface {
 		if (preg_match_all("/Failed to load [a-z ]*at '([^']+)'/i", $warnings, $matches)) {
 			foreach ($matches[1] as $url) { $urls[] = $url; }
 		}
+
+		// A declaration WeasyPrint refuses to parse is a hole in the page just
+		// the same, and it is reported as a WARNING rather than an ERROR: an
+		// unreadable background-image leaves the plate blank while the renderer
+		// exits 0. Only the image properties are matched — an ignored margin is
+		// a cosmetic loss, an ignored plate is a missing work.
+		if (preg_match_all('/Ignored `(background(?:-image)?|src|list-style-image)\s*:\s*([^`]*)`/i', $warnings, $matches)) {
+			foreach ($matches[2] as $declaration) {
+				$urls[] = trim($declaration);
+			}
+		}
+
 		return array_values(array_unique($urls));
 	}
 
