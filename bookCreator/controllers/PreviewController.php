@@ -136,10 +136,32 @@ class PreviewController extends ActionController {
 		// into it is escaped at the source.
 		//
 		// The PDF chain needs none of this: WeasyPrint runs no script at all.
+		// base-uri : 'self' et non 'none'. Le document produit par BookHtmlBuilder
+		// s'appuie sur un <base href="/gestion/app/plugins/bookCreator/themes/…/">
+		// et référence ses feuilles de style en relatif (css/base.css, …).
+		// Avec 'none' le navigateur ignore la balise <base> : les cinq feuilles se
+		// résolvaient contre l'URL de la page et partaient en
+		//   /gestion/index.php/bookCreator/Preview/Section/book/1/section/css/base.css
+		// que le routeur de CollectiveAccess renvoyait sur cette même action. Le
+		// navigateur recevait du text/html au lieu de CSS, les rejetait, et
+		// affichait un document sans aucune feuille de style — soit une page
+		// blanche, puisque la mise en page paginée repose entièrement dessus.
+		// (Effet de bord : cinq rendus complets du document en trop par aperçu.)
+		//
+		// 'self' conserve la protection visée — un <base> injecté ne peut pas
+		// détourner les URL relatives vers une autre origine — tout en laissant
+		// le document déclarer la sienne.
+		// connect-src : Paged.js ne se contente pas des feuilles appliquées par le
+		// navigateur, il les RÉCUPÈRE EN fetch() pour analyser lui-même les règles
+		// @page. Sans connect-src, ces requêtes retombent sur default-src 'none'
+		// et sont refusées ; Paged.js ne produit alors aucune page et vide le
+		// corps du document — l'aperçu s'affiche entièrement blanc, sans erreur
+		// serveur ni exception JS, seulement des « Refused to connect » en console.
 		$this->response->addHeader(
 			'Content-Security-Policy',
-			"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-			."img-src 'self' data: blob:; font-src 'self' data:; base-uri 'none'; form-action 'none'"
+			"default-src 'none'; script-src 'self'; connect-src 'self'; "
+			."style-src 'self' 'unsafe-inline'; "
+			."img-src 'self' data: blob:; font-src 'self' data:; base-uri 'self'; form-action 'none'"
 		);
 		$this->response->sendHeaders();
 
