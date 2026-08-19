@@ -145,6 +145,26 @@ class RecordLoader {
 	}
 
 	/**
+	 * Table dont un jeu contient les lignes.
+	 *
+	 * Un jeu CollectiveAccess ne contient pas forcément des oeuvres : les pages
+	 * de présentation de ce livre s'appuient sur des jeux de REPRÉSENTATIONS
+	 * (table 56), et non d'objets (57). Le lecteur doit donc demander la table
+	 * avant de charger les lignes, faute de quoi il cherche des oeuvres qui
+	 * n'existent pas et n'imprime rien.
+	 */
+	public function setItemTable($set_id, $context = '') {
+		$set = $this->load('ca_sets', $set_id, $context);
+		if (!$set) { return null; }
+
+		$table_num = (int)$set->get('table_num');
+		if (!$table_num) { return null; }
+
+		$name = Datamodel::getTableName($table_num);
+		return strlen((string)$name) ? $name : null;
+	}
+
+	/**
 	 * Whether the current user may read this record.
 	 *
 	 * True when no user was set, which is the "no checking" mode; true as well
@@ -182,16 +202,16 @@ class RecordLoader {
 		foreach ($this->skipped as $item) {
 			switch ($item['reason']) {
 				case 'deleted':
-					$text = _t('%1 %2 has been deleted', $item['table'], $item['id']);
+					$text = IdC::_t('%1 %2 has been deleted', $item['table'], $item['id']);
 					break;
 				case 'no_primary_representation':
-					$text = _t('Object %1 has no primary representation', $item['id']);
+					$text = IdC::_t('Object %1 has no primary representation', $item['id']);
 					break;
 				case 'no_access':
-					$text = _t('%1 %2 is not readable with your permissions', $item['table'], $item['id']);
+					$text = IdC::_t('%1 %2 is not readable with your permissions', $item['table'], $item['id']);
 					break;
 				default:
-					$text = _t('%1 %2 no longer exists', $item['table'], $item['id']);
+					$text = IdC::_t('%1 %2 no longer exists', $item['table'], $item['id']);
 			}
 			if ($item['context']) { $text .= ' ('.$item['context'].')'; }
 			$messages[] = $text;

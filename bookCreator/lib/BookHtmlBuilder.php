@@ -274,8 +274,8 @@ class BookHtmlBuilder {
 	 * The derivative version is configurable rather than frozen: an installation
 	 * whose media profile names it differently would otherwise get nothing.
 	 */
-	private function mediaSource($representation) {
-		$version = $this->mediaVersion();
+	private function mediaSource($representation, $version = null) {
+		if (!strlen((string)$version)) { $version = $this->mediaVersion(); }
 
 		if ($this->use_local_media) {
 			$path = $representation->getMediaPath('media', $version);
@@ -665,16 +665,31 @@ class BookHtmlBuilder {
 	 * page by page.
 	 */
 	private function buildSetItems($section, $code) {
-		$context = _t('section %1', $section['booksection_id']);
+		$context = IdC::_t('section %1', $section['booksection_id']);
 		$object_template = $this->templates->getMergeTemplate($code, 'object_block');
 		$caption_template = $this->templates->getMergeTemplate($code, 'caption');
 
-		$blocks = [];
-		foreach ($this->loader->loadSetItemIDs($section['set_id'], $context) as $object_id) {
-			$object = $this->loader->load('ca_objects', $object_id, $context);
-			if (!$object) { continue; }
+		// Un jeu peut contenir des REPRÉSENTATIONS et non des oeuvres : c'est le
+		// cas des pages de présentation, où la v1 lisait déjà les lignes comme
+		// des ca_object_representations. Charger inconditionnellement des
+		// ca_objects faisait échouer chaque ligne en silence, et ces pages
+		// sortaient sans la moindre image — quinze au total dans ce livre, dont
+		// toute la séquence « Vie de Louis Floutier ».
+		$table = $this->loader->setItemTable($section['set_id'], $context);
+		$representation_template = $this->templates->getMergeTemplate($code, 'representation_block');
 
-			$representation = $this->loader->loadPrimaryRepresentation($object, $context);
+		$blocks = [];
+		foreach ($this->loader->loadSetItemIDs($section['set_id'], $context) as $row_id) {
+			$object = null;
+
+			if ($table === 'ca_object_representations') {
+				$representation = $this->loader->load('ca_object_representations', $row_id, $context);
+				if (!$representation) { continue; }
+			} else {
+				$object = $this->loader->load('ca_objects', $row_id, $context);
+				if (!$object) { continue; }
+				$representation = $this->loader->loadPrimaryRepresentation($object, $context);
+			}
 
 			$html = "<div class=\"media\">\n";
 			if ($representation) {
@@ -686,8 +701,10 @@ class BookHtmlBuilder {
 					$html .= "<p class=\"caption\">".$representation->getWithTemplate($caption_template)."</p>\n";
 				}
 			}
-			if ($object_template) {
+			if ($object && $object_template) {
 				$html .= $object->getWithTemplate($object_template)."\n";
+			} elseif (!$object && $representation_template) {
+				$html .= $representation->getWithTemplate($representation_template)."\n";
 			}
 			$html .= "</div>\n";
 
@@ -708,11 +725,16 @@ class BookHtmlBuilder {
 		if (!$section['representation_id']) { return ''; }
 
 		$code = $section['style'];
-		$context = _t('section %1', $section['booksection_id']);
+		$context = IdC::_t('section %1', $section['booksection_id']);
 		$representation = $this->loader->load('ca_object_representations', $section['representation_id'], $context);
 		if (!$representation) { return ''; }
 
-		$url = $this->mediaSource($representation);
+		// Version de dérivée propre au gabarit, quand il en déclare une. La v1
+		// réservait « book » à la planche pleine page et laissait « page » à tout
+		// le reste : sur une image qui occupe 165 mm de haut, « page » plafonne à
+		// 1000 px, soit 102 ppi — inexploitable à l'impression, là où « book »
+		// donne 3600 px. Le choix appartient donc au gabarit, pas à l'instance.
+		$url = $this->mediaSource($representation, $manifest['media_version'] ?? null);
 		if (!$url) { return ''; }
 
 		$container = $manifest['media_container'] ?? 'media';

@@ -323,11 +323,19 @@ class ThemeRegistry {
 		if (!is_array($pair)) { return ''; }
 
 		$css = '';
+		// Une paire peut donner la même famille aux titres et au texte courant —
+		// c'est le cas d'un livre composé dans un seul Garamond. Sans ce garde-
+		// fou, les quatre @font-face seraient émis deux fois à l'identique dans
+		// chaque document produit.
+		$seen = [];
 		foreach (['heading', 'body'] as $role) {
 			if (!isset($pair[$role]['family']) || !isset($pair[$role]['files'])) { continue; }
 
 			$family = $pair[$role]['family'];
 			$dir = rtrim($pair[$role]['files'], '/');
+
+			if (isset($seen[$family.'|'.$dir])) { continue; }
+			$seen[$family.'|'.$dir] = true;
 
 			foreach ($this->findFontFiles($dir) as $file) {
 				$css .= "@font-face {\n";

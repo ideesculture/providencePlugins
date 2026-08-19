@@ -104,6 +104,10 @@ class TemplateRegistry {
 			'outer_container' => $conf->get('outer_container'),
 			'text_container'  => $conf->get('text_container'),
 			'media_container' => $conf->get('media_container'),
+			// Dérivée à utiliser pour la planche du gabarit, quand elle diffère de
+			// celle de l'instance : la planche pleine page a besoin d'une version
+			// plus grande que les vignettes des grilles.
+			'media_version'   => $conf->get('media_version'),
 			'options'      => is_array($options) ? $options : [],
 			'path'         => $this->templatesPath().'/'.$code,
 		];
