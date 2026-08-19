@@ -360,17 +360,17 @@ final class BookWorkerRenderBridge {
 		$warnings = [];
 		$label = $section['title'] !== null && strlen(trim((string)$section['title']))
 			? trim((string)$section['title'])
-			: _t('section %1', $section_id);
+			: IdC::_t('section %1', $section_id);
 
 		if ($renderer instanceof WeasyPrintRenderer) {
 			foreach (WeasyPrintRenderer::extractResourceErrors($result->warnings) as $missing) {
 				bookworker_error("section {$section_id}: missing resource, {$missing}");
-				$warnings[] = _t('“%1”: a plate could not be loaded (%2).', $label, $missing);
+				$warnings[] = IdC::_t('“%1”: a plate could not be loaded (%2).', $label, $missing);
 			}
 		}
 		foreach ($builder->getSkippedMessages() as $skipped) {
 			bookworker_error("section {$section_id}: {$skipped}");
-			$warnings[] = _t('“%1”: %2', $label, $skipped);
+			$warnings[] = IdC::_t('“%1”: %2', $label, $skipped);
 		}
 
 		// A set section whose works have all gone — set deleted, set emptied, no
@@ -385,7 +385,7 @@ final class BookWorkerRenderBridge {
 		// how an editor learns to stop reading them.
 		if ($builder->lastDocumentWasEmpty() && !bookworker_layout_allows_empty($book, $section)) {
 			bookworker_error("section {$section_id}: empty document");
-			$warnings[] = _t('“%1” produced no content and prints as a blank page.', $label);
+			$warnings[] = IdC::_t('“%1” produced no content and prints as a blank page.', $label);
 		}
 
 		// null is not zero. countPages() documents the distinction: a section
@@ -418,7 +418,7 @@ final class BookWorkerRenderBridge {
 		// proof comes back.
 		$expected = (int)$builder->lastDocumentPageBlocks();
 		if ($expected > 0 && (int)$pages > $expected) {
-			$warnings[] = _t(
+			$warnings[] = IdC::_t(
 				'“%1” printed on %2 pages instead of %3: its content does not fit the layout and the pages after it are shifted. Shorten the notices, or use a layout with fewer works per page.',
 				$label, (int)$pages, $expected
 			);
@@ -735,7 +735,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	$page_offset = 1;
 	$done = 0;
 
-	$jobs->updateProgress($job['job_id'], 0, _t('Rendering %1 sections', $total), $job['worker_id']);
+	$jobs->updateProgress($job['job_id'], 0, IdC::_t('Rendering %1 sections', $total), $job['worker_id']);
 
 	foreach ($sections as $section) {
 		// Stop checkpoint. Between two sections nothing is half written, so the
@@ -781,7 +781,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		$still_ours = $jobs->updateProgress(
 			$job['job_id'],
 			$percent,
-			_t('Section %1 of %2 rendered', $done, $total),
+			IdC::_t('Section %1 of %2 rendered', $done, $total),
 			$job['worker_id']
 		);
 
@@ -847,7 +847,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			// silently produce a book whose numbering is wrong.
 			if ($before && $before !== (int)$rendered['pages']) {
 				$drift = (int)$rendered['pages'] - $before;
-				$warning = _t(
+				$warning = IdC::_t(
 					'The table of contents changed length (%1 to %2 pages): the page numbers after it are off by %3. Generate again to settle them.',
 					$before, (int)$rendered['pages'], $drift
 				);
@@ -862,7 +862,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		}
 	}
 
-	$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('Assembling the PDF'), $job['worker_id']);
+	$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, IdC::_t('Assembling the PDF'), $job['worker_id']);
 
 	$output_path = $directories['output'] . '/book-' . (int)$job['book_id']
 		. '-job-' . (int)$job['job_id'] . '-' . bookworker_claim_slug($job) . '.pdf';
@@ -894,7 +894,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// written just above survive. With nothing to say, that meant a book
 		// generated without a hitch kept displaying "Assembling the PDF" for
 		// ever, as if it had stopped there.
-		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, _t('The book has been generated.'), $job['worker_id']);
+		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, IdC::_t('The book has been generated.'), $job['worker_id']);
 	}
 
 	return $output_path;
@@ -1047,6 +1047,17 @@ try {
 	}
 } catch (Throwable $e) {
 	bookworker_error('could not initialize the locale, messages will be untranslated: ' . $e->getMessage());
+}
+
+# Traductions. Le worker est un point d'entrée en ligne de commande : il n'y a pas
+# de requête web, donc pas d'ApplicationPluginManager::initPlugins() pour avoir
+# chargé IdC via le constructeur du plugin. On l'amorce ici, sinon les messages
+# rangés sur le job repartiraient en anglais dans l'interface.
+if (!class_exists('IdC', false)) {
+	if (is_file($plugin_dir . '/lib/IdC.php')) { require_once($plugin_dir . '/lib/IdC.php'); }
+}
+if (class_exists('IdC', false) && !IdC::registered('bookCreator')) {
+	IdC::registerFile('bookCreator', $plugin_dir . '/conf/bookCreator_translations.conf');
 }
 
 foreach ([

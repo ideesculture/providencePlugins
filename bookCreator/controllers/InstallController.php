@@ -79,7 +79,7 @@ class InstallController extends ActionController {
 	public function Run() {
 		if (!$this->request->isLoggedIn() || strtoupper($this->request->getRequestMethod()) !== 'POST'
 			|| !BookCsrf::isValid($this->request)) {
-			$this->view->setVar('error', _t('Invalid or expired request. Reload this page and try again.'));
+			$this->view->setVar('error', IdC::_t('Invalid or expired request. Reload this page and try again.'));
 			$this->view->setVar('is_usable', $this->opo_schema->isUsable());
 			$this->view->setVar('changes', $this->opo_schema->describeState());
 			$this->view->setVar('applied', null);
@@ -92,11 +92,11 @@ class InstallController extends ActionController {
 		if (!$this->opo_schema->isUsable()) {
 			// Something could not be applied: show the remaining work rather
 			// than sending the user to an editor that would fail.
-			$this->view->setVar('error', _t('The plugin tables could not be fully installed. Check the database user privileges.'));
+			$this->view->setVar('error', IdC::_t('The plugin tables could not be fully installed. Check the database user privileges.'));
 			$this->view->setVar('changes', $this->opo_schema->describeState());
 			$this->view->setVar('failed', $this->opo_schema->getInstallErrors());
 		} else {
-			$this->view->setVar('notification', _t('The plugin tables are ready.'));
+			$this->view->setVar('notification', IdC::_t('The plugin tables are ready.'));
 			$this->view->setVar('changes', []);
 		}
 

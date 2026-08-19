@@ -356,7 +356,7 @@ class BookJobModel {
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, message = ?, finished_on = ?
 			 WHERE job_id = ? AND status = ?",
-			[self::STATUS_ERROR, $this->truncateMessage(_t('Cancelled before it started.')), time(), $jobId, self::STATUS_PENDING]
+			[self::STATUS_ERROR, $this->truncateMessage(IdC::_t('Cancelled before it started.')), time(), $jobId, self::STATUS_PENDING]
 		);
 		return ($qr && (int)$this->db->affectedRows() > 0);
 	}
@@ -466,7 +466,7 @@ class BookJobModel {
 			"UPDATE `" . self::TABLE . "`
 			 SET status = ?, worker_id = NULL, started_on = NULL, progress = 0, message = ?
 			 WHERE status = ? AND (started_on IS NULL OR started_on < ?)",
-			[self::STATUS_PENDING, _t('Requeued: the previous worker stopped without finishing.'), self::STATUS_RUNNING, $cutoff]
+			[self::STATUS_PENDING, IdC::_t('Requeued: the previous worker stopped without finishing.'), self::STATUS_RUNNING, $cutoff]
 		);
 		if (!$qr) { return 0; }
 

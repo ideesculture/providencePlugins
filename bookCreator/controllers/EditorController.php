@@ -141,7 +141,7 @@
 	    		&& isset($_POST["sort"]) && is_array($_POST["sort"])) {
 
 	    		if (!$this->isTrustedRequest()) {
-	    			$this->view->setVar("error", _t('Invalid or expired request. Reorder the sections and save again.'));
+	    			$this->view->setVar("error", IdC::_t('Invalid or expired request. Reorder the sections and save again.'));
 	    		} else {
 	    			// We have new positions to sort sections
 	    			$data=array();
@@ -156,7 +156,7 @@
 				    if (is_array($result)) {
 				    	$this->view->setVar("error", implode(" – ", $result));
 				    } else {
-				    	$this->view->setVar("notification", _t("Order saved."));
+				    	$this->view->setVar("notification", IdC::_t("Order saved."));
 				    }
 	    		}
 		    }
@@ -230,7 +230,7 @@
 	        // The editor comes back instead, still holding what was posted and
 	        // carrying a fresh token, so saving again is one click.
 	        if (!$this->isTrustedRequest()) {
-		        $this->view->setVar("error", _t('Invalid or expired request. Save again.'));
+		        $this->view->setVar("error", IdC::_t('Invalid or expired request. Save again.'));
 		        $this->view->setVar("book", $book_id);
 		        $this->view->setVar("section", $section_id);
 		        $this->view->setVar("section_details", $this->mergePostedSection($vt_book->getSection($section_id), $post));
@@ -243,7 +243,7 @@
 			if(is_array($result)) {
 				$this->view->setVar("error", implode(" – ", $result));
 			} else {
-				$this->view->setVar("notification", _t("Section saved."));
+				$this->view->setVar("notification", IdC::_t("Section saved."));
 			}
 	        $va_section_info = $vt_book->getSection($section_id);
 	        // The section may have gone while it was being edited. getSection()
@@ -274,13 +274,13 @@
 	        }
 
 	        if (!$this->isTrustedRequest()) {
-		        $this->view->setVar("error", _t('Invalid or expired request. Reload this page and try again.'));
+		        $this->view->setVar("error", IdC::_t('Invalid or expired request. Reload this page and try again.'));
 	        } else {
 		        $result = $vt_book->addSection();
 		        if(is_array($result)) {
 			        $this->view->setVar("error", implode(" – ", $result));
 		        } else {
-			        $this->view->setVar("notification", _t("Section added."));
+			        $this->view->setVar("notification", IdC::_t("Section added."));
 		        }
 	        }
 
@@ -352,7 +352,7 @@
 			        $this->view->setVar("book", $book_id);
 			        $this->view->setVar("section", $section_id);
 			        $this->view->setVar("section_details", $vt_book->getSection($section_id));
-			        $this->view->setVar("error", _t('Invalid or expired request. Confirm again.'));
+			        $this->view->setVar("error", IdC::_t('Invalid or expired request. Confirm again.'));
 			        $this->render('section_delete_confirm_html.php');
 			        return;
 		        }
@@ -360,7 +360,7 @@
 		        if(is_array($result)) {
 			        $this->view->setVar("error", implode(" – ", $result));
 		        } else {
-			        $this->view->setVar("notification", _t("Section deleted."));
+			        $this->view->setVar("notification", IdC::_t("Section deleted."));
 		        }
 		        $this->view->setVar("book", $book_id);
 		        $this->view->setVar("section", $section_id);

@@ -20,9 +20,35 @@
 		# -------------------------------------------------------
 		public function __construct($ps_plugin_path) {
 			$this->ops_plugin_path = $ps_plugin_path;
-			$this->description = _t('Create printed books directly from CollectiveAccess');
+
+			// Traductions du plugin. CollectiveAccess ne prévoit aucun emplacement
+			// de catalogue dans un plugin (voir l'en-tête de lib/IdC.php) : le
+			// helper IdC est embarqué par chaque plugin IdéesCulture et enregistré
+			// par le premier chargé. Il fait sa propre interpolation des %n, ce qui
+			// évite d'avoir à corriger _t() dans le coeur.
+			if (!class_exists('IdC', false)) {
+				require_once($ps_plugin_path.'/lib/IdC.php');
+			}
+			// Nom de fichier préfixé : Configuration::load() fusionne
+			// inconditionnellement app/conf/<même nom>, ce qui viderait un
+			// catalogue nommé translations.conf (voir lib/IdC.php).
+			if (!IdC::registered('bookCreator')) {
+				IdC::registerFile('bookCreator', $ps_plugin_path.'/conf/bookCreator_translations.conf');
+			}
+
 			parent::__construct();
 			$this->opo_config = Configuration::load($ps_plugin_path.'/conf/bookCreator.conf');
+		}
+		# -------------------------------------------------------
+		/**
+		 * Traduite à l'appel et non dans le constructeur : la description était
+		 * figée à la locale en vigueur au premier chargement des plugins du
+		 * processus. Sans effet sur une requête web (la locale est établie avant
+		 * initPlugins), mais faux en ligne de commande ou dans tout processus qui
+		 * change de locale en cours de route.
+		 */
+		public function getDescription() {
+			return IdC::_t('Create printed books directly from CollectiveAccess');
 		}
 		# -------------------------------------------------------
 		/**
@@ -54,26 +80,29 @@
 				// plugin now handles several books, so landing straight in the
 				// sections of one of them would presuppose which.
 				$default_menu_action = array(
-					'displayName' => _t('Book'),
+					'displayName' => IdC::_t('PDF Book'),
 					"default" => array(
 						'module' => 'bookCreator',
 						'controller' => 'Books',
 						'action' => 'Index'
 					),
+					// Une seule entree, et elle est obligatoire : getHTMLMenuBar()
+					// rend toujours le libelle de premier niveau en <a href='#'>
+					// et n'utilise jamais la cle 'default' de ce niveau. C'est
+					// donc ce sous-menu qui porte le seul lien cliquable.
+					//
+					// L'entree « Editeur » qui suivait pointait sur
+					// bookCreator/Editor/Index, dont le corps se reduit a un
+					// redirect vers Books/Index : deux libelles pour la meme
+					// page, au prix d'un aller-retour HTTP. Le controleur Editor
+					// reste en place, il porte BookSections, Summary,
+					// EditSection et le reste ; seul le doublon de menu part.
 					'navigation' => array(
 						"Books" => array(
-							'displayName' => _t('Books'),
+							'displayName' => IdC::_t('Books'),
 							"default" => array(
 								'module' => 'bookCreator',
 								'controller' => 'Books',
-								'action' => 'Index'
-							)
-						),
-						"Editor" => array(
-							'displayName' => _t('Editor'),
-							"default" => array(
-								'module' => 'bookCreator',
-								'controller' => 'Editor',
 								'action' => 'Index'
 							)
 						)
@@ -108,10 +137,18 @@
 		 * Add plugin user actions
 		 */
 		static function getRoleActionList() {
+			// Méthode statique : elle peut en théorie être atteinte sans qu'une
+			// instance du plugin ait été construite, donc sans qu'IdC ait été
+			// chargée. Les chemins connus passent tous par initPlugins(), mais la
+			// garde coûte une ligne et évite une erreur fatale si cela changeait.
+			if (!class_exists('IdC', false)) {
+				require_once(__DIR__.'/lib/IdC.php');
+				IdC::registerFile('bookCreator', __DIR__.'/conf/bookCreator_translations.conf');
+			}
 			return array(
 				'can_use_book_editor_plugin' => array(
-						'label' => _t('Can use book creator functions'),
-						'description' => _t('User can use all use book creator functions.')
+						'label' => IdC::_t('Can use book creator functions'),
+						'description' => IdC::_t('User can use all use book creator functions.')
 					)
 			);
 		}

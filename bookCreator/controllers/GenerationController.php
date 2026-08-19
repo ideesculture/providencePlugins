@@ -88,7 +88,7 @@ class GenerationController extends ActionController {
 		// will fail minutes later: the message names the missing binary.
 		$check = (new PdfRendererFactory())->checkAvailability();
 		if (!$check['ok']) {
-			$this->view->setVar('error', _t('No PDF renderer is available: %1', join(' / ', $check['reasons'])));
+			$this->view->setVar('error', IdC::_t('No PDF renderer is available: %1', join(' / ', $check['reasons'])));
 			$this->view->setVar('book_id', $book_id);
 			$this->view->setVar('job', null);
 			$this->render('generate_html.php');
@@ -125,13 +125,13 @@ class GenerationController extends ActionController {
 		$error = null;
 
 		if (!is_array($job)) {
-			$error = _t('There is no generation to cancel for this book.');
+			$error = IdC::_t('There is no generation to cancel for this book.');
 		} elseif ($this->opo_jobs->cancel((int)$job['job_id'])) {
-			$notification = _t('Generation cancelled. You can start a new one.');
+			$notification = IdC::_t('Generation cancelled. You can start a new one.');
 		} else {
 			// cancel() only touches a pending job: a running one belongs to a
 			// worker that is writing right now, and is left to the reaper.
-			$error = _t('This generation has already started and cannot be cancelled. It will be released if its worker stops.');
+			$error = IdC::_t('This generation has already started and cannot be cancelled. It will be released if its worker stops.');
 		}
 
 		$this->view->setVar('book_id', $book_id);
@@ -201,7 +201,7 @@ class GenerationController extends ActionController {
 		$job = $this->opo_jobs->getForBook($book_id);
 
 		if (!is_array($job) || $job['status'] !== 'done' || empty($job['pdf_path'])) {
-			$this->view->setVar('error', _t('This book has not been generated yet.'));
+			$this->view->setVar('error', IdC::_t('This book has not been generated yet.'));
 			$this->view->setVar('book_id', $book_id);
 			$this->view->setVar('job', $job);
 			$this->render('generate_html.php');
@@ -210,7 +210,7 @@ class GenerationController extends ActionController {
 
 		$path = realpath($job['pdf_path']);
 		if (!$path || !is_readable($path) || !$this->isInsideOutputDir($path)) {
-			$this->view->setVar('error', _t('The generated file is no longer available.'));
+			$this->view->setVar('error', IdC::_t('The generated file is no longer available.'));
 			$this->view->setVar('book_id', $book_id);
 			$this->view->setVar('job', $job);
 			$this->render('generate_html.php');

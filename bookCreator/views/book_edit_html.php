@@ -45,12 +45,12 @@ $select_options = function($va_entries, $vs_current) use ($esc) {
 		$va_out[(string)$vs_code] = $esc($vs_label);
 	}
 	if (strlen((string)$vs_current) && !isset($va_out[(string)$vs_current])) {
-		$va_out[(string)$vs_current] = $esc($vs_current).' '._t('(not declared by this theme)');
+		$va_out[(string)$vs_current] = $esc($vs_current).' '.IdC::_t('(not declared by this theme)');
 	}
 	return $va_out;
 };
 ?>
-<h1><?php print $vn_book_id ? _t('Book settings') : _t('New book'); ?></h1>
+<h1><?php print $vn_book_id ? IdC::_t('Book settings') : IdC::_t('New book'); ?></h1>
 
 <?php if ($vs_error) { ?>
 	<div class="alert alert-danger"><?php print $esc($vs_error); ?></div>
@@ -65,28 +65,28 @@ print caFormTag($this->request, 'Save/book/'.$vn_book_id, 'bookEditor', 'bookCre
 print BookCsrf::field();
 
 print caFormControlBox(
-	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t('Save'), 'bookEditor').' '.
-	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t('Cancel'), '', '*', '*', 'Index', array()).' '.
-	($vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_HIER__, _t('Sections'), '', 'bookCreator', 'Editor', 'BookSections', array('book' => $vn_book_id)) : ''),
+	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, IdC::_t('Save'), 'bookEditor').' '.
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, IdC::_t('Cancel'), '', '*', '*', 'Index', array()).' '.
+	($vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_HIER__, IdC::_t('Sections'), '', 'bookCreator', 'Editor', 'BookSections', array('book' => $vn_book_id)) : ''),
 	'',
-	$vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t('Delete'), '', '*', '*', 'Delete', array('book' => $vn_book_id)) : ''
+	$vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_DELETE__, IdC::_t('Delete'), '', '*', '*', 'Delete', array('book' => $vn_book_id)) : ''
 );
 ?>
 <input name="book" type="hidden" value="<?php print $vn_book_id; ?>"/>
 
-<h3><?php print _t('Title'); ?></h3>
+<h3><?php print IdC::_t('Title'); ?></h3>
 <input name="title" class="book-input" type="text" value="<?php print $val('title'); ?>"/>
 
-<h3><?php print _t('Subtitle'); ?></h3>
+<h3><?php print IdC::_t('Subtitle'); ?></h3>
 <input name="subtitle" class="book-input" type="text" value="<?php print $val('subtitle'); ?>"/>
 
-<h3><?php print _t('Identifier'); ?></h3>
+<h3><?php print IdC::_t('Identifier'); ?></h3>
 <input name="idno" class="book-input" type="text" value="<?php print $val('idno'); ?>"/>
 
-<h3><?php print _t('Description'); ?></h3>
+<h3><?php print IdC::_t('Description'); ?></h3>
 <textarea name="description" class="book-textarea"><?php print $val('description'); ?></textarea>
 
-<h3><?php print _t('Theme'); ?></h3>
+<h3><?php print IdC::_t('Theme'); ?></h3>
 <?php
 print caHTMLSelect(
 	'theme',
@@ -95,9 +95,9 @@ print caHTMLSelect(
 	array('contentArrayUsesKeysForValues' => true, 'value' => isset($va_values['theme']) ? $va_values['theme'] : '')
 );
 ?>
-<p class="book-hint"><?php print _t('Page formats and typographic pairs are declared by the theme: save the book after changing it to see the lists below refreshed.'); ?></p>
+<p class="book-hint"><?php print IdC::_t('Page formats and typographic pairs are declared by the theme: save the book after changing it to see the lists below refreshed.'); ?></p>
 
-<h3><?php print _t('Page format'); ?></h3>
+<h3><?php print IdC::_t('Page format'); ?></h3>
 <?php
 print caHTMLSelect(
 	'page_format',
@@ -107,7 +107,7 @@ print caHTMLSelect(
 );
 ?>
 
-<h3><?php print _t('Typographic pair'); ?></h3>
+<h3><?php print IdC::_t('Typographic pair'); ?></h3>
 <?php
 print caHTMLSelect(
 	'font_pair',
@@ -117,20 +117,20 @@ print caHTMLSelect(
 );
 ?>
 
-<h3><?php print _t('Cover PDF'); ?></h3>
+<h3><?php print IdC::_t('Cover PDF'); ?></h3>
 <input name="cover_pdf" class="book-input" type="text" value="<?php print $val('cover_pdf'); ?>"/>
-<p class="book-hint"><?php print _t('File name of a PDF held in the covers directory, bound before the content. A name, not a path. Leave empty for a book without a separate cover.'); ?></p>
+<p class="book-hint"><?php print IdC::_t('File name of a PDF held in the covers directory, bound before the content. A name, not a path. Leave empty for a book without a separate cover.'); ?></p>
 
-<h3><?php print _t('Back cover PDF'); ?></h3>
+<h3><?php print IdC::_t('Back cover PDF'); ?></h3>
 <input name="backcover_pdf" class="book-input" type="text" value="<?php print $val('backcover_pdf'); ?>"/>
 
 <br/><br/>
 <?php
 print caFormControlBox(
-	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t('Save'), 'bookEditor').' '.
-	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t('Cancel'), '', '*', '*', 'Index', array()),
+	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, IdC::_t('Save'), 'bookEditor').' '.
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, IdC::_t('Cancel'), '', '*', '*', 'Index', array()),
 	'',
-	$vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t('Delete'), '', '*', '*', 'Delete', array('book' => $vn_book_id)) : ''
+	$vn_book_id ? caNavButton($this->request, __CA_NAV_ICON_DELETE__, IdC::_t('Delete'), '', '*', '*', 'Delete', array('book' => $vn_book_id)) : ''
 );
 ?>
 </form>

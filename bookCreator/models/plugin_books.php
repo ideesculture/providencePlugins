@@ -116,7 +116,7 @@ class plugin_books {
 			return [
 				'ok' => false,
 				'result' => null,
-				'error' => _t('The change could not be saved. The details are in the application log.'),
+				'error' => IdC::_t('The change could not be saved. The details are in the application log.'),
 			];
 		}
 
@@ -351,7 +351,7 @@ class plugin_books {
 		// section without editing it is therefore checked separately, and only
 		// when the count is 0: the extra read costs nothing on the normal path.
 		if ((int)$o_data->affectedRows() === 0 && !is_array($this->getSection($id))) {
-			return array(_t('This section no longer exists.'));
+			return array(IdC::_t('This section no longer exists.'));
 		}
 		return true;
 	}
@@ -373,7 +373,7 @@ class plugin_books {
 		}
 		// booksection_id is left out so the AUTO_INCREMENT does its job.
 		$request = "INSERT INTO plugin_booksections (book_id, title, sort, style) VALUES (?, ?, ?, ?)";
-		$outcome = self::run($o_data, $request, array($this->book_id, _t("Blank page"), $sort, "page-blanche"));
+		$outcome = self::run($o_data, $request, array($this->book_id, IdC::_t("Blank page"), $sort, "page-blanche"));
 		if(!$outcome['ok']) {
 			return array($outcome['error']);
 		}
@@ -527,7 +527,7 @@ class plugin_books {
 		// the editor the book no longer existed. The existence check settles it,
 		// and only runs on the count of 0, so the normal path pays nothing.
 		if ((int)$o_data->affectedRows() === 0 && !$this->rowExists($this->book_id)) {
-			return array(_t('This book no longer exists.'));
+			return array(IdC::_t('This book no longer exists.'));
 		}
 		return true;
 	}

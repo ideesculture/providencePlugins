@@ -98,7 +98,7 @@ class BooksController extends ActionController {
 		if ($book_id > 0) {
 			$book = new plugin_books($book_id);
 			if (!$book->isLoaded()) {
-				$this->renderList(null, _t('This book no longer exists.'));
+				$this->renderList(null, IdC::_t('This book no longer exists.'));
 				return;
 			}
 			$this->renderEditor($book_id, $this->valuesFromBook($book));
@@ -110,7 +110,7 @@ class BooksController extends ActionController {
 
 	/** Creates or updates, then shows the form again with the result. */
 	public function Save() {
-		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
+		if (!$this->isTrustedRequest()) { $this->renderList(null, IdC::_t('Invalid or expired request. Reload the page and try again.')); return; }
 
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 		$values  = $this->valuesFromRequest();
@@ -119,14 +119,14 @@ class BooksController extends ActionController {
 		// told apart from another in the list, so it is the single required
 		// field. Everything else has a usable default.
 		if (!strlen(trim((string)$values['title']))) {
-			$this->renderEditor($book_id, $values, null, _t('The book needs a title.'));
+			$this->renderEditor($book_id, $values, null, IdC::_t('The book needs a title.'));
 			return;
 		}
 
 		if ($book_id > 0) {
 			$book = new plugin_books($book_id);
 			if (!$book->isLoaded()) {
-				$this->renderList(null, _t('This book no longer exists.'));
+				$this->renderList(null, IdC::_t('This book no longer exists.'));
 				return;
 			}
 
@@ -136,7 +136,7 @@ class BooksController extends ActionController {
 				return;
 			}
 			if ($result === false) {
-				$this->renderEditor($book_id, $values, null, _t('The book could not be saved.'));
+				$this->renderEditor($book_id, $values, null, IdC::_t('The book could not be saved.'));
 				return;
 			}
 
@@ -144,19 +144,19 @@ class BooksController extends ActionController {
 			$book = new plugin_books($book_id);
 			$missing = $this->missingCovers($values);
 			$this->renderEditor($book_id, $this->valuesFromBook($book), $missing
-				? _t('Book saved. These covers were not found in the covers directory: %1', join(', ', $missing))
-				: _t('Book saved.'));
+				? IdC::_t('Book saved. These covers were not found in the covers directory: %1', join(', ', $missing))
+				: IdC::_t('Book saved.'));
 			return;
 		}
 
 		$new_id = plugin_books::createBook($values);
 		if (!$new_id) {
-			$this->renderEditor(0, $values, null, _t('The book could not be created.'));
+			$this->renderEditor(0, $values, null, IdC::_t('The book could not be created.'));
 			return;
 		}
 
 		$book = new plugin_books($new_id);
-		$this->renderEditor($new_id, $this->valuesFromBook($book), _t('Book created.'));
+		$this->renderEditor($new_id, $this->valuesFromBook($book), IdC::_t('Book created.'));
 	}
 
 	/**
@@ -171,7 +171,7 @@ class BooksController extends ActionController {
 
 		$book = new plugin_books($book_id);
 		if (!$book->isLoaded()) {
-			$this->renderList(null, _t('This book no longer exists.'));
+			$this->renderList(null, IdC::_t('This book no longer exists.'));
 			return;
 		}
 
@@ -185,35 +185,35 @@ class BooksController extends ActionController {
 		}
 
 		if (!$this->isTrustedRequest()) {
-			$this->renderList(null, _t('Invalid or expired request. Reload the page and try again.'));
+			$this->renderList(null, IdC::_t('Invalid or expired request. Reload the page and try again.'));
 			return;
 		}
 
 		if (!plugin_books::deleteBook($book_id)) {
-			$this->renderList(null, _t('The book could not be deleted.'));
+			$this->renderList(null, IdC::_t('The book could not be deleted.'));
 			return;
 		}
-		$this->renderList(_t('Book deleted.'));
+		$this->renderList(IdC::_t('Book deleted.'));
 	}
 
 	/** Copies a book and all of its sections, under an explicit copy title. */
 	public function Duplicate() {
-		if (!$this->isTrustedRequest()) { $this->renderList(null, _t('Invalid or expired request. Reload the page and try again.')); return; }
+		if (!$this->isTrustedRequest()) { $this->renderList(null, IdC::_t('Invalid or expired request. Reload the page and try again.')); return; }
 
 		$book_id = (int)$this->request->getParameter('book', pInteger);
 
 		$book = new plugin_books($book_id);
 		if (!$book->isLoaded()) {
-			$this->renderList(null, _t('This book no longer exists.'));
+			$this->renderList(null, IdC::_t('This book no longer exists.'));
 			return;
 		}
 
-		$new_id = plugin_books::duplicateBook($book_id, _t('%1 (copy)', $book->getTitle()));
+		$new_id = plugin_books::duplicateBook($book_id, IdC::_t('%1 (copy)', $book->getTitle()));
 		if (!$new_id) {
-			$this->renderList(null, _t('The book could not be duplicated.'));
+			$this->renderList(null, IdC::_t('The book could not be duplicated.'));
 			return;
 		}
-		$this->renderList(_t('Book duplicated. Its sections were copied; nothing has been rendered yet.'));
+		$this->renderList(IdC::_t('Book duplicated. Its sections were copied; nothing has been rendered yet.'));
 	}
 
 	# -------------------------------------------------------
@@ -418,8 +418,8 @@ class BooksController extends ActionController {
 			}
 
 			$labels[$code] = $content
-				? $label.' — '._t('%1 layouts', $content)
-				: $label.' — '._t('front matter only');
+				? $label.' — '.IdC::_t('%1 layouts', $content)
+				: $label.' — '.IdC::_t('front matter only');
 		}
 		return $labels;
 	}

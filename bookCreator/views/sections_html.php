@@ -27,7 +27,7 @@ $error = $this->getVar('error');
 	<div class="alert alert-success"><?php print htmlspecialchars((string)$notification, ENT_QUOTES, 'UTF-8'); ?></div>
 <?php } ?>
 
-<p><?php print _t('Drag and drop the sections to reorder them.'); ?></p>
+<p><?php print IdC::_t('Drag and drop the sections to reorder them.'); ?></p>
 <?php
 print caFormTag($this->request, "BookSections/book/$book_id", "sortBookSections", "bookCreator/Editor");
 print BookCsrf::field();
@@ -39,15 +39,15 @@ print BookCsrf::field();
 		$count = $count+$section["pages"];
 ?>
 	<li class="booksection">
-		<span class="pull-right"><small style="display:inline-block;color:lightgray;padding-top:14px;"><?php print _t('%1 pages', $section["pages"]); ?> </small><br/><?php print $count; ?>/<?php print $nb_pages; ?></span>
+		<span class="pull-right"><small style="display:inline-block;color:lightgray;padding-top:14px;"><?php print IdC::_t('%1 pages', $section["pages"]); ?> </small><br/><?php print $count; ?>/<?php print $nb_pages; ?></span>
 		<h3>
-			<?php print caNavButton($this->request, __CA_NAV_ICON_EDIT__, _t("Edit"), '', '*', '*', "editSection", array('book' => $book_id, "section"=> $section["booksection_id"]), array(), array("dont_show_content"=>true)); ?>
+			<?php print caNavButton($this->request, __CA_NAV_ICON_EDIT__, IdC::_t("Edit"), '', '*', '*', "editSection", array('book' => $book_id, "section"=> $section["booksection_id"]), array(), array("dont_show_content"=>true)); ?>
 			<?php
 			// Deletion belongs to the section it deletes. The previous version
 			// carried a single Delete button under the list, pointing at
 			// deleteSection without a section parameter: it could never delete
 			// anything, whichever section the editor had in mind.
-			print caNavButton($this->request, __CA_NAV_ICON_DELETE__, _t("Delete"), '', '*', '*', "deleteSection", array('book' => $book_id, "section" => $section["booksection_id"]), array(), array("dont_show_content"=>true));
+			print caNavButton($this->request, __CA_NAV_ICON_DELETE__, IdC::_t("Delete"), '', '*', '*', "deleteSection", array('book' => $book_id, "section" => $section["booksection_id"]), array(), array("dont_show_content"=>true));
 			?>
 			<?php print htmlspecialchars((string)$section["title"], ENT_QUOTES, "UTF-8"); ?>
 		</h3>
@@ -57,8 +57,8 @@ print BookCsrf::field();
 endforeach;
 ?>
 </ul>
-<?php print caNavButton($this->request, __CA_NAV_ICON_GO__, _t("All books"), "", "bookCreator", "Books", "Index"); ?>
-<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, _t("Add a section"), '', '*', '*', "addSection", array_merge(array('book' => $book_id), BookCsrf::param()), array(), array()); ?>
+<?php print caNavButton($this->request, __CA_NAV_ICON_GO__, IdC::_t("All books"), "", "bookCreator", "Books", "Index"); ?>
+<?php print caNavButton($this->request, __CA_NAV_ICON_ADD__, IdC::_t("Add a section"), '', '*', '*', "addSection", array_merge(array('book' => $book_id), BookCsrf::param()), array(), array()); ?>
 <?php
 // Actions built with caNavUrl rather than assembled by hand: the previous
 // version wrote /index.php/... itself, and pointed the download straight at a
@@ -69,16 +69,16 @@ $generate_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Submit', 
 $download_url = caNavUrl($this->request, 'bookCreator', 'Generation', 'Download', ['book' => $book_id]);
 $summary_url  = caNavUrl($this->request, 'bookCreator', 'Editor', 'Summary', ['book' => $book_id]);
 ?>
-<a href="<?php print $preview_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Preview the book'); ?></span></a>
-<a href="<?php print $generate_url; ?>" class="form-button"><span class="form-button "><?php print _t('Generate the PDF'); ?></span></a>
-<a href="<?php print $download_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Display the latest generated version'); ?></span></a>
-<a href="<?php print $summary_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print _t('Table of contents'); ?></span></a>
+<a href="<?php print $preview_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print IdC::_t('Preview the book'); ?></span></a>
+<a href="<?php print $generate_url; ?>" class="form-button"><span class="form-button "><?php print IdC::_t('Generate the PDF'); ?></span></a>
+<a href="<?php print $download_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print IdC::_t('Display the latest generated version'); ?></span></a>
+<a href="<?php print $summary_url; ?>" class="form-button" target="_blank"><span class="form-button "><?php print IdC::_t('Table of contents'); ?></span></a>
 
 <br/><br/><br/><br/>
 <?php
 print caFormControlBox(
-	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, _t("Save"), 'sortBookSections').' '.
-	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, _t("Cancel"), '', "*", "*", "BookSections", array('book' => $book_id)),
+	caFormSubmitButton($this->request, __CA_NAV_ICON_SAVE__, IdC::_t("Save"), 'sortBookSections').' '.
+	caNavButton($this->request, __CA_NAV_ICON_CANCEL__, IdC::_t("Cancel"), '', "*", "*", "BookSections", array('book' => $book_id)),
 	'',
 	''
 );?>

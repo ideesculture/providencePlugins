@@ -270,16 +270,16 @@ class BookSchemaManager {
 		if ($state === null) { $state = $this->getState(); }
 		$lines = [];
 		foreach ($state['missing_tables'] as $table) {
-			$lines[] = _t('Table %1 is missing and will be created.', $table);
+			$lines[] = IdC::_t('Table %1 is missing and will be created.', $table);
 		}
 		foreach ($state['missing_columns'] as $missing) {
-			$lines[] = _t('Column %1 is missing from table %2 and will be added.', $missing['column'], $missing['table']);
+			$lines[] = IdC::_t('Column %1 is missing from table %2 and will be added.', $missing['column'], $missing['table']);
 		}
 		foreach ($state['missing_indexes'] as $missing) {
-			$lines[] = _t('Index %1 is missing from table %2 and will be added.', $missing['index'], $missing['table']);
+			$lines[] = IdC::_t('Index %1 is missing from table %2 and will be added.', $missing['index'], $missing['table']);
 		}
 		foreach ($state['wrong_defaults'] as $wrong) {
-			$lines[] = _t('Column %1 of table %2 must default to NULL and will be altered.', $wrong['column'], $wrong['table']);
+			$lines[] = IdC::_t('Column %1 of table %2 must default to NULL and will be altered.', $wrong['column'], $wrong['table']);
 		}
 		return $lines;
 	}

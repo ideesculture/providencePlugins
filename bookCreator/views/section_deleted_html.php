@@ -15,7 +15,7 @@ $notification = $this->getVar('notification');
 $error        = $this->getVar('error');
 ?>
 
-<h1><?php print $error ? _t('Section not deleted') : _t('Section deleted'); ?></h1>
+<h1><?php print $error ? IdC::_t('Section not deleted') : IdC::_t('Section deleted'); ?></h1>
 
 <?php if ($error) { ?>
 	<div class="alert alert-danger"><?php print htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8'); ?></div>
@@ -27,7 +27,7 @@ $error        = $this->getVar('error');
 
 <?php
 print caFormControlBox(
-	caNavButton($this->request, __CA_NAV_ICON_GO__, _t("Back to the sections"), '', 'bookCreator', 'Editor', 'BookSections', array('book' => $book_id)),
+	caNavButton($this->request, __CA_NAV_ICON_GO__, IdC::_t("Back to the sections"), '', 'bookCreator', 'Editor', 'BookSections', array('book' => $book_id)),
 	'',
 	''
 );
