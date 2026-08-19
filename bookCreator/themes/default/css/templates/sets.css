@@ -42,11 +42,27 @@
 /* ---------------------------------------------------------------------------
  * Six works to a page — three across, two down
  * ------------------------------------------------------------------------- */
+/* Grille de la v1, reproduite en dimensions FIXES.
+ *
+ * La v1 posait les six cellules en `float`, chacune large de 7,4 cm avec 0,9 cm
+ * de marge à gauche et 1 cm à droite : le pas horizontal valait donc 9,3 cm et
+ * la bande occupait 27,9 cm, soit exactement la largeur du body à 9 mm de marge.
+ *
+ * Trois colonnes en `1fr` dans une page à 12 mm donnaient des cellules de
+ * 8,43 cm — 14 % trop larges. Comme `.image` fait 100 % de la cellule, toutes
+ * les illustrations du catalogue étaient agrandies d'autant : c'est la « mise à
+ * l'échelle » visible en superposant les deux PDF.
+ *
+ * Les valeurs sont donc écrites en dur, et le bloc est décalé de 6 mm pour que
+ * la première colonne retombe à 18 mm du bord, comme en v1. */
 .ensemble-6-par-page {
 	display: grid;
-	grid-template-columns: repeat(var(--grid-columns-dense, 3), minmax(0, 1fr));
-	grid-auto-rows: var(--grid-row-height);
-	gap: var(--gutter, 10mm);
+	grid-template-columns: repeat(var(--grid-columns-dense, 3), var(--grid-cell-width, 74mm));
+	grid-auto-rows: var(--grid-cell-height, 86mm);
+	column-gap: var(--grid-gap-x, 19.5mm);
+	row-gap: var(--grid-gap-y, 1.3mm);
+	margin-left: var(--grid-offset-left, 6mm);
+	padding-top: var(--grid-offset-top, 2.5mm);
 }
 
 .ensemble-6-par-page .media {
@@ -56,7 +72,9 @@
 
 /* This grid gets a slightly larger notice size than the denser ones. */
 .ensemble-6-par-page .media p {
-	font-size: var(--font-size-caption-large, 9.4pt);
+	font-size: var(--font-size-caption-large, 9.75pt);
+	/* Interligne propre : voir line-height-caption-large dans theme.conf. */
+	line-height: var(--line-height-caption-large, 10.5pt);
 }
 
 /* ---------------------------------------------------------------------------
@@ -116,22 +134,43 @@
  * Two tracks, the text and the bar. Which one is on the left is set here, by
  * placement, rather than by the order in which the editor emits them.
  * ------------------------------------------------------------------------- */
+/* Gouttière nulle : la v1 posait ces deux gabarits en `display: table`, dont les
+ * cellules sont jointives. Les 10 mm de column-gap repoussaient la colonne de
+ * texte d'autant. */
 .texte-deux-images-gauche,
 .texte-deux-images-droite {
 	display: grid;
-	column-gap: var(--gutter, 10mm);
+	column-gap: 0;
 	align-items: start;
 	padding-top: var(--space-column-top, 12mm);
 	padding-bottom: var(--gutter, 10mm);
 }
 
+/* Colonne de texte de largeur FIXE, et non 1fr.
+ *
+ * La v1 posait ces gabarits en tableau et donnait 14 cm au texte ; le bloc
+ * n'occupait donc pas toute la page. Un 1fr le faisait courir jusqu'à la marge,
+ * soit 17 mm de justification en trop et des coupures de ligne partout
+ * différentes. La largeur déclarée ici est celle de la cellule entière, retraits
+ * compris. */
 .texte-deux-images-gauche {
-	grid-template-columns: var(--table-media-width, 80mm) minmax(0, 1fr);
-	margin-left: var(--margin-text-outer, 20mm);
+	grid-template-columns: var(--table-media-width, 80mm) var(--table-text-cell-left, 176.59mm);
+	margin-left: var(--margin-two-images-left, 16.59mm);
+}
+.texte-deux-images-gauche .content {
+	padding-right: var(--margin-two-images-left, 16.59mm);
 }
 
+/* Rangée explicite sur les deux cellules.
+ *
+ * Le générateur émet .content avant .media-bar, y compris pour la variante
+ * gauche où la barre est en colonne 1 : le placement automatique de la grille,
+ * qui ne revient jamais en arrière, renvoyait donc la barre à la rangée 2, et
+ * les deux planches partaient sur la page suivante. Même piège que sur
+ * chapter-one-column-one-image. */
 .texte-deux-images-gauche .media-bar {
 	grid-column: 1;
+	grid-row: 1;
 }
 
 .texte-deux-images-gauche .content {
@@ -139,30 +178,40 @@
 	padding-left: var(--margin-text-outer, 20mm);
 }
 
+/* Même raison. */
 .texte-deux-images-droite {
-	grid-template-columns: minmax(0, 1fr) var(--table-media-width, 80mm);
+	grid-template-columns: var(--table-text-cell-right, 192mm) var(--table-media-width, 80mm);
 }
 
 .texte-deux-images-droite .content {
 	grid-column: 1;
 	padding-left: var(--table-text-pad-left, 35mm);
+	grid-row: 1;
 }
 
 .texte-deux-images-droite .media-bar {
 	grid-column: 2;
+	grid-row: 1;
 }
 
-.texte-deux-images-gauche .content,
+/* Retrait droit propre à chaque variante : la gauche reprend son retrait de
+ * bloc, la droite garde margin-text-outer. Les deux ne valent pas la même chose
+ * une fois ramenés de la marge de body de la v1 à la marge de page de la v2. */
 .texte-deux-images-droite .content {
 	padding-right: var(--margin-text-outer, 20mm);
 }
 
 /* The bar stacks its plates, each of which stays whole on one page. */
-.texte-deux-images-gauche .media-bar,
-.texte-deux-images-droite .media-bar {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-media-bottom, 8mm);
+/* Flux normal, et non conteneur flex.
+ *
+ * La v1 empilait ces planches en flux, chacune avec `margin-bottom: 8mm`. Un
+ * conteneur flex fragmente mal en pagination — WeasyPrint le traite comme un
+ * bloc difficilement sécable — et la seconde planche partait sur la page
+ * suivante alors que les deux tenaient largement. Le flux normal, avec la marge
+ * d'origine, rend le comportement v1. */
+.texte-deux-images-gauche .media,
+.texte-deux-images-droite .media {
+	margin-bottom: var(--space-media-bottom, 8mm);
 }
 
 .texte-deux-images-gauche .media,

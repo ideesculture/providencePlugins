@@ -73,8 +73,20 @@ body {
 	widows: 2;
 }
 
+/* Interlignage des paragraphes.
+ *
+ * La feuille v1 ne déclarait aucune règle sur p : les paragraphes gardaient la
+ * marge par défaut du navigateur, 1em en haut et en bas, fusionnée entre deux
+ * paragraphes voisins. Ce zéro-ci, correct en soi, tassait tout le texte
+ * courant du livre par rapport à la sortie validée par le client.
+ *
+ * La valeur passe par un token pour rester réglable, mais elle n'est pas
+ * arbitraire : c'est la marge par défaut du navigateur que la v1 laissait
+ * agir. Les blocs qui doivent rester serrés — notices des grilles, légendes,
+ * colonne de texte des chapitres illustrés — posent leur propre marge et
+ * l'emportent sur celle-ci. */
 p {
-	margin: 0;
+	margin: var(--space-paragraph-block, 1em) 0;
 }
 
 em,
@@ -113,16 +125,36 @@ h6 {
 	font-weight: var(--font-weight-body, 400);
 	font-variant: var(--font-variant-heading, small-caps);
 	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	/* Remise à zéro indispensable : sans elle, les marges par défaut du
+	 * navigateur reviennent sur TOUS les titres, y compris ceux des liminaires
+	 * dont le calage est décrit au point près. Les blancs voulus sont posés
+	 * ensuite, gabarit par gabarit. */
 	margin: 0;
 	break-after: avoid;
 }
 
-h2,
+/* Corps et marges des sous-titres.
+ *
+ * La feuille v1 ne déclarait rien pour h2..h6 : ils prenaient les valeurs par
+ * défaut du navigateur, que WebKit calculait puis tronquait au pixel. Ce sont
+ * ces valeurs-là qui sont dans le livre validé, et non le 18pt uniforme qui
+ * figurait ici. Les marges suivent la même origine : elles creusaient l'écart
+ * entre le filet du titre de chapitre et le premier sous-titre, écart que la
+ * remise à zéro générale des marges avait supprimé.
+ *
+ * h4 à h6 n'apparaissent nulle part dans le corpus (relevé : 67 h1, 2 h2, 3 h3).
+ * Ils gardent le corps de h3, faute de référence pour les calibrer. */
+h2 {
+	font-size: var(--font-size-h2, 16.5pt);
+	margin: var(--space-h2-y, 13.5pt) 0;
+}
+
 h3,
 h4,
 h5,
 h6 {
-	font-size: var(--font-size-heading, 18pt);
+	font-size: var(--font-size-h3, 12.75pt);
+	margin: var(--space-h3-y, 12.75pt) 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -273,4 +305,31 @@ img {
 
 .page-image {
 	page: pleine-page;
+}
+
+/* ---------------------------------------------------------------------------
+ * Bord de page — aperçu seulement
+ *
+ * .pagedjs_page n'existe que dans l'aperçu navigateur : c'est Paged.js qui
+ * fabrique cette structure. WeasyPrint compose depuis @page et ne produit
+ * jamais cette classe, donc cette règle est inerte dans la chaîne PDF — le
+ * filet se voit à l'écran et ne s'imprime pas.
+ *
+ * outline et non border : un border s'ajouterait à la boîte de page et
+ * décalerait la géométrie, alors que tout l'intérêt de l'aperçu est d'être
+ * dimensionnellement identique au PDF. outline se dessine en dehors du flux et
+ * ne déplace rien.
+ *
+ * Pour un filet réellement imprimé, ce n'est pas ici qu'il faut le poser : il
+ * faudrait un cadre dans les gabarits ou une boîte de marge @page, puisque
+ * CSS Paged Media n'applique pas border à @page.
+ * ------------------------------------------------------------------------- */
+.pagedjs_page {
+	outline: var(--rule-width, 0.75pt) solid var(--color-page-edge, #bbbbbb);
+
+	/* Paged.js empile les pages en 0,0 sans marge. Comme outline se dessine à
+	 * l'extérieur de la boîte, les côtés haut et gauche du filet tombaient hors
+	 * du cadre. Ce dégagement les rend visibles et sépare les pages entre elles ;
+	 * il déplace la page dans la fenêtre sans rien changer à ses dimensions. */
+	margin: 8mm auto;
 }

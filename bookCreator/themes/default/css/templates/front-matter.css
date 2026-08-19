@@ -24,9 +24,29 @@
 	overflow: hidden;
 }
 
+/* Auteur et mention d'éditeur, en capitales et bas de casse ordinaires.
+ *
+ * La feuille v1 demandait pourtant `font-variant: small-caps` ici, et cette
+ * règle en était la transposition fidèle. Mais le PDF v1 validé par le client
+ * n'a jamais imprimé de petites capitales sur cette page : wkhtmltopdf a ignoré
+ * la déclaration, la webfont Cormorant Garamond n'exposant pas de jeu smcp et
+ * le WebKit de l'époque ne les synthétisant pas. WeasyPrint, lui, les
+ * synthétise — appliquer la règle telle quelle produisait donc une page qui
+ * suit le code de la v1 tout en trahissant son rendu.
+ *
+ * C'est le rendu qui fait foi : c'est lui qui a été validé.
+ * Le même écart est à surveiller partout où la v1 déclarait small-caps. */
 .page-de-titre p {
-	font-variant: var(--font-variant-heading, small-caps);
-	letter-spacing: var(--letter-spacing-smallcaps, 0.02em);
+	font-variant: normal;
+	letter-spacing: normal;
+
+	/* Marge annulée ici, et seulement ici. Ce bloc est un conteneur flex : les
+	 * marges verticales de ses enfants ne fusionnent pas, si bien que la marge
+	 * de paragraphe rétablie dans base.css s'ajouterait deux fois entre chaque
+	 * ligne au lieu d'une. Le calage vertical de cette page est déjà décrit
+	 * exactement par ses trois tokens, relevés sur le PDF v1 ; laisser une
+	 * seconde source d'espacement les rendrait faux. */
+	margin: 0;
 }
 
 .page-de-titre h1 {
@@ -39,7 +59,7 @@
 	margin-left: auto;
 	margin-right: auto;
 	padding-top: var(--space-title-page-top, 30mm);
-	padding-bottom: var(--gutter, 10mm);
+	padding-bottom: var(--space-title-page-bottom, 20.58mm);
 	text-align: center;
 }
 
@@ -58,6 +78,10 @@
 /* ---------------------------------------------------------------------------
  * Title page verso — legal notices, set low on the page
  * ------------------------------------------------------------------------- */
+.dos-page-de-titre p {
+	margin: var(--space-paragraph-legal, 7.5pt) 0;
+}
+
 .dos-page-de-titre {
 	font-size: var(--font-size-legal, 0.7em);
 	max-width: var(--legal-max-width, 100mm);

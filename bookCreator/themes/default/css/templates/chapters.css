@@ -20,6 +20,14 @@
 .chapter-one-column h1,
 .chapter-two-columns h1,
 .chapter-one-column-one-image h1 {
+	/* Blanc sous le filet : marge par défaut du navigateur (0.67em de 61px,
+	 * tronqué à 40px), que la v1 laissait agir.
+	 *
+	 * Posée ici et non sur h1 dans base.css : les liminaires et les planches
+	 * décrivent déjà leur propre calage au point près, et une marge de 30 pt
+	 * ajoutée globalement décalait d'autant la ligne d'éditeur de la page de
+	 * titre — mesuré, puis repris. */
+	margin-bottom: var(--space-h1-bottom, 30pt);
 	border-bottom: var(--rule-width, 0.75pt) solid var(--color-rule-strong, #1a1a1a);
 	font-size: var(--font-size-chapter-title, 46pt);
 	line-height: var(--line-height-chapter-title, 1.3);
@@ -45,7 +53,7 @@
 .chapter-one-column-one-image h6,
 .chapter-one-column-one-image p {
 	padding-left: var(--indent-chapter-text, 60mm);
-	padding-right: var(--margin-text-outer, 20mm);
+	padding-right: var(--margin-chapter-outer, 17mm);
 }
 
 .chapter-one-column p,
@@ -60,7 +68,7 @@
 .chapter-two-columns blockquote,
 .chapter-one-column-one-image blockquote {
 	margin-left: var(--indent-chapter-text, 60mm);
-	margin-right: var(--margin-text-outer, 20mm);
+	margin-right: var(--margin-chapter-outer, 17mm);
 	padding-top: var(--space-blockquote-top, 7mm);
 }
 
@@ -86,7 +94,7 @@
 }
 
 .chapter-two-columns h1 {
-	margin-left: calc(var(--margin-text-outer, 20mm) - var(--indent-chapter-two-col, 90mm));
+	margin-left: calc(var(--margin-chapter-outer, 17mm) - var(--indent-chapter-two-col, 90mm));
 }
 
 .chapter-two-columns .content {
@@ -137,7 +145,20 @@
 	align-items: start;
 }
 
+	/* Rangée explicite pour les deux cellules.
+	 *
+	 * Sans elle, le placement automatique de la grille les mettait sur DEUX
+	 * rangées : .mediacolumn vient en premier dans le document et occupe la
+	 * colonne 2 ; le curseur de placement ne revient jamais en arrière, si bien
+	 * que .content-text, qui demande la colonne 1, était renvoyé à la rangée
+	 * suivante. La rangée 1 faisant 165 mm de haut, la rangée 2 ne tenait plus
+	 * sur la page : l'image partait seule, le titre et le texte sur la page
+	 * d'après. 52 sections d'une page en devenaient 101.
+	 *
+	 * La v1 ne connaissait pas ce piège : sa colonne d'image était en
+	 * `position: absolute`, donc hors flux. */
 .chapter-one-column-one-image .content-text {
+	grid-row: 1;
 	grid-column: 1;
 	margin-top: var(--content-text-top, 60mm);
 }
@@ -146,7 +167,14 @@
  * the plate's own top offset. */
 .chapter-one-column-one-image .content-text h1 {
 	margin: 0;
+	/* Le filet du titre court jusqu'au bord de page. La v1 donnait `width: 100%`
+	 * au bloc de chapitre EN PLUS de ses marges de 12 mm : la boîte débordait
+	 * donc de 24 mm à droite et le filet touchait presque la coupe. Mesuré :
+	 * 21,0 à 294,9 mm en v1. */
 	margin-right: calc(-1 * (var(--mediacolumn-width, 106mm) + var(--gutter, 10mm)));
+	/* Largeur explicite : la marge négative seule ne suffit pas à faire courir
+	 * le filet jusqu'à la coupe, la cellule de grille reprenant la main. */
+	width: var(--chapter-title-width, 274mm);
 	padding: 0;
 	padding-top: 0;
 }
@@ -161,9 +189,17 @@
 
 /* The text block hugs the plate track rather than sitting at a fixed offset,
  * which is what used to make it overlap. */
+/* Colonne de texte calée en absolu, et non poussée à droite par `auto`.
+ *
+ * La v1 posait `margin-left: 9.3cm` sur ce bloc, et sa colonne d'image était
+ * hors flux : le texte pouvait donc courir dessous. Ici la colonne d'image est
+ * une cellule de grille, et un `margin-left: auto` collait le texte contre elle
+ * — 27 mm trop à gauche. La marge négative à droite rend au texte le droit de
+ * déborder sous la colonne d'image, comme le titre juste au-dessus. */
 .chapter-one-column-one-image .content-text .content {
 	margin-top: var(--space-text-block-top, 6mm);
-	margin-left: auto;
+	margin-left: var(--indent-chapter-image-text, 93mm);
+	margin-right: calc(-1 * (var(--mediacolumn-width, 106mm) + var(--gutter, 10mm)));
 	max-width: var(--measure-narrow, 70mm);
 }
 
@@ -189,9 +225,35 @@
 }
 
 .chapter-one-column-one-image .mediacolumn {
+	/* La colonne d'image déborde la marge droite du bloc.
+	 *
+	 * La v1 la posait en `position: absolute; right: 0.5cm` : elle se calait
+	 * donc sur le bord de PAGE, à 5 mm, et non sur la boîte de contenu du
+	 * chapitre. En cellule de grille elle revenait 16,9 mm plus à gauche, et
+	 * mordait sur la colonne de texte — dont la mesure de 70 mm est calquée sur
+	 * la v1 et déborde volontairement sous l'ancien emplacement de l'image. */
+	/* Décalage à droite : une marge gauche positive compensée par une marge
+	 * droite négative. Une marge droite négative seule ne déplace pas une
+	 * cellule de grille — elle ne fait qu'élargir sa boîte dans la piste. */
+	margin-left: var(--mediacolumn-right-shift, 16.6mm);
+	margin-right: calc(-1 * var(--mediacolumn-right-shift, 16.6mm));
+	grid-row: 1;
 	grid-column: 2;
 	margin-top: var(--mediacolumn-top, 84mm);
 	font-size: 1em;
+}
+
+/* Légende de la colonne d'image : pleine largeur de la colonne.
+ *
+ * La v1 l'émettait dans un <div>, qui échappait donc au retrait appliqué plus
+ * haut à tous les <p> du gabarit (60 mm à gauche, 20 mm à droite). Le nouveau
+ * générateur produit un <p class="caption"> : la légende se retrouvait
+ * comprimée dans 26 mm de large, débordait sur cinq lignes et poussait la
+ * section sur une seconde page. */
+.chapter-one-column-one-image .mediacolumn p {
+	padding-left: 0;
+	padding-right: 0;
+	margin: 0;
 }
 
 .chapter-one-column-one-image .mediacolumn img {

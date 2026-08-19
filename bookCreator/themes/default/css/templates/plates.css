@@ -109,8 +109,14 @@
 	text-align: center;
 }
 
+/* Hauteur IMPOSÉE, et non plafonnée.
+ *
+ * La v1 écrivait `height: 90%` sur une boîte de 184 mm, soit 165,5 mm, sans
+ * contrainte de largeur : la planche était donc dimensionnée par sa hauteur.
+ * Un `max-height` de 186 mm laissait la largeur décider quand l'image est
+ * panoramique, et la planche sortait 13 % trop grande. */
 .page-image img {
-	max-width: 100%;
-	max-height: var(--full-image-height, 186mm);
-	height: auto;
+	height: var(--full-image-height, 165.5mm);
+	width: auto;
+	max-width: none;
 }
