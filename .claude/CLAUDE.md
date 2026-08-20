@@ -305,3 +305,18 @@ Ou, plus sûr, contrôler les noms de tokens réellement émis :
 preg_match_all('~--([a-zA-Z0-9-]+): ~', $css, $m);
 // tout nom ne matchant pas ^[a-z][a-z0-9-]*$ signale une ligne mal commentée
 ```
+
+---
+
+## 6. Git : aucune trace d'assistant IA, nulle part
+
+**Règle absolue, non négociable : aucun commit de ce dépôt ne mentionne un assistant IA. Pas de `Co-Authored-By`, pas de footer « Generated with », et aucune URL de session d'assistant — ni dans un message de commit, ni dans un fichier commité. Jamais.**
+
+Gautier Michelin porte seul, face à ses clients, la responsabilité du code livré. L'attribution n'est pas une politesse à masquer : elle est désactivée.
+
+Une consigne textuelle ne suffit pas — les trailers sont ajoutés par le harness au moment de construire le message, pas par le modèle. Le verrou effectif est `.claude/settings.json` à la racine de ce dépôt, commité et donc lu par toute session, y compris les sessions cloud qui ignorent la configuration locale de la machine :
+
+- `includeCoAuthoredBy: false` et `attribution: { commit: "", pr: "", sessionUrl: false }` suppriment les trailers à la source ;
+- un hook `PreToolUse` bloque tout `git commit` dont la commande contient encore un marqueur d'attribution.
+
+Ne jamais retirer ni affaiblir ces réglages. Si une violation passe malgré tout : réécrire l'historique (`git filter-branch --msg-filter`, worktree propre exigé), supprimer `refs/original/`, force-pusher — et savoir que GitHub garde les commits orphelins accessibles par SHA tant que son support n'a pas purgé le dépôt.
