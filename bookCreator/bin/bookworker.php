@@ -89,7 +89,17 @@ Options:
                       runs until stopped. Use --max-runtime=55 for a per-minute cron.
   --once              Process at most one job, then exit. Exits immediately when the
                       queue is empty.
+  --max-jobs=N        Stop after N jobs and exit, without waiting for the queue to
+                      empty. The bound a shared host needs: it caps what one tenant
+                      can take from a run without paying a CollectiveAccess bootstrap
+                      per book, which --once in a loop does. 0 (default) = no limit.
   --job=N             Process job N and nothing else. The job must still be pending.
+  --force             Render every section of the jobs taken by this run, even the ones
+                      the section cache already holds. What "regenerate everything" does
+                      from the interface, for a worker driven by hand.
+  --purge-cache       Empty the section cache and exit. --purge-cache=N empties the
+                      entries of book N only. Nothing is lost that a generation cannot
+                      rebuild.
   --sleep=N           Seconds to wait when the queue is empty (default 5).
   --reap-after=N      Requeue jobs left running for more than N seconds by a dead
                       worker (default 3600). 0 disables reaping.
@@ -118,12 +128,16 @@ function bookworker_parse_args(array $argv): array {
 	$options = [
 		'providence'  => null,
 		'max_runtime' => 0,
+		'max_jobs'    => 0,
 		'once'        => false,
 		'job'         => 0,
 		'sleep'       => 5,
 		'reap_after'  => 3600,
 		'verbose'     => false,
 		'help'        => false,
+		'force'       => false,
+		// null: not asked for. 0: the whole cache. N: book N.
+		'purge_cache' => null,
 	];
 
 	foreach (array_slice($argv, 1) as $argument) {
@@ -133,6 +147,8 @@ function bookworker_parse_args(array $argv): array {
 		if ($argument === '--help')    { $options['help'] = true; continue; }
 		if ($argument === '--once')    { $options['once'] = true; continue; }
 		if ($argument === '--verbose') { $options['verbose'] = true; continue; }
+		if ($argument === '--force')   { $options['force'] = true; continue; }
+		if ($argument === '--purge-cache') { $options['purge_cache'] = 0; continue; }
 
 		if (!preg_match('/^--([a-z\-]+)=(.*)$/', $argument, $matches)) {
 			return ['options' => $options, 'error' => "unknown option: {$argument}"];
@@ -147,6 +163,10 @@ function bookworker_parse_args(array $argv): array {
 				if (!ctype_digit($value)) { return ['options' => $options, 'error' => '--max-runtime expects a number of seconds']; }
 				$options['max_runtime'] = (int)$value;
 				break;
+			case 'max-jobs':
+				if (!ctype_digit($value)) { return ['options' => $options, 'error' => '--max-jobs expects a number of jobs']; }
+				$options['max_jobs'] = (int)$value;
+				break;
 			case 'job':
 				if (!ctype_digit($value) || (int)$value < 1) { return ['options' => $options, 'error' => '--job expects a job id']; }
 				$options['job'] = (int)$value;
@@ -158,6 +178,10 @@ function bookworker_parse_args(array $argv): array {
 			case 'reap-after':
 				if (!ctype_digit($value)) { return ['options' => $options, 'error' => '--reap-after expects a number of seconds']; }
 				$options['reap_after'] = (int)$value;
+				break;
+			case 'purge-cache':
+				if (!ctype_digit($value) || (int)$value < 1) { return ['options' => $options, 'error' => '--purge-cache expects a book id, or no value at all']; }
+				$options['purge_cache'] = (int)$value;
 				break;
 			default:
 				return ['options' => $options, 'error' => "unknown option: --{$name}"];
@@ -272,7 +296,8 @@ final class BookWorkerRenderBridge {
 	/** @var PdfRendererFactory|null built once per worker process */
 	private static $factory = null;
 
-	private static function factory(): PdfRendererFactory {
+	/** Public so the job loop can build the section cache from the same settings. */
+	public static function factory(): PdfRendererFactory {
 		if (self::$factory === null) { self::$factory = new PdfRendererFactory(); }
 		return self::$factory;
 	}
@@ -291,13 +316,23 @@ final class BookWorkerRenderBridge {
 	/**
 	 * Renders one section to its own PDF.
 	 *
+	 * The document is built on every pass, cache hit included. That is what
+	 * keeps the report honest: the works skipped because they were deleted or
+	 * forbidden, the empty body of a set that lost its members, the number of
+	 * layout blocks the page count is checked against — all of it comes from
+	 * the builder, and a section whose PDF is reused is still described
+	 * accurately. What is skipped is the PDF engine, which is the whole cost.
+	 *
 	 * @param array $book row of plugin_books
 	 * @param array $section row of plugin_booksections
 	 * @param int $page_offset first page number of this section in the finished book
 	 * @param string $work_dir writable directory for this job
-	 * @return array{path: string, pages: int}
+	 * @param BookSectionCache|null $cache reuse of unchanged sections, null to disable
+	 * @param bool $force render even when the cache holds this exact section
+	 * @return array{path: string, pages: int, warnings: array, reused: bool,
+	 *               fingerprint: ?string, cache_path: ?string}
 	 */
-	public static function renderSection(array $book, array $section, int $page_offset, string $work_dir): array {
+	public static function renderSection(array $book, array $section, int $page_offset, string $work_dir, ?BookSectionCache $cache = null, bool $force = false): array {
 		$section_id = (int)$section['booksection_id'];
 
 		$builder = new BookHtmlBuilder(
@@ -317,40 +352,108 @@ final class BookWorkerRenderBridge {
 		// book, even though it is rendered on its own.
 		$html = $builder->buildDocument((int)$book['book_id'], $section_id, ['first_page' => $page_offset]);
 
-		$html_path = $work_dir . '/section-' . $section_id . '.html';
-		if (@file_put_contents($html_path, $html) === false) {
-			throw new RuntimeException("could not write {$html_path}");
+		$factory = self::factory();
+
+		// The fingerprint is taken over the document itself, so it covers the
+		// Markdown, the layout, the works of the set and every field printed
+		// from them, the theme tokens and the folio this section starts on.
+		// What the document only references — the plates, the theme directory,
+		// the plugin and the engine — is folded in by the cache class. A null
+		// answer means "not establishable", and is read as "render it".
+		$fingerprint = $cache ? $cache->fingerprint($html, (string)($book['theme'] ?? 'default')) : null;
+
+		$pdf_path   = null;
+		$pages      = null;
+		$reused     = false;
+		$cache_path = null;
+
+		if (!$force && $cache) {
+			$entry = $cache->lookup((int)$book['book_id'], $section_id, $fingerprint);
+			if ($entry !== null) {
+				// Counted rather than trusted. The page count of the stored row
+				// would be cheaper, but it lives in another place than the file
+				// and the two can disagree; a truncated entry served on the
+				// strength of a database column would shift every folio after
+				// it, which is the failure this whole chain refuses elsewhere.
+				$counted = $factory->makeAssembler()->countPages($entry);
+				if ($counted !== null) {
+					$pdf_path   = $entry;
+					$pages      = (int)$counted;
+					$cache_path = $entry;
+					$reused     = true;
+				} else {
+					bookworker_error("section {$section_id}: cached PDF unreadable, rendering again");
+					@unlink($entry);
+				}
+			}
 		}
 
-		$pdf_path = $work_dir . '/section-' . $section_id . '.pdf';
-		$factory  = self::factory();
+		if (!$reused) {
+			$html_path = $work_dir . '/section-' . $section_id . '.html';
+			if (@file_put_contents($html_path, $html) === false) {
+				throw new RuntimeException("could not write {$html_path}");
+			}
 
-		// The theme and format are passed, not merely the base URL. WeasyPrint
-		// reads the @page rule and would manage without them, but Gotenberg
-		// drives Chromium, whose page setup comes from the form fields of the
-		// request: left unsaid, every book leaves in A4 portrait, landscape
-		// catalogues included. Both come from ThemeRegistry, the source the
-		// @page rule is built from, so CSS and form fields cannot drift apart.
-		$options = $factory->makeRenderOptions(
-			$book['theme'] ?? 'default',
-			$book['page_format'] ?? 'a4-landscape'
-		)->withFirstPageNumber($page_offset);
+			$pdf_path = $work_dir . '/section-' . $section_id . '.pdf';
 
-		// The trace identifier makes a request findable in the service log,
-		// which is the only place a Gotenberg rendering leaves a mark.
-		$renderer = $factory->makeRenderer('book-'.(int)$book['book_id'].'-section-'.$section_id);
-		$result = $renderer->render($html_path, $pdf_path, $options);
+			// The theme and format are passed, not merely the base URL. WeasyPrint
+			// reads the @page rule and would manage without them, but Gotenberg
+			// drives Chromium, whose page setup comes from the form fields of the
+			// request: left unsaid, every book leaves in A4 portrait, landscape
+			// catalogues included. Both come from ThemeRegistry, the source the
+			// @page rule is built from, so CSS and form fields cannot drift apart.
+			$options = $factory->makeRenderOptions(
+				$book['theme'] ?? 'default',
+				$book['page_format'] ?? 'a4-landscape'
+			)->withFirstPageNumber($page_offset);
 
-		if (!$result->success) {
-			throw new RuntimeException($result->errorMessage ?? 'rendering failed');
-		}
+			// The trace identifier makes a request findable in the service log,
+			// which is the only place a Gotenberg rendering leaves a mark.
+			$renderer = $factory->makeRenderer('book-'.(int)$book['book_id'].'-section-'.$section_id);
+			$result = $renderer->render($html_path, $pdf_path, $options);
 
-		// RenderResult::$warnings is a string, not a list: iterating it did
-		// nothing at all. And a successful render still has to be inspected —
-		// WeasyPrint exits 0 with a hole in the page when an image is missing,
-		// so a lost plate would otherwise only surface on the printed copy.
-		if (strlen(trim($result->warnings))) {
-			bookworker_error("section {$section_id}: ".trim($result->warnings));
+			if (!$result->success) {
+				throw new RuntimeException($result->errorMessage ?? 'rendering failed');
+			}
+
+			// RenderResult::$warnings is a string, not a list: iterating it did
+			// nothing at all. And a successful render still has to be inspected —
+			// WeasyPrint exits 0 with a hole in the page when an image is missing,
+			// so a lost plate would otherwise only surface on the printed copy.
+			if (strlen(trim($result->warnings))) {
+				bookworker_error("section {$section_id}: ".trim($result->warnings));
+			}
+
+			// null is not zero. countPages() documents the distinction: a section
+			// that renders to no page is a legitimate result, an unreadable file is
+			// not. Casting the failure to 0 left every following section folioed too
+			// low — measured at 4 instead of 18, then 24 instead of 38 — and the job
+			// still finished "done". A section whose length cannot be established
+			// fails the job instead: a book that stops is recoverable, a book with
+			// wrong folios reaches the printer.
+			$pages = $result->pageCount;
+			if ($pages === null) {
+				$assembler = $factory->makeAssembler();
+				$pages = $assembler->countPages($pdf_path);
+				if ($pages === null) {
+					throw new RuntimeException(
+						"could not count the pages of section {$section_id} ({$pdf_path}): "
+						.($assembler->getLastError() ?? 'unknown error')
+						.'. Every following section would be folioed from a wrong count.'
+					);
+				}
+			}
+
+			// Published only once the PDF exists and its length is known: an entry
+			// is a finished section or it is not an entry. A failure to publish is
+			// logged and nothing more — a cache that cannot be written is a lost
+			// optimisation, never a lost book.
+			if ($cache && $fingerprint !== null) {
+				$cache_path = $cache->store((int)$book['book_id'], $section_id, $fingerprint, $pdf_path);
+				if ($cache_path === null) {
+					bookworker_error("section {$section_id}: the rendered PDF could not be added to the cache");
+				}
+			}
 		}
 
 		// Everything worth telling the editor is collected rather than only
@@ -362,7 +465,11 @@ final class BookWorkerRenderBridge {
 			? trim((string)$section['title'])
 			: IdC::_t('section %1', $section_id);
 
-		if ($renderer instanceof WeasyPrintRenderer) {
+		// Only a fresh render has a renderer and a result to read. A reused
+		// section cannot hide a missing plate behind that: a document pointing
+		// at a file that cannot be read has no fingerprint at all, so it is
+		// never cached and the warning comes back on every generation.
+		if (!$reused && $renderer instanceof WeasyPrintRenderer) {
 			foreach (WeasyPrintRenderer::extractResourceErrors($result->warnings) as $missing) {
 				bookworker_error("section {$section_id}: missing resource, {$missing}");
 				$warnings[] = IdC::_t('“%1”: a plate could not be loaded (%2).', $label, $missing);
@@ -388,26 +495,6 @@ final class BookWorkerRenderBridge {
 			$warnings[] = IdC::_t('“%1” produced no content and prints as a blank page.', $label);
 		}
 
-		// null is not zero. countPages() documents the distinction: a section
-		// that renders to no page is a legitimate result, an unreadable file is
-		// not. Casting the failure to 0 left every following section folioed too
-		// low — measured at 4 instead of 18, then 24 instead of 38 — and the job
-		// still finished "done". A section whose length cannot be established
-		// fails the job instead: a book that stops is recoverable, a book with
-		// wrong folios reaches the printer.
-		$pages = $result->pageCount;
-		if ($pages === null) {
-			$assembler = $factory->makeAssembler();
-			$pages = $assembler->countPages($pdf_path);
-			if ($pages === null) {
-				throw new RuntimeException(
-					"could not count the pages of section {$section_id} ({$pdf_path}): "
-					.($assembler->getLastError() ?? 'unknown error')
-					.'. Every following section would be folioed from a wrong count.'
-				);
-			}
-		}
-
 		// Each layout block is built to be one page. More pages than blocks means
 		// the renderer had to break a block in two — measured on the shipped
 		// six-per-page grid, whose row height fills the usable height exactly:
@@ -425,7 +512,14 @@ final class BookWorkerRenderBridge {
 			bookworker_error("section {$section_id}: {$pages} pages for {$expected} layout blocks");
 		}
 
-		return ['path' => $pdf_path, 'pages' => (int)$pages, 'warnings' => $warnings];
+		return [
+			'path'        => $pdf_path,
+			'pages'       => (int)$pages,
+			'warnings'    => $warnings,
+			'reused'      => $reused,
+			'fingerprint' => $fingerprint,
+			'cache_path'  => $cache_path,
+		];
 	}
 
 	/**
@@ -568,15 +662,21 @@ function bookworker_layout_allows_empty(array $book, array $section): bool {
  * the plugin already ships. Both are created if missing; failing to create
  * them fails the job with a message an operator can act on.
  *
- * @return array{work: string, output: string}
+ * The cache root is the work area itself, before the per-job directory is
+ * added: entries have to outlive the job that produced them, which is the whole
+ * point, so they cannot live in a directory the clean-up removes.
+ *
+ * @return array{work: string, output: string, cache: string}
  */
 function bookworker_directories(string $plugin_dir, string $claim = ''): array {
 	$config  = Configuration::load($plugin_dir . '/conf/bookCreator.conf');
 	$work    = trim((string)$config->get('job_work_dir'));
 	$output  = trim((string)$config->get('job_output_dir'));
 
-	if ($work === '')   { $work = $plugin_dir . '/tmp'; }
+	if ($work === '')   { $work = (new PdfRendererFactory())->getWorkDir(); }
 	if ($output === '') { $output = $plugin_dir . '/tmp'; }
+
+	$cache = rtrim($work, '/');
 
 	// One working directory per job. The fragments used to be named after the
 	// section alone, so two workers rendering the same book wrote to the very
@@ -600,7 +700,7 @@ function bookworker_directories(string $plugin_dir, string $claim = ''): array {
 		bookworker_protect_directory($directory);
 	}
 
-	return ['work' => rtrim($work, '/'), 'output' => rtrim($output, '/')];
+	return ['work' => rtrim($work, '/'), 'output' => rtrim($output, '/'), 'cache' => $cache];
 }
 
 /**
@@ -687,7 +787,7 @@ function bookworker_protect_directory(string $directory): void {
  * Returns the absolute path of the produced PDF. Any failure throws, and the
  * caller turns it into a failed job.
  */
-function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_dir): string {
+function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_dir, bool $force_all = false): string {
 	global $g_bookworker;
 
 	if (!BookWorkerRenderBridge::isAvailable()) {
@@ -704,6 +804,14 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// same job, so two workers on the same job would otherwise share a
 	// directory and each delete the fragments the other is assembling.
 	$directories = bookworker_directories($plugin_dir, bookworker_claim_slug($job));
+
+	// Reuse of the sections that have not changed. The cache lives beside the
+	// per-job directories rather than inside one, and its entries are named
+	// after their fingerprint, so a second worker on the same book — which
+	// reapStale() can produce — can neither overwrite nor delete what this one
+	// is assembling. See lib/BookSectionCache.php.
+	$cache = BookWorkerRenderBridge::factory()->makeSectionCache($directories['cache']);
+	$force = (bool)($job['force_render'] ?? false) || $force_all;
 
 	// plugin_books exposes the whole row only through its magic getter called
 	// with no property name; every named access throws on a book that could
@@ -731,9 +839,13 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 
 	$total = sizeof($sections);
 	$section_pdfs = [];
+	$cache_entries = [];  // what the finished book was assembled from, for the purge
 	$job_warnings = [];   // surfaced on the job at the very end, see below
 	$page_offset = 1;
 	$done = 0;
+	// Sections the engine actually had to lay out, keyed by id: a table of
+	// contents is rendered on both passes and must not be counted twice.
+	$rendered_ids = [];
 
 	$jobs->updateProgress($job['job_id'], 0, IdC::_t('Rendering %1 sections', $total), $job['worker_id']);
 
@@ -745,9 +857,11 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			throw new BookWorkerInterrupted('Stopped after ' . $done . '/' . $total . ' sections');
 		}
 
-		$rendered = BookWorkerRenderBridge::renderSection($book_data, $section, $page_offset, $directories['work']);
-		$section_pdfs[] = $rendered['path'];
-		foreach ($rendered['warnings'] as $warning) { $job_warnings[] = $warning; }
+		$outcome = BookWorkerRenderBridge::renderSection($book_data, $section, $page_offset, $directories['work'], $cache, $force);
+		$section_pdfs[] = $outcome['path'];
+		if ($outcome['cache_path'] !== null) { $cache_entries[] = $outcome['cache_path']; }
+		if (!$outcome['reused']) { $rendered_ids[(int)$section['booksection_id']] = true; }
+		foreach ($outcome['warnings'] as $warning) { $job_warnings[] = $warning; }
 
 		// Record what this section weighs and where it starts, before moving the
 		// offset on. Nothing else writes these two columns: without this the
@@ -762,7 +876,15 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// folios goes to the printer.
 		$written = $book->setSection(
 			(int)$section['booksection_id'],
-			['pages' => (int)$rendered['pages'], 'first_page' => $page_offset, 'rendered_on' => time()],
+			[
+				'pages'        => (int)$outcome['pages'],
+				'first_page'   => $page_offset,
+				'rendered_on'  => time(),
+				// Recorded for the interface and for diagnosis only: the cache
+				// is looked up by file name, so this column can never be the
+				// reason a stale section is served.
+				'content_hash' => $outcome['fingerprint'],
+			],
 			false   // worker columns, not a form's
 		);
 		if ($written !== true) {
@@ -772,7 +894,7 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			);
 		}
 
-		$page_offset += max(0, (int)$rendered['pages']);
+		$page_offset += max(0, (int)$outcome['pages']);
 		$done++;
 
 		// Progress after EVERY section, not every n sections: the editor is
@@ -795,7 +917,8 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 				'The job was requeued and picked up by another worker after ' . $done . '/' . $total . ' sections'
 			);
 		}
-		bookworker_log("job {$job['job_id']}: section {$done}/{$total} rendered ({$percent}%)");
+		bookworker_log("job {$job['job_id']}: section {$done}/{$total} "
+			.($outcome['reused'] ? 'reused from cache' : 'rendered')." ({$percent}%)");
 	}
 
 	// Second pass for generated tables of contents.
@@ -819,20 +942,30 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			$stored = $book->getSection((int)$section['booksection_id']);
 			$before = (int)$stored['pages'];
 
-			$rendered = BookWorkerRenderBridge::renderSection(
+			// Through the cache like everything else. The document of a table
+			// of contents holds the titles and the folios it lists, so its
+			// fingerprint changes exactly when one of them does — and a book
+			// where nothing moved re-renders nothing at all, second pass
+			// included.
+			$outcome = BookWorkerRenderBridge::renderSection(
 				$book_data,
 				$section,
 				(int)$stored['first_page'],
-				$directories['work']
+				$directories['work'],
+				$cache,
+				$force
 			);
-			$section_pdfs[$index] = $rendered['path'];
-			foreach ($rendered['warnings'] as $warning) { $job_warnings[] = $warning; }
+			$section_pdfs[$index] = $outcome['path'];
+			if ($outcome['cache_path'] !== null) { $cache_entries[] = $outcome['cache_path']; }
+			if (!$outcome['reused']) { $rendered_ids[(int)$section['booksection_id']] = true; }
+			foreach ($outcome['warnings'] as $warning) { $job_warnings[] = $warning; }
 
 			// Keep the recorded length in step with what was actually produced,
 			// otherwise the page counts of the interface stay on the first pass.
 			$written = $book->setSection((int)$section['booksection_id'], [
-				'pages'       => (int)$rendered['pages'],
-				'rendered_on' => time(),
+				'pages'        => (int)$outcome['pages'],
+				'rendered_on'  => time(),
+				'content_hash' => $outcome['fingerprint'],
 			], false);
 			if ($written !== true) {
 				$detail = is_array($written) ? join(' – ', $written) : 'unknown error';
@@ -845,11 +978,11 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 			// shifts everything after it, so the folios it now prints are off
 			// by that difference. Rare, but it has to be said rather than
 			// silently produce a book whose numbering is wrong.
-			if ($before && $before !== (int)$rendered['pages']) {
-				$drift = (int)$rendered['pages'] - $before;
+			if ($before && $before !== (int)$outcome['pages']) {
+				$drift = (int)$outcome['pages'] - $before;
 				$warning = IdC::_t(
 					'The table of contents changed length (%1 to %2 pages): the page numbers after it are off by %3. Generate again to settle them.',
-					$before, (int)$rendered['pages'], $drift
+					$before, (int)$outcome['pages'], $drift
 				);
 
 				bookworker_error("job {$job['job_id']}: {$warning}");
@@ -879,6 +1012,12 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 	// needed to understand why.
 	bookworker_clean_work_files($section_pdfs, $directories['work']);
 
+	// Entries this book no longer uses. Done after the assembly, so a failed
+	// job leaves the cache exactly as it found it, and with a grace period, so
+	// that a second worker reaped onto the same book does not have the fragments
+	// it is about to assemble pulled from under it.
+	$cache->purge((int)$job['book_id'], $cache_entries);
+
 	// Older deliverables of the same book are dropped too: only the latest is
 	// ever offered for download, the job carrying its path.
 	bookworker_clean_previous_outputs($directories['output'], (int)$job['book_id'], $output_path, $jobs);
@@ -894,15 +1033,37 @@ function bookworker_process_job(array $job, BookJobModel $jobs, string $plugin_d
 		// written just above survive. With nothing to say, that meant a book
 		// generated without a hitch kept displaying "Assembling the PDF" for
 		// ever, as if it had stopped there.
-		$jobs->updateProgress($job['job_id'], BOOKWORKER_RENDER_BUDGET, IdC::_t('The book has been generated.'), $job['worker_id']);
+		// The count is part of the message rather than buried in a log: it is
+		// how an editor sees that the cache did its work, and the one number
+		// that explains why a generation took twenty seconds instead of ten
+		// minutes.
+		$jobs->updateProgress(
+			$job['job_id'],
+			BOOKWORKER_RENDER_BUDGET,
+			($cache->isEnabled() && sizeof($rendered_ids) < $total)
+				? IdC::_t('The book has been generated. %1 of %2 sections were re-rendered; the others were unchanged.', sizeof($rendered_ids), $total)
+				: IdC::_t('The book has been generated.'),
+			$job['worker_id']
+		);
 	}
 
 	return $output_path;
 }
 
-/** Removes the intermediate files of a finished job. */
+/**
+ * Removes the intermediate files of a finished job.
+ *
+ * Only what this job wrote in its own directory. A section served from the
+ * cache is assembled straight from its entry, whose path is in the same list:
+ * deleting it here would throw away, on every generation, exactly the file the
+ * next one is meant to reuse — and would do it silently, the book being already
+ * assembled by then.
+ */
 function bookworker_clean_work_files(array $section_pdfs, string $work_dir): void {
+	$prefix = rtrim($work_dir, '/') . '/';
+
 	foreach ($section_pdfs as $pdf) {
+		if (strpos($pdf, $prefix) !== 0) { continue; }
 		if (is_file($pdf)) { @unlink($pdf); }
 
 		$html = preg_replace('/\.pdf$/', '.html', $pdf);
@@ -912,7 +1073,31 @@ function bookworker_clean_work_files(array $section_pdfs, string $work_dir): voi
 	// The per-job directory goes too, but only if this job left nothing else in
 	// it: rmdir() on a non-empty directory fails and is meant to. A directory
 	// belonging to another job is never touched, since each one has its own.
-	if (preg_match('~/job-\d+$~', $work_dir) && is_dir($work_dir)) { @rmdir($work_dir); }
+	//
+	// Two things kept that from ever happening, and one generation therefore
+	// left one directory behind for good. The name is job-<claim token>, not
+	// job-<number> — the token is a worker id and eight random bytes, so the
+	// old pattern matched nothing. And the directory is never empty: the
+	// deny-all .htaccess this same worker dropped in it on the way in is still
+	// there. It is removed here, but only when it is the one we wrote, so a
+	// host that manages its own rules keeps them.
+	if (!preg_match('~/job-[A-Za-z0-9_-]+$~', $work_dir) || !is_dir($work_dir)) { return; }
+
+	// Whatever else this job wrote there. The list above is what the book was
+	// assembled FROM, which is not the same set: a table of contents rendered
+	// on the first pass and then served from the cache on the second leaves its
+	// fragment behind, unnamed by anyone. One file per generation is enough to
+	// keep the directory alive for good. The directory belongs to this claim
+	// alone, so sweeping it is safe.
+	foreach (glob($work_dir . '/section-*') ?: [] as $leftover) {
+		if (is_file($leftover)) { @unlink($leftover); }
+	}
+
+	$htaccess = $work_dir . '/.htaccess';
+	if (is_file($htaccess) && strpos((string)@file_get_contents($htaccess), '# Written by bookCreator') === 0) {
+		@unlink($htaccess);
+	}
+	@rmdir($work_dir);
 }
 
 /** Removes the previous PDFs of a book, keeping the one just produced. */
@@ -1074,6 +1259,24 @@ foreach ([
 	require_once($plugin_file);
 }
 
+# --- Purge, and nothing else ----------------------------------------------
+# Before the queue is even opened: emptying the cache is a maintenance
+# operation, and it must work on an installation whose queue is unreachable.
+if ($opts['purge_cache'] !== null) {
+	try {
+		$directories = bookworker_directories($plugin_dir);
+		$cache = (new PdfRendererFactory())->makeSectionCache($directories['cache']);
+		$removed = $opts['purge_cache'] > 0
+			? $cache->purgeBook((int)$opts['purge_cache'])
+			: $cache->purgeAll();
+	} catch (Throwable $e) {
+		bookworker_error('could not purge the section cache: ' . $e->getMessage());
+		exit(BOOKWORKER_EXIT_RUNTIME);
+	}
+	fwrite(STDOUT, "section cache purged: {$removed} file(s) removed\n");
+	exit(BOOKWORKER_EXIT_OK);
+}
+
 try {
 	$jobs = new BookJobModel();
 } catch (Throwable $e) {
@@ -1097,6 +1300,7 @@ bookworker_log("worker {$worker_id} started (providence: {$providence_root}, sig
 
 $exit_code = BOOKWORKER_EXIT_OK;
 $last_reap = 0;
+$processed = 0;
 
 while (true) {
 	if ($g_bookworker['stop_requested']) {
@@ -1142,7 +1346,7 @@ while (true) {
 	bookworker_log("job {$job['job_id']}: claimed (book {$job['book_id']})");
 
 	try {
-		$pdf_path = bookworker_process_job($job, $jobs, $plugin_dir);
+		$pdf_path = bookworker_process_job($job, $jobs, $plugin_dir, (bool)$opts['force']);
 		$closed = $jobs->finish((int)$job['job_id'], $pdf_path, $job['worker_id']);
 		$g_bookworker['current_job_id'] = 0;
 		if ($closed) {
@@ -1170,7 +1374,20 @@ while (true) {
 		$exit_code = BOOKWORKER_EXIT_RUNTIME;
 	}
 
+	$processed++;
+
 	if ($opts['job'] > 0 || $opts['once']) { break; }
+
+	// A budget in jobs, next to the budget in seconds. On a host that drains
+	// the queues of several tenants in turn, time alone does not bound what one
+	// of them takes: a tenant with twenty books queued holds the run until its
+	// deadline, and the others wait for the next one. The alternative — --once
+	// inside a shell loop — pays a full CollectiveAccess bootstrap per book,
+	// measured at about two seconds against ten for a small catalogue.
+	if ($opts['max_jobs'] > 0 && $processed >= $opts['max_jobs']) {
+		bookworker_log("max jobs reached ({$processed}), leaving the loop");
+		break;
+	}
 }
 
 bookworker_release_current_job();

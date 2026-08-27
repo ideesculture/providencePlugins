@@ -45,6 +45,13 @@ $is_running = in_array($status, ['pending', 'running'], true);
 		<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
 	<?php } ?>
 	<?php print caNavButton($this->request, __CA_NAV_ICON_PDF__, IdC::_t('Generate the PDF'), '', '*', 'Generation', 'Submit', array_merge(['book' => $book_id], BookCsrf::param())); ?>
+	<?php
+	// Second button rather than an option on the first: a generation reuses the
+	// sections that have not changed, and the day someone doubts that, the way
+	// out has to be one click and impossible to miss.
+	print caNavButton($this->request, __CA_NAV_ICON_UPDATE__, IdC::_t('Regenerate every section'), '', '*', 'Generation', 'Submit', array_merge(['book' => $book_id, 'force' => 1], BookCsrf::param()));
+	?>
+	<p class="bookGenerationHint"><?php print IdC::_t('Only the sections that have changed are rendered again. Use “Regenerate every section” to rebuild the whole book.'); ?></p>
 <?php } else { ?>
 	<p class="bookGenerationStatus"><?php print htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8'); ?></p>
 	<?php print caNavButton($this->request, __CA_NAV_ICON_CANCEL__, IdC::_t('Cancel this generation'), '', '*', 'Generation', 'Cancel', array_merge(['book' => $book_id], BookCsrf::param())); ?>

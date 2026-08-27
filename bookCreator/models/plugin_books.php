@@ -591,6 +591,20 @@ class plugin_books {
 		}
 
 		self::run($o_data, "DELETE FROM plugin_book_jobs WHERE book_id = ?", array($book_id));
+
+		// The cached section PDFs of that book, which no generation will ever
+		// ask for again. Left behind, they are the one part of a deleted book
+		// that keeps taking disk for ever — nothing looks at them and no name
+		// tells whose they were.
+		$factory = __CA_APP_DIR__.'/plugins/bookCreator/lib/PdfRendererFactory.php';
+		if (is_file($factory)) {
+			require_once($factory);
+			try {
+				(new PdfRendererFactory())->makeSectionCache()->purgeBook($book_id);
+			} catch (Exception $e) {
+				self::logError($e->getMessage(), 'purge of the section cache of book '.$book_id);
+			}
+		}
 	}
 
 	/**

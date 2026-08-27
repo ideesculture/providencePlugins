@@ -48,6 +48,9 @@ Tout est dans `conf/bookCreator.conf`, commenté sur place. Les réglages qui de
 | `media_version` | version dérivée utilisée pour les planches, jamais l'original |
 | `covers_dir` | répertoire des couvertures ; vide signifie `assets/covers` |
 | `job_work_dir`, `job_output_dir` | vides, ils pointent sur `tmp/` ; sur Kubernetes, un volume partagé entre le pod worker et le pod Providence |
+| `section_cache` | `1` (défaut) ne recompose que les sections modifiées ; `0` recompose tout le livre à chaque génération |
+| `section_cache_media_digest` | `stat` (défaut) ou `content` : comment une planche est reconnue comme changée |
+| `section_cache_epoch` | texte libre replié dans chaque empreinte, pour invalider le cache sans toucher un fichier |
 
 **Les couvertures sont désignées par un nom de fichier, jamais par un chemin.** Le fichier doit être déposé dans `covers_dir`, qui porte un `.htaccess` interdisant l'accès web direct : une couverture est reliée dans le livre, elle n'a pas à être servie telle quelle.
 
@@ -56,6 +59,8 @@ Tout est dans `conf/bookCreator.conf`, commenté sur place. Les réglages qui de
 La génération ne se fait pas dans la requête HTTP : le bouton met un job en file, un worker CLI le traite. Voir `bin/README.md` pour l'installation en cron ou en Deployment Kubernetes.
 
 Sans worker en fonctionnement, les jobs restent en attente et rien n'est produit.
+
+Une génération **ne recompose que les sections qui ont changé** : le PDF des autres est réutilisé tel quel, et l'assemblage refait le livre. L'empreinte est prise sur le document HTML produit pour la section, plus les fichiers qu'il désigne — elle bouge donc quand la section, son gabarit, l'ensemble d'œuvres, une fiche, une planche, le thème, la configuration, le greffon ou la version du moteur bougent, et pas autrement. Ce qui n'est pas établissable rend la section non cachable : dans le doute, on recompose. Le bouton « Tout régénérer » ignore le cache pour une génération, `php bin/bookworker.php --purge-cache` le vide. Voir `lib/BookSectionCache.php` pour ce qui est couvert et ce qui ne l'est pas.
 
 ## Thèmes et gabarits
 

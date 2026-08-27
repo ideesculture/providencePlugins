@@ -95,7 +95,12 @@ class GenerationController extends ActionController {
 			return;
 		}
 
-		$job_id = $this->opo_jobs->submit($book_id, (int)$this->request->getUserID());
+		// "Regenerate everything": the way out when the editor doubts what was
+		// reused. It is a property of this generation, not a setting — doubting
+		// once must not turn the section cache off for every book afterwards.
+		$force = (bool)$this->request->getParameter('force', pInteger);
+
+		$job_id = $this->opo_jobs->submit($book_id, (int)$this->request->getUserID(), $force);
 
 		$this->view->setVar('book_id', $book_id);
 		$this->view->setVar('job', $this->opo_jobs->get($job_id));

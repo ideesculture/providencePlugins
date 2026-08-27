@@ -16,10 +16,19 @@ php bin/bookworker.php [options]
   --max-runtime=N     Arrête de réclamer de nouveaux jobs après N secondes et sort.
                       0 (défaut) = tourne jusqu'à l'arrêt du processus.
   --once              Traite au plus un job puis sort. Sort immédiatement si la file est vide.
+  --max-jobs=N        S'arrête après N jobs. La borne dont a besoin un hôte mutualisé :
+                      elle plafonne ce qu'un locataire prend à une exécution sans payer
+                      un amorçage CollectiveAccess par livre, ce que coûte `--once` dans
+                      une boucle. 0 (défaut) = pas de limite.
   --job=N             Traite le job N et rien d'autre. Le job doit être encore `pending`.
   --sleep=N           Attente entre deux sondages quand la file est vide (défaut 5 s).
   --reap-after=N      Remet en file les jobs `running` depuis plus de N secondes,
                       abandonnés par un worker mort (défaut 3600 s). 0 désactive.
+  --force             Rend toutes les sections des jobs pris par cette exécution, y
+                      compris celles que le cache tient déjà. L'équivalent en ligne de
+                      commande du bouton « Tout régénérer ».
+  --purge-cache       Vide le cache de sections et sort. `--purge-cache=N` ne vide que
+                      les entrées du livre N.
   --verbose           Journalise chaque étape sur stdout. Les erreurs vont toujours sur stderr.
   --help              Cette aide.
 ```
@@ -27,6 +36,14 @@ php bin/bookworker.php [options]
 Codes de retour : `0` exécution normale, `1` erreur d'option, `2` bootstrap CollectiveAccess impossible, `3` au moins un job en échec.
 
 Sans `--verbose`, le worker est silencieux tant que tout va bien : c'est ce qui permet de le mettre en cron sans recevoir un courriel par minute.
+
+## Ne régénérer que ce qui a changé
+
+Un livre est rendu section par section puis assemblé par `qpdf` : le moteur PDF est donc déjà le seul poste coûteux, et il est par section. Depuis la mise en place du cache de sections, une section dont rien de ce qui entre dans son PDF n'a bougé n'est plus recomposée — son PDF précédent est réutilisé tel quel. Sur un catalogue de cinquante sections dont une a été retouchée, c'est ce qui sépare une génération de quelques secondes d'une génération de plusieurs minutes.
+
+L'empreinte est prise **sur le document HTML lui-même**, plus les fichiers qu'il désigne : elle couvre donc le Markdown de la section, son gabarit, l'ensemble des œuvres, tous les champs imprimés depuis leurs fiches, les planches, la feuille de style du thème, la configuration et le greffon, et la version du moteur. Elle couvre aussi le folio de départ de la section : une section dont le prédécesseur a gagné une page est recomposée, sinon elle imprimerait un mauvais numéro. Ce qui n'est pas établissable — une dérivée absente du disque, que le constructeur remplace par une URL — rend la section non cachable : elle est recomposée à chaque fois. Le détail, angles morts compris, est en tête de `lib/BookSectionCache.php`.
+
+Les entrées vivent sous `<job_work_dir>/cache/book-<id>/`, une par section et par empreinte, et sont retirées au fur et à mesure qu'elles sont remplacées — en régime établi, un fichier par section. Pour vider : `php bin/bookworker.php --purge-cache`, ou le bouton « Tout régénérer » qui recompose sans rien lire. `section_cache = 0` dans `conf/bookCreator.conf` désactive le mécanisme entièrement.
 
 ## Installation en cron (Providence classique)
 
@@ -96,6 +113,7 @@ Lecture des cas courants :
 - **le job reste `running`, `started_on` remonte à longtemps** — le worker est mort en cours de rendu. Le reaper le remet en file au bout de `--reap-after` secondes (une heure par défaut) ; pour ne pas attendre, `UPDATE plugin_book_jobs SET status='pending', worker_id=NULL, started_on=NULL WHERE job_id=…`. La colonne `worker_id` porte le nom d'hôte et le pid du worker qui l'avait réclamé (`hote:1234#<jeton>`), de quoi retrouver ses traces.
 - **le job passe en `error`** — le message affiché dans l'interface est celui de la colonne `message`, tronqué ; la trace complète est sur la sortie d'erreur du worker (journal du cron ou `kubectl logs`).
 - **rejouer un job** — le remettre en `pending` puis `php bin/bookworker.php --job=<id> --verbose`, qui traite ce seul job et sort. La commande refuse un job déjà `running` : elle ne peut donc pas entrer en conflit avec le worker de production.
+- **une section n'a pas l'air d'avoir été reprise en compte** — le message de fin dit combien de sections ont été recomposées. Si le compte semble faux, `--purge-cache=<livre>` puis une génération : c'est le contrôle. Une empreinte qui ne bouge pas alors que le PDF devrait changer est un défaut à signaler, pas une fatalité à contourner ; la colonne `content_hash` de `plugin_booksections` porte la dernière empreinte retenue pour chaque section.
 - **un livre refuse une nouvelle génération** — c'est volontaire : tant qu'un job `pending` ou `running` existe pour ce livre, la soumission renvoie le job existant au lieu d'en créer un second. Traiter ou nettoyer le job en cours d'abord.
 
 Note d'exploitation : la réclamation d'un job utilise un `UPDATE … ORDER BY … LIMIT 1`, marqué « unsafe » par MySQL en réplication basée sur les requêtes. Sur une installation répliquée, utiliser le binlog en mode `ROW` (le défaut depuis MySQL 5.7 et MariaDB 10.2).

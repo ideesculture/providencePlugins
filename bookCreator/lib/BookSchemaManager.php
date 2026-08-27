@@ -82,6 +82,11 @@ class BookSchemaManager {
 			'started_on'  => 'INT UNSIGNED DEFAULT NULL',
 			'finished_on' => 'INT UNSIGNED DEFAULT NULL',
 			'worker_id'   => 'VARCHAR(64) DEFAULT NULL',
+			// Ignore the section cache for this generation and render every
+			// section again. The button the editor presses when in doubt; the
+			// flag lives on the job rather than in a setting so that doubting
+			// once does not turn the cache off for everyone.
+			'force_render' => 'TINYINT(1) NOT NULL DEFAULT 0',
 		],
 	];
 

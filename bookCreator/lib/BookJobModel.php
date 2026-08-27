@@ -48,7 +48,7 @@ class BookJobModel {
 	/** Columns read back by get()/claimNext(); also the shape returned to callers. */
 	const COLUMNS = [
 		'job_id', 'book_id', 'user_id', 'status', 'progress',
-		'message', 'pdf_path', 'created_on', 'started_on', 'finished_on', 'worker_id',
+		'message', 'pdf_path', 'created_on', 'started_on', 'finished_on', 'worker_id', 'force_render',
 	];
 
 	/** @var Db */
@@ -134,12 +134,23 @@ class BookJobModel {
 	 * HTML, it never queues it. What it did do was rot, and its half-valid
 	 * states rendered books without folios and with an empty table of contents.
 	 *
+	 * @param bool $force ignore the section cache and render every section again
 	 * @return int job id, or 0 when the insert failed
 	 */
-	public function submit(int $bookId, ?int $userId = null): int {
+	public function submit(int $bookId, ?int $userId = null, bool $force = false): int {
 		if ($bookId <= 0) { return 0; }
 
 		if ($existing = $this->getActiveForBook($bookId)) {
+			// The waiting job is raised to a full re-render rather than a second
+			// one being queued: an editor who doubts the cache and finds the
+			// button doing nothing because a generation was already pending
+			// would have been answered with exactly what he was doubting.
+			if ($force && !(int)$existing['force_render'] && $existing['status'] === self::STATUS_PENDING) {
+				$this->query(
+					"UPDATE `" . self::TABLE . "` SET `force_render` = 1 WHERE job_id = ? AND status = ?",
+					[(int)$existing['job_id'], self::STATUS_PENDING]
+				);
+			}
 			return (int)$existing['job_id'];
 		}
 
@@ -147,9 +158,9 @@ class BookJobModel {
 		// still has to honour the permissions of whoever asked: a section can
 		// point at any set or representation by id.
 		$qr = $this->query(
-			"INSERT INTO `" . self::TABLE . "` (book_id, user_id, status, progress, created_on)
-			 VALUES (?, ?, ?, 0, ?)",
-			[$bookId, ($userId > 0 ? $userId : null), self::STATUS_PENDING, time()]
+			"INSERT INTO `" . self::TABLE . "` (book_id, user_id, status, progress, created_on, `force_render`)
+			 VALUES (?, ?, ?, 0, ?, ?)",
+			[$bookId, ($userId > 0 ? $userId : null), self::STATUS_PENDING, time(), $force ? 1 : 0]
 		);
 		if (!$qr) { return 0; }
 
@@ -535,6 +546,7 @@ class BookJobModel {
 			'started_on'  => isset($row['started_on']) ? (int)$row['started_on'] : null,
 			'finished_on' => isset($row['finished_on']) ? (int)$row['finished_on'] : null,
 			'worker_id'   => isset($row['worker_id']) ? (string)$row['worker_id'] : null,
+			'force_render' => isset($row['force_render']) ? (int)$row['force_render'] : 0,
 		];
 	}
 }

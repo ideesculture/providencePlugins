@@ -17,6 +17,7 @@ require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/PdfAssembler.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/WeasyPrintRenderer.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/GotenbergRenderer.php');
 require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/ThemeRegistry.php');
+require_once(__CA_APP_DIR__.'/plugins/bookCreator/lib/BookSectionCache.php');
 
 /**
  * Builds the rendering chain from bookCreator.conf.
@@ -74,6 +75,74 @@ class PdfRendererFactory {
 	/** The qpdf wrapper, shared by the renderer and the assembly step. */
 	public function makeAssembler() {
 		return new PdfAssembler($this->pathOr('qpdf_path', 'qpdf'), $this->getTimeout());
+	}
+
+	/**
+	 * Work area of the worker, from the configuration.
+	 *
+	 * Also the root of the section cache, and the single place the fallback on
+	 * the tmp/ directory of the plugin is decided: the worker and the web side
+	 * have to agree on it, or a book deleted from the interface would leave its
+	 * cache entries behind.
+	 */
+	public function getWorkDir() {
+		$work = trim((string)$this->config->get('job_work_dir'));
+		return strlen($work)
+			? rtrim($work, '/')
+			: __CA_APP_DIR__.'/plugins/bookCreator/tmp';
+	}
+
+	/**
+	 * The section cache, pointed at the work area of the worker.
+	 *
+	 * Built here like everything else that turns settings into objects, and
+	 * given the identity of the engine rather than being left to find it: a
+	 * cached section is only reusable by the very renderer that produced it.
+	 *
+	 * @param string|null $root work directory root, the one holding the per-job
+	 *                          directories. Null reads it from the configuration.
+	 */
+	public function makeSectionCache($root = null) {
+		return new BookSectionCache(
+			$root === null ? $this->getWorkDir() : (string)$root,
+			__CA_APP_DIR__.'/plugins/bookCreator',
+			$this->getEngineIdentity(),
+			$this->boolOr('section_cache', true),
+			strtolower(trim((string)$this->config->get('section_cache_media_digest'))),
+			trim((string)$this->config->get('section_cache_epoch'))
+		);
+	}
+
+	/**
+	 * Name and version of the PDF engine, as the cache fingerprint sees it.
+	 *
+	 * A version upgrade changes how a page is laid out — 62.3 and 69.0 do not
+	 * agree on five declarations of the shipped theme, measured — so an entry
+	 * produced by one must never be served for a book rendered by the other.
+	 *
+	 * Read once per process: it costs a process launch, against a rendering
+	 * budget counted in seconds. WeasyPrint is asked; Gotenberg has no version
+	 * endpoint the driver relies on, so its URL stands as its identity and an
+	 * upgrade of the service has to be declared with section_cache_epoch.
+	 */
+	public function getEngineIdentity() {
+		static $identity = null;
+		if ($identity !== null) { return $identity; }
+
+		if ($this->getRendererName() === 'gotenberg') {
+			return $identity = 'gotenberg/'.trim((string)$this->config->get('gotenberg_url'));
+		}
+
+		$binary = ProcessRunner::locate($this->pathOr('weasyprint_path', 'weasyprint'));
+		if ($binary === null) { return $identity = 'weasyprint/unavailable'; }
+
+		$outcome = ProcessRunner::run(escapeshellarg($binary).' --version', 30);
+		$version = trim($outcome->stdout.' '.$outcome->stderr);
+
+		// The version string only counts when the command actually ran: a
+		// failure must not become an identity of its own that a later, working
+		// run would then disagree with.
+		return $identity = 'weasyprint/'.($outcome->ran() && $version !== '' ? $version : 'unknown');
 	}
 
 	/**
