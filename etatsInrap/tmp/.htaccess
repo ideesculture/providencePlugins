@@ -1,0 +1,9 @@
+# D2026-0102 / D2026-0103 — les documents generes sont livres par redirection HTTP
+# (GenererController.php : header("Location: /app/plugins/etatsInrap/tmp/.../*.docx")).
+# Le .htaccess racine de Providence refuse toute extension hors liste blanche ;
+# on reautorise ici les seuls formats bureautiques produits par le plugin.
+# Syntaxe mod_access_compat, pour rester coherent avec le .htaccess racine.
+<FilesMatch "\.(docx|odt|pdf|xlsx)$">
+        Order allow,deny
+        Allow from all
+</FilesMatch>

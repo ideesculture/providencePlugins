@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation &mdash; Plugin etatsInrap &mdash; CollectiveAccess Providence</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif; background-color: #fff; color: #4b4a4a; min-height: 100vh; }
+a, a:link, a:visited { color: #138290; text-decoration: underline; }
+a:hover { color: #333; }
+#topNav { background-color: #fff; position: fixed; top: 0; left: 0; width: 100%; height: 58px; z-index: 1000; box-shadow: 0 0 5px #888; display: flex; align-items: center; padding: 0 20px; }
+#topNav #logo img { height: 42px; cursor: pointer; }
+#topNav .nav-links { display: flex; gap: 0; margin-left: 30px; font-family: "Helvetica Neue", arial, sans-serif; font-size: 13px; }
+#topNav .nav-links a { color: #4b4a4a; text-decoration: none; padding: 20px 12px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+#topNav .nav-links a:hover { color: #138290; }
+#topNav .nav-links a.active { color: #138290; font-weight: bold; }
+.breadcrumb-bar { margin-top: 58px; background: #fff; border-bottom: 2px solid #ddd; padding: 6px 20px; font-size: 11px; color: #999; }
+.breadcrumb-bar a { font-size: 11px; }
+#main { background-color: #fff; padding: 15px 20px 40px 20px; }
+#mainContent { background-color: #fff; padding: 20px 25px 40px 25px; max-width: 1100px; margin: 0 auto; min-height: 600px; }
+.page-title { font-family: "Helvetica Neue", arial, sans-serif; font-size: 18px; font-weight: bold; color: #4b4a4a; padding-bottom: 8px; border-bottom: 3px solid #e9e9e9; margin-bottom: 20px; }
+.subTitle { font-family: "Helvetica Neue", sans-serif; font-size: 14px; color: #333; font-weight: bold; border-bottom: 2px solid #ddd; padding: 2px 0 5px 0; margin: 25px 0 12px 0; }
+.subTitle-small { font-family: "Helvetica Neue", sans-serif; font-size: 12px; color: #666; font-weight: bold; border-bottom: 1px solid #eee; padding: 2px 0 4px 0; margin: 18px 0 10px 0; text-transform: uppercase; }
+.ca-widget { border: 1px solid #ddd; margin-bottom: 15px; background: #fff; }
+.ca-widget-header { background: #f5f5f5; border-bottom: 1px solid #ddd; padding: 8px 12px; font-size: 13px; font-weight: bold; color: #4b4a4a; }
+.ca-widget-body { padding: 12px; font-size: 12px; line-height: 1.6; }
+.ca-info { background: #f0fafa; border: 1px solid #b8e0e6; border-left: 4px solid #138290; padding: 10px 14px; margin: 15px 0; border-radius: 2px; font-size: 12px; }
+.ca-warning { background: #fef9e7; border: 1px solid #f0d78c; border-left: 4px solid #d4a017; padding: 10px 14px; margin: 15px 0; border-radius: 2px; font-size: 12px; }
+.code-block { background: #f5f5f5; color: #333; padding: 10px 14px; border-radius: 3px; margin: 8px 0; font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; line-height: 1.6; border: 1px solid #ddd; }
+ul.ca-list { margin: 8px 0 8px 22px; font-size: 12px; }
+ul.ca-list li { margin: 3px 0; color: #4b4a4a; }
+table.ca-table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12px; }
+table.ca-table th, table.ca-table td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+table.ca-table th { background: #f5f5f5; color: #333; font-weight: bold; }
+table.ca-table tr:nth-child(even) { background: #fafafa; }
+table.ca-table code { background: #eee; padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+.intro-box { background: #f8f8f8; border: 1px solid #e0e0e0; padding: 15px 18px; margin-bottom: 20px; border-radius: 3px; }
+.intro-box p { font-size: 12px; margin-bottom: 6px; }
+.divide { height: 3px; background-color: #e9e9e9; margin: 15px 0; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+.ca-footer { background: #4b4a4a; color: #ccc; padding: 15px 20px; text-align: center; font-size: 11px; margin-top: 0; }
+.ca-footer a { color: #1FAA99; }
+</style>
+</head>
+<body>
+
+<div id="topNav">
+    <div id="logo"><a href="/"><img src="/themes/default/graphics/logos/logo_inrap.png" alt="INRAP"></a></div>
+    <div class="nav-links">
+        <a href="/">RETOUR COMODO</a>
+        <a href="#" class="active">DOCUMENTATION</a>
+    </div>
+</div>
+
+<div class="breadcrumb-bar">
+    <a href="/">Accueil</a> &rsaquo;
+    <a href="/app/plugins/">Plugins</a> &rsaquo;
+    <a href="/app/plugins/etatsInrap/">etatsInrap</a> &rsaquo;
+    Documentation
+</div>
+
+<div id="main">
+<div id="mainContent">
+
+    <div class="page-title">Plugin etatsInrap &mdash; Documentation technique</div>
+
+    <div class="intro-box">
+        <p><strong>etatsInrap</strong> est un plugin CollectiveAccess Providence d&eacute;velopp&eacute; pour l'INRAP. Il permet de g&eacute;n&eacute;rer des &eacute;tats et documents r&eacute;glementaires (listes d'op&eacute;rations, inventaires de collections, bordereaux de versement/mouvement, constats d'&eacute;tat, conditions de pr&ecirc;t, courriers) directement depuis l'interface de gestion.</p>
+        <p>Le plugin propose <strong>12 mod&egrave;les</strong> couvrant diff&eacute;rents cas m&eacute;tier : listes d'op&eacute;rations filtr&eacute;es par statut/type/r&eacute;gion, inventaires de collection, &eacute;tiquettes, bordereaux, conditions de pr&ecirc;t pour expositions, et g&eacute;n&eacute;ration de courriers au format DOCX. Il int&egrave;gre &eacute;galement un syst&egrave;me d'impression d'&eacute;tiquettes pr&eacute;d&eacute;coup&eacute;es et deux contr&ocirc;leurs de listes (versements et courriers).</p>
+    </div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Vue d&rsquo;ensemble</div>
+
+    <div class="two-col">
+        <div class="ca-widget">
+            <div class="ca-widget-header">R&ocirc;le du plugin</div>
+            <div class="ca-widget-body">
+                <ul class="ca-list">
+                    <li>G&eacute;n&eacute;rer des listes d'op&eacute;rations filtr&eacute;es par type (diagnostics, fouilles, fouilles programm&eacute;es), statut (en cours, en attente de versement, en garde, vers&eacute;es) et localisation (direction, r&eacute;gion, d&eacute;partement)</li>
+                    <li>Produire des inventaires de collection (mobilier et contenants) depuis une fiche op&eacute;ration</li>
+                    <li>G&eacute;n&eacute;rer des bordereaux de versement et de mouvement au format HTML et DOCX</li>
+                    <li>Produire des courriers r&eacute;glementaires (demande de garde, courrier libre, demande de versement) au format DOCX</li>
+                    <li>G&eacute;n&eacute;rer des conditions de pr&ecirc;t pour les expositions au format DOCX</li>
+                    <li>Imprimer des &eacute;tiquettes pr&eacute;d&eacute;coup&eacute;es (formats INRAP 10, 16 et 24 vues)</li>
+                    <li>Afficher les listes de versements et de courriers de versement</li>
+                </ul>
+            </div>
+        </div>
+        <div class="ca-widget">
+            <div class="ca-widget-header">Hooks utilis&eacute;s</div>
+            <div class="ca-widget-body">
+                <ul class="ca-list">
+                    <li><strong>hookRenderMenuBar</strong> &mdash; Ajoute un menu &laquo;&nbsp;&Eacute;tats&nbsp;&raquo; dans la barre de navigation avec le sous-menu &laquo;&nbsp;Liste des &eacute;tats&nbsp;&raquo;</li>
+                    <li><strong>hookAppendToEditorInspector</strong> &mdash; Ajoute des boutons contextuels dans l'inspecteur lat&eacute;ral de plusieurs types de fiches</li>
+                    <li><strong>hookAddDomainSecurityPolicy</strong> &mdash; Autorise le domaine <code>cdnjs.cloudflare.com</code> dans la politique de s&eacute;curit&eacute; CSP</li>
+                </ul>
+                <p style="margin-top:8px;"><strong>Aucune restriction de r&ocirc;le</strong> &mdash; <code>getRoleActionList</code> retourne un tableau vide.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Points d&rsquo;entr&eacute;e (boutons dans l&rsquo;inspecteur)</div>
+
+    <p style="margin-bottom:10px;">Le plugin injecte des boutons dans l'inspecteur lat&eacute;ral pour plusieurs types de fiches :</p>
+
+    <table class="ca-table">
+        <tr>
+            <th>Table</th>
+            <th>Condition</th>
+            <th>Bouton</th>
+            <th>Action (mod&egrave;le)</th>
+        </tr>
+        <tr>
+            <td><code>ca_movements</code></td>
+            <td>type = <code>versement</code></td>
+            <td>&laquo;&nbsp;Bordereau de versement&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 4 &mdash; Bordereau de versement</td>
+        </tr>
+        <tr>
+            <td><code>ca_movements</code></td>
+            <td>type = <code>movement</code></td>
+            <td>&laquo;&nbsp;Bordereau de mouvement&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 4b &mdash; Bordereau de mouvement</td>
+        </tr>
+        <tr>
+            <td><code>ca_collections</code></td>
+            <td>Toutes les collections</td>
+            <td>&laquo;&nbsp;Inventaire de la collection&nbsp;&raquo;<br>&laquo;&nbsp;Inventaire des contenants&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 2 &mdash; Inventaire mobilier<br>Mod&egrave;le 2b &mdash; Inventaire contenants</td>
+        </tr>
+        <tr>
+            <td><code>ca_occurrences</code></td>
+            <td>type = <code>exposition</code></td>
+            <td>&laquo;&nbsp;Conditions g&eacute;n&eacute;rales de pr&ecirc;t&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 6 &mdash; Conditions de pr&ecirc;t exposition</td>
+        </tr>
+        <tr>
+            <td><code>ca_occurrences</code></td>
+            <td>type = <code>demande_garde_inrap</code></td>
+            <td>&laquo;&nbsp;G&eacute;n&eacute;ration du courrier&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 10 &mdash; Courrier de demande de garde</td>
+        </tr>
+        <tr>
+            <td><code>ca_occurrences</code></td>
+            <td>type = <code>courrier_libre</code></td>
+            <td>&laquo;&nbsp;G&eacute;n&eacute;ration du courrier&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 11 &mdash; Courrier libre</td>
+        </tr>
+        <tr>
+            <td><code>ca_occurrences</code></td>
+            <td>type = <code>demande_versement</code></td>
+            <td>&laquo;&nbsp;G&eacute;n&eacute;ration du courrier&nbsp;&raquo;</td>
+            <td>Mod&egrave;le 12 &mdash; Demande de versement</td>
+        </tr>
+    </table>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Contr&ocirc;leurs</div>
+
+    <div class="subTitle-small">GenererController (1560 lignes)</div>
+
+    <p style="margin-bottom:10px;"><em>Fichier : <code>controllers/GenererController.php</code></em> &mdash; Contr&ocirc;leur principal g&eacute;rant les 12 mod&egrave;les d'&eacute;tats.</p>
+
+    <table class="ca-table">
+        <tr><th>Action</th><th>Description</th><th>Sortie</th></tr>
+        <tr><td><code>Index()</code></td><td>Page d'accueil listant tous les &eacute;tats disponibles, avec s&eacute;lecteurs de direction/r&eacute;gion/d&eacute;partement.</td><td>HTML</td></tr>
+        <tr><td><code>Modele1()</code></td><td><strong>Listes d'op&eacute;rations</strong> filtr&eacute;es par type d'op&eacute;ration (diagnostic, fouille, fouille programm&eacute;e) et statut (en cours, en attente de versement, en garde INRAP/&Eacute;tat, non d&eacute;fini, vers&eacute;es). Utilise <code>CollectionBrowse</code> avec facettes g&eacute;ographiques. <strong>20 variantes</strong> configur&eacute;es.</td><td>HTML</td></tr>
+        <tr><td><code>Modele2()</code></td><td><strong>Inventaire de la collection</strong> &mdash; Liste le mobilier (objets) d'une op&eacute;ration avec 23 colonnes d'information. Filtre par type d'objet (mobilier, document).</td><td>HTML</td></tr>
+        <tr><td><code>Modele2b()</code></td><td><strong>Inventaire des contenants</strong> &mdash; Liste les contenants d'une op&eacute;ration avec 16 colonnes (dimensions, volume, emplacements).</td><td>HTML</td></tr>
+        <tr><td><code>Modele3()</code></td><td><strong>&Eacute;tiquettes</strong> &mdash; G&eacute;n&egrave;re les donn&eacute;es pour les &eacute;tiquettes (temporaires, conditionnement, contenant) d'une collection.</td><td>HTML</td></tr>
+        <tr><td><code>Modele4()</code></td><td><strong>Bordereau de versement</strong> &mdash; G&eacute;n&egrave;re le bordereau complet depuis une fiche mouvement de type <code>versement</code>. Export HTML ou DOCX.</td><td>HTML / DOCX</td></tr>
+        <tr><td><code>Modele4b()</code></td><td><strong>Bordereau de mouvement</strong> &mdash; G&eacute;n&egrave;re le bordereau depuis une fiche mouvement g&eacute;n&eacute;rique. Export HTML ou DOCX.</td><td>HTML / DOCX</td></tr>
+        <tr><td><code>Modele6()</code></td><td><strong>Conditions de pr&ecirc;t exposition</strong> &mdash; G&eacute;n&egrave;re le document depuis une fiche occurrence de type <code>exposition</code>. Liste les objets pr&ecirc;t&eacute;s avec d&eacute;tails. Export DOCX.</td><td>HTML / DOCX</td></tr>
+        <tr><td><code>Modele7()</code></td><td><strong>Liste des objets pour exposition</strong> &mdash; Liste les objets li&eacute;s &agrave; une exposition.</td><td>HTML</td></tr>
+        <tr><td><code>Modele8()</code></td><td><strong>Lettres par mouvement</strong> &mdash; Lettres li&eacute;es aux mouvements d'objets.</td><td>HTML</td></tr>
+        <tr><td><code>Modele9()</code></td><td><strong>Stock centre</strong> &mdash; &Eacute;tat du stock d'un centre de recherche.</td><td>HTML</td></tr>
+        <tr><td><code>Modele10()</code></td><td><strong>Courrier de demande de garde INRAP</strong> &mdash; G&eacute;n&egrave;re un courrier DOCX depuis une fiche occurrence. Inclut les informations SRA, DIR, gestionnaire du centre.</td><td>DOCX</td></tr>
+        <tr><td><code>Modele11()</code></td><td><strong>Courrier libre</strong> &mdash; G&eacute;n&egrave;re un courrier DOCX avec objet, ouverture, texte libre et cl&ocirc;ture personnalisables.</td><td>DOCX</td></tr>
+        <tr><td><code>Modele12()</code></td><td><strong>Demande de versement</strong> &mdash; G&eacute;n&egrave;re une lettre de demande de versement multi-collections. Utilise <code>pagemerger</code> pour fusionner les DOCX.</td><td>DOCX</td></tr>
+    </table>
+
+    <div class="ca-info">
+        <strong>Pages d'aide :</strong> Certains mod&egrave;les disposent d'une page d'aide d&eacute;di&eacute;e : <code>Modele2_help()</code>, <code>Modele2b_help()</code>, <code>Modele3_help()</code>, <code>Modele4_help()</code>, <code>Modele6_help()</code>. Ces pages expliquent comment lancer l'&eacute;tat depuis l'interface.
+    </div>
+
+    <div class="subTitle-small">PrintLabelsController (268 lignes)</div>
+
+    <p style="margin-bottom:10px;"><em>Fichier : <code>controllers/PrintLabelsController.php</code></em> &mdash; Contr&ocirc;leur d'impression d'&eacute;tiquettes pr&eacute;d&eacute;coup&eacute;es.</p>
+
+    <table class="ca-table">
+        <tr><th>Action</th><th>Description</th></tr>
+        <tr><td><code>Index()</code></td><td>Page d'accueil de l'impression d'&eacute;tiquettes.</td></tr>
+        <tr><td><code>Generate()</code></td><td>G&eacute;n&egrave;re les &eacute;tiquettes au format PDF via <code>PDFRenderer</code>. Supporte trois formats pr&eacute;d&eacute;finis : <strong>INRAP 10 vues</strong> (105&times;59,4 mm), <strong>INRAP 16 vues</strong> (105&times;37,1 mm), <strong>INRAP 24 vues</strong> (70&times;37,1 mm).</td></tr>
+    </table>
+
+    <div class="subTitle-small">ListedesversementsController (88 lignes)</div>
+
+    <p style="margin-bottom:10px;"><em>Fichier : <code>controllers/ListedesversementsController.php</code></em></p>
+
+    <table class="ca-table">
+        <tr><th>Action</th><th>Description</th></tr>
+        <tr><td><code>Index()</code></td><td>Affiche la liste des versements (mouvements de type <code>versement</code>) pour un emplacement donn&eacute;. Limite &agrave; 300 r&eacute;sultats. Colonnes : libell&eacute;, emplacement, date, collection li&eacute;e, type, statut, destinataire.</td></tr>
+    </table>
+
+    <div class="subTitle-small">ListedescourriersversementsController (128 lignes)</div>
+
+    <p style="margin-bottom:10px;"><em>Fichier : <code>controllers/ListedescourriersversementsController.php</code></em></p>
+
+    <table class="ca-table">
+        <tr><th>Action</th><th>Description</th></tr>
+        <tr><td><code>Index()</code></td><td>Affiche la liste des courriers de versement (occurrences de type <code>demande_versement</code>). Filtrage par r&eacute;gion g&eacute;ographique. Colonnes : libell&eacute;, idno, r&eacute;gion, date, signataires, OA, prescription, rapport, collection.</td></tr>
+    </table>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Mod&egrave;le 1 &mdash; Listes d&rsquo;op&eacute;rations (d&eacute;tail)</div>
+
+    <p style="margin-bottom:10px;">Le mod&egrave;le 1 est le plus utilis&eacute;. Il g&eacute;n&egrave;re des listes d'op&eacute;rations filtr&eacute;es selon trois crit&egrave;res combin&eacute;s :</p>
+
+    <div class="two-col">
+        <div class="ca-widget">
+            <div class="ca-widget-header">Types d'op&eacute;rations</div>
+            <div class="ca-widget-body">
+                <ul class="ca-list">
+                    <li><strong>Diagnostics</strong> (type_ope = 1443)</li>
+                    <li><strong>Fouilles</strong> (type_ope = 1444)</li>
+                    <li><strong>Fouilles programm&eacute;es</strong> (type_ope = 1650)</li>
+                    <li><strong>Toutes op&eacute;rations</strong> (type_ope = 0)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="ca-widget">
+            <div class="ca-widget-header">Statuts</div>
+            <div class="ca-widget-body">
+                <ul class="ca-list">
+                    <li><strong>En cours d'&eacute;tude</strong> (statut = 1553)</li>
+                    <li><strong>En attente de versement</strong> (statut = 1554)</li>
+                    <li><strong>En garde pour INRAP</strong> (statut = 1555)</li>
+                    <li><strong>En garde pour &Eacute;tat</strong> (statut = 1634)</li>
+                    <li><strong>Non d&eacute;fini</strong></li>
+                    <li><strong>Vers&eacute;es</strong> (statut = 1556)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <p style="margin-top:10px;">Colonnes du tableau de r&eacute;sultats : DIR, Lieu d'entr&eacute;e, Volume (m3), Statut collection, Code OA, Type op&eacute;ration, Code INRAP, R&eacute;gion, D&eacute;partement, Commune, Lieudit, RO, Fin terrain, Pr&eacute;v. remise du rapport, Remise du rapport.</p>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">G&eacute;n&eacute;ration DOCX</div>
+
+    <div class="ca-widget">
+        <div class="ca-widget-header">Mod&egrave;les Word (templates)</div>
+        <div class="ca-widget-body">
+            <p>Les mod&egrave;les 4, 4b, 6, 10, 11 et 12 g&eacute;n&egrave;rent des documents Word (DOCX) &agrave; partir de templates stock&eacute;s dans le r&eacute;pertoire <code>templates/</code>.</p>
+            <table class="ca-table" style="margin-top:8px;">
+                <tr><th>Template</th><th>Mod&egrave;le</th></tr>
+                <tr><td><code>bordereau-versement.docx</code></td><td>Mod&egrave;le 4 &mdash; Bordereau de versement</td></tr>
+                <tr><td><code>bordereau-mouvement.docx</code></td><td>Mod&egrave;le 4b &mdash; Bordereau de mouvement</td></tr>
+                <tr><td><code>conditions_generales_de_pret.docx</code></td><td>Mod&egrave;le 6 &mdash; Conditions de pr&ecirc;t exposition</td></tr>
+                <tr><td><code>lettre_garde_inrap.docx</code></td><td>Mod&egrave;le 10 &mdash; Courrier de demande de garde</td></tr>
+                <tr><td><code>lettre_vierge.docx</code></td><td>Mod&egrave;le 11 &mdash; Courrier libre</td></tr>
+                <tr><td><code>lettre_versement.docx</code></td><td>Mod&egrave;le 12 &mdash; Demande de versement (base)</td></tr>
+                <tr><td><code>lettre_versement_sous_partie.docx</code></td><td>Mod&egrave;le 12 &mdash; Sous-partie par collection</td></tr>
+                <tr><td><code>formulaire_deplacement_bam.docx</code></td><td>Formulaire de d&eacute;placement BAM</td></tr>
+                <tr><td><code>constat_etat_base.docx</code></td><td>Constat d'&eacute;tat (base)</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="ca-warning">
+        <strong>D&eacute;pendance :</strong> Le mod&egrave;le 12 (demande de versement multi-collections) utilise l'outil <code>pagemerger</code> pour fusionner plusieurs fichiers DOCX en un seul document final. Cet outil doit &ecirc;tre install&eacute; sur le serveur.
+    </div>
+
+    <div class="ca-info">
+        <strong>Biblioth&egrave;que PHPWord :</strong> Le plugin embarque la biblioth&egrave;que <strong>PHPWord</strong> dans <code>lib/PHPWord/</code> pour la g&eacute;n&eacute;ration et la manipulation des fichiers DOCX via les vues <code>modeleX_docx.php</code>.
+    </div>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Configuration</div>
+
+    <p style="margin-bottom:10px;"><em>Fichier : <code>conf/etatsInrap.conf</code></em></p>
+
+    <table class="ca-table">
+        <tr><th>Param&egrave;tre</th><th>Valeur</th><th>Description</th></tr>
+        <tr><td><code>enabled</code></td><td><code>0</code></td><td>Active ou d&eacute;sactive le plugin. <strong>D&eacute;sactiv&eacute; par d&eacute;faut.</strong></td></tr>
+    </table>
+
+    <div class="ca-warning">
+        <strong>Attention :</strong> Ce plugin est d&eacute;sactiv&eacute; par d&eacute;faut (<code>enabled = 0</code>). Pour l'activer, modifiez le fichier <code>conf/etatsInrap.conf</code> et passez <code>enabled</code> &agrave; <code>1</code>.
+    </div>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Structure des fichiers</div>
+
+    <div class="code-block">
+etatsInrap/<br>
+&nbsp;&nbsp;etatsInrapPlugin.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Classe principale du plugin (hooks)<br>
+&nbsp;&nbsp;conf/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;etatsInrap.conf &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Configuration<br>
+&nbsp;&nbsp;controllers/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;GenererController.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Contr&ocirc;leur principal (12 mod&egrave;les, 1560 lignes)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;PrintLabelsController.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Impression d'&eacute;tiquettes PDF<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ListedesversementsController.php # Liste des versements<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ListedescourriersversementsController.php # Liste des courriers<br>
+&nbsp;&nbsp;views/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;index_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Page d'accueil des &eacute;tats<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele1_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Listes d'op&eacute;rations<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele2_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Inventaire collection<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele2b_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Inventaire contenants<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele3_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# &Eacute;tiquettes<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele4_html.php / modele4_docx.php &nbsp;# Bordereau versement<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele4b_html.php / modele4b_docx.php # Bordereau mouvement<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele5_html.php / modele5_docx.php &nbsp;# Constat d'&eacute;tat<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele5b_html.php / modele5b_docx.php # Constat d'&eacute;tat itin&eacute;rance<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele6_html.php / modele6_docx.php &nbsp;# Conditions de pr&ecirc;t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele7_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Liste objets exposition<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele8_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Lettres mouvement<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele9_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Stock centre<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele10_docx.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Courrier demande de garde<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele11_docx.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Courrier libre<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele12_docx.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Demande de versement (base)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele12_sp_docx.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Sous-partie par collection<br>
+&nbsp;&nbsp;&nbsp;&nbsp;modele*_help_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Pages d'aide<br>
+&nbsp;&nbsp;&nbsp;&nbsp;error_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Page d'erreur<br>
+&nbsp;&nbsp;&nbsp;&nbsp;listedesversements_html.php &nbsp;&nbsp;&nbsp;&nbsp;# Liste des versements<br>
+&nbsp;&nbsp;&nbsp;&nbsp;listedescourriersversements_html.php # Liste des courriers<br>
+&nbsp;&nbsp;templates/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Templates DOCX<br>
+&nbsp;&nbsp;printTemplates/summary/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Templates d'impression PDF<br>
+&nbsp;&nbsp;lib/PHPWord/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Biblioth&egrave;que PHPWord<br>
+&nbsp;&nbsp;css/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Feuilles de styles<br>
+&nbsp;&nbsp;tmp/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Fichiers temporaires (DOCX g&eacute;n&eacute;r&eacute;s)<br>
+&nbsp;&nbsp;results.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Cache JSON des r&eacute;gions/d&eacute;partements<br>
+&nbsp;&nbsp;documentation/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Documentation (cette page)
+    </div>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">D&eacute;pendances et interactions</div>
+
+    <table class="ca-table">
+        <tr><th>Composant</th><th>Type d'interaction</th></tr>
+        <tr><td><strong>PHPWord</strong></td><td>Biblioth&egrave;que PHP embarqu&eacute;e dans <code>lib/PHPWord/</code> pour la g&eacute;n&eacute;ration de fichiers DOCX &agrave; partir de templates.</td></tr>
+        <tr><td><strong>pagemerger</strong></td><td>Outil en ligne de commande pour fusionner des fichiers DOCX. Utilis&eacute; par le mod&egrave;le 12.</td></tr>
+        <tr><td><strong>PDFRenderer</strong></td><td>Composant CollectiveAccess utilis&eacute; par <code>PrintLabelsController</code> pour g&eacute;n&eacute;rer les &eacute;tiquettes PDF.</td></tr>
+        <tr><td><strong>CollectionBrowse / ObjectBrowse</strong></td><td>Composants de navigation CA utilis&eacute;s pour filtrer les op&eacute;rations et objets avec facettes (lieu, type, statut).</td></tr>
+        <tr><td><strong>ResultContext</strong></td><td>Utilis&eacute; pour r&eacute;cup&eacute;rer les r&eacute;sultats de la derni&egrave;re recherche.</td></tr>
+        <tr><td><strong>results.json</strong></td><td>Fichier JSON statique contenant les listes de r&eacute;gions, anciennes r&eacute;gions et d&eacute;partements pour les filtres dynamiques de la page d'accueil.</td></tr>
+    </table>
+
+    <div class="divide"></div>
+
+    <!-- ============================================================ -->
+    <div class="subTitle">Activation</div>
+
+    <div class="two-col">
+        <div class="ca-widget">
+            <div class="ca-widget-header">Activer le plugin</div>
+            <div class="ca-widget-body">
+                <p>Le plugin est <strong>d&eacute;sactiv&eacute; par d&eacute;faut</strong> (<code>enabled = 0</code> dans <code>etatsInrap.conf</code>).</p>
+                <p style="margin-top:8px;">Pour l'activer, modifier le fichier <code>conf/etatsInrap.conf</code> :</p>
+                <div class="code-block">enabled = 1</div>
+            </div>
+        </div>
+        <div class="ca-widget">
+            <div class="ca-widget-header">Pr&eacute;requis</div>
+            <div class="ca-widget-body">
+                <ul class="ca-list">
+                    <li><code>pagemerger</code> install&eacute; (pour la fusion DOCX du mod&egrave;le 12)</li>
+                    <li>R&eacute;pertoire <code>tmp/</code> accessible en &eacute;criture par le serveur web</li>
+                    <li>Fichier <code>results.json</code> &agrave; jour pour les filtres g&eacute;ographiques</li>
+                    <li>Templates DOCX pr&eacute;sents dans <code>templates/</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <div class="divide"></div>
+    <div class="subTitle">T&eacute;l&eacute;chargements</div>
+    <p style="margin-bottom:12px;">Documentation disponible en t&eacute;l&eacute;chargement dans plusieurs formats :</p>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="etatsInrap.md" download style="display:inline-block;background:#138290;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">Markdown (.md)</a>
+        <a href="etatsInrap_doc.html" download style="display:inline-block;background:#138290;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">HTML (.html)</a>
+        <a href="etatsInrap_doc.docx" download style="display:inline-block;background:#134959;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">Word (.docx)</a>
+    </div>
+
+</div><!-- /mainContent -->
+</div><!-- /main -->
+
+<div class="ca-footer">
+    <strong>etatsInrap</strong> &mdash; Plugin CollectiveAccess Providence &mdash; INRAP<br>
+    Documentation g&eacute;n&eacute;r&eacute;e le 15 f&eacute;vrier 2026 &mdash;
+    <a href="/app/plugins/archeologyBoxes/documentation/index.html">Documentation archeologyBoxes</a> |
+    <a href="/app/plugins/labelMaker/documentation/index.html">Documentation labelMaker</a>
+</div>
+
+</body>
+</html>

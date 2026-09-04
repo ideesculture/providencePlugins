@@ -1,0 +1,71 @@
+<?php 
+    require_once "../../../../setup.php";
+    require_once __CA_MODELS_DIR__."/ca_collections.php";
+    $req = "select id, idno, dir_inrap, centre_op, commune, lieudit from _sga_comodo;";
+    $o_data = new Db();
+    $qr_result = $o_data->query($req);
+
+    $sga_table_import = "
+	<head>
+  		<meta charset='UTF-8'>
+		<META HTTP-EQUIV='Pragma' CONTENT='no-cache'>
+		<META HTTP-EQUIV='Expires' CONTENT='-1'>
+	</head>
+	<body>
+	<table id='sga'>
+        <thead>
+            <tr>
+                <th>Code Inrap</th>
+                <th>Direction</th>
+                <th>Centre opérationnel</th>
+                <th>Commune</th>
+                <th>Lieu-dit</th>
+                <th></th>
+            </tr>
+        </thead><tbody>";
+    $sga_table_non_import = $sga_table_import;
+    while($qr_result->nextRow()) {
+        $vt_col = new ca_collections();
+        $vt_col->load(["idno" => $qr_result->get("idno"), "deleted" => 0]);
+        if ($vt_col->getPrimaryKey()){
+            $sga_table_import.="<tr>";
+            $sga_table_import .="<td>".$qr_result->get("idno")."</td>\n";
+            $sga_table_import .="<td>".$qr_result->get("dir_inrap")."</td>\n";
+            $sga_table_import .="<td>".$qr_result->get("centre_op")."</td>\n";
+            $sga_table_import .="<td>".$qr_result->get("commune")."</td>\n";
+            $sga_table_import .="<td>".$qr_result->get("lieudit")."</td>\n";
+            $sga_table_import .="<td><a target=_top href='/index.php/SGA/SGA/Compare/id/".$qr_result->get("id")."'>Mettre à jour</a></td>";
+            $sga_table_import .="</tr>\n";
+        }else{                    
+            $sga_table_non_import.="<tr>\n";
+            $sga_table_non_import .="<td>".$qr_result->get("idno")."</td>\n";
+            $sga_table_non_import .="<td>".$qr_result->get("dir_inrap")."</td>\n";
+            $sga_table_non_import .="<td>".$qr_result->get("centre_op")."</td>\n";
+            $sga_table_non_import .="<td>".$qr_result->get("commune")."</td>\n";
+            $sga_table_non_import .="<td>".$qr_result->get("lieudit")."</td>\n";
+            $sga_table_non_import .="<td><a target=_top href='/index.php/SGA/SGA/Compare/id/".$qr_result->get("id")."'>Importer</a></td>";
+            $sga_table_non_import .="</tr>\n";
+        }
+    }
+    $sga_table_non_import.= "</tbody></table></body>\n";
+    $sga_table_import.= "</tbody></table></body>\n";
+    unlink(__CA_APP_DIR__."/plugins/SGA/views/table_importe.html");
+    unlink(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html");
+
+    file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_importe.html", $sga_table_import);
+
+
+	$headers = '
+	<script src="https://code.jquery.com/jquery-1.12.4.js" integrity="sha256-Qw82+bXyGq6MydymqBxNPYTaUXXq7c8v3CwiYwLLNXU=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
+	<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
+	
+	<script>
+	$(document).ready( function () {
+		$("#sga").DataTable();
+	} );
+	</script>';
+	file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html", $headers);
+    file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html", $sga_table_non_import, FILE_APPEND);
+
+        ?>

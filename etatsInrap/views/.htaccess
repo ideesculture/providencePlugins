@@ -1,0 +1,6 @@
+Order allow,deny
+Allow from all
+
+<FilesMatch ".*\.[A-Za-z0-9]+">
+	Allow from all
+</FilesMatch>

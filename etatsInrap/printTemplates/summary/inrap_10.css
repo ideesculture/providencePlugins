@@ -1,0 +1,8 @@
+table { border-collapse: collapse; }
+td {
+    page-break-inside: avoid !important;
+    white-space: nowrap;
+    overflow: hidden;
+    padding: 1px;
+    font-size: xx-small;
+}

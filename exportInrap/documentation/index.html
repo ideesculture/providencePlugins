@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation exportInrap - CollectiveAccess</title>
+    <style>
+        /* === CA base reset === */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+            background-color: #fff;
+            color: #4b4a4a;
+            min-height: 100vh;
+        }
+        a, a:link, a:visited { color: #138290; text-decoration: underline; }
+        a:hover { color: #333; }
+
+        /* === Top nav bar === */
+        #topNav {
+            background-color: #fff;
+            position: fixed;
+            top: 0; left: 0; width: 100%;
+            height: 58px;
+            z-index: 1000;
+            box-shadow: 0 0 5px #888;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+        #topNav #logo img { height: 42px; cursor: pointer; }
+        #topNav .nav-links {
+            display: flex; gap: 0; margin-left: 30px;
+            font-family: "Helvetica Neue", arial, sans-serif; font-size: 13px;
+        }
+        #topNav .nav-links a {
+            color: #4b4a4a; text-decoration: none; padding: 20px 12px;
+            text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;
+        }
+        #topNav .nav-links a:hover { color: #138290; }
+        #topNav .nav-links a.active { color: #138290; font-weight: bold; }
+
+        /* === Breadcrumb === */
+        .breadcrumb-bar {
+            margin-top: 58px; background: #fff; border-bottom: 2px solid #ddd;
+            padding: 6px 20px; font-size: 11px; color: #999;
+        }
+        .breadcrumb-bar a { font-size: 11px; }
+
+        /* === Main layout === */
+        #main { background-color: #fff; padding: 15px 20px 40px 20px; }
+        #mainContent {
+            background-color: #fff; padding: 20px 25px 40px 25px;
+            max-width: 1100px; margin: 0 auto; min-height: 600px;
+        }
+
+        /* === Page title === */
+        .page-title {
+            font-family: "Helvetica Neue", arial, sans-serif;
+            font-size: 18px; font-weight: bold; color: #4b4a4a;
+            padding-bottom: 8px; border-bottom: 3px solid #e9e9e9; margin-bottom: 20px;
+        }
+
+        /* === Subtitle === */
+        .subTitle {
+            font-family: "Helvetica Neue", sans-serif; font-size: 14px; color: #333;
+            font-weight: bold; border-bottom: 2px solid #ddd;
+            padding: 2px 0 5px 0; margin: 25px 0 12px 0;
+        }
+        .subTitle-small {
+            font-family: "Helvetica Neue", sans-serif; font-size: 12px; color: #666;
+            font-weight: bold; border-bottom: 1px solid #eee;
+            padding: 2px 0 4px 0; margin: 18px 0 10px 0; text-transform: uppercase;
+        }
+
+        /* === Widget === */
+        .ca-widget { border: 1px solid #ddd; margin-bottom: 15px; background: #fff; }
+        .ca-widget-header {
+            background: #f5f5f5; border-bottom: 1px solid #ddd;
+            padding: 8px 12px; font-size: 13px; font-weight: bold; color: #4b4a4a;
+        }
+        .ca-widget-body { padding: 12px; font-size: 12px; line-height: 1.6; }
+
+        /* === Alerts === */
+        .ca-info {
+            background: #f0fafa; border: 1px solid #b8e0e6; border-left: 4px solid #138290;
+            padding: 10px 14px; margin: 15px 0; border-radius: 2px; font-size: 12px;
+        }
+        .ca-warning {
+            background: #fef9e7; border: 1px solid #f0d78c; border-left: 4px solid #d4a017;
+            padding: 10px 14px; margin: 15px 0; border-radius: 2px; font-size: 12px;
+        }
+
+        /* === Code block === */
+        .code-block {
+            background: #f5f5f5; color: #333; padding: 10px 14px; border-radius: 3px;
+            margin: 8px 0; font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px; line-height: 1.6; border: 1px solid #ddd;
+        }
+
+        /* === Lists === */
+        ul.ca-list { margin: 8px 0 8px 22px; font-size: 12px; }
+        ul.ca-list li { margin: 3px 0; color: #4b4a4a; }
+
+        /* === Table === */
+        table.ca-table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12px; }
+        table.ca-table th, table.ca-table td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+        table.ca-table th { background: #f5f5f5; color: #333; font-weight: bold; }
+        table.ca-table tr:nth-child(even) { background: #fafafa; }
+        table.ca-table code { background: #eee; padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+
+        /* === Intro box === */
+        .intro-box {
+            background: #f8f8f8; border: 1px solid #e0e0e0;
+            padding: 15px 18px; margin-bottom: 20px; border-radius: 3px;
+        }
+        .intro-box p { font-size: 12px; margin-bottom: 6px; }
+
+        /* === Divider === */
+        .divide { height: 3px; background-color: #e9e9e9; margin: 15px 0; }
+
+        /* === Two columns === */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+        /* === Footer === */
+        .ca-footer {
+            background: #4b4a4a; color: #ccc; padding: 15px 20px;
+            text-align: center; font-size: 11px; margin-top: 0;
+        }
+        .ca-footer a { color: #1FAA99; }
+    </style>
+</head>
+<body>
+    <!-- ========== TOP NAV BAR ========== -->
+    <div id="topNav">
+        <div id="logo">
+            <a href="/"><img src="/themes/default/graphics/logos/logo_inrap.png" alt="INRAP"></a>
+        </div>
+        <div class="nav-links">
+            <a href="/">RETOUR COMODO</a>
+            <a href="#" class="active">DOCUMENTATION</a>
+        </div>
+    </div>
+
+    <!-- ========== BREADCRUMB ========== -->
+    <div class="breadcrumb-bar">
+        <a href="/">Accueil</a> &rsaquo;
+        <a href="#">Plugins</a> &rsaquo;
+        <a href="#">exportInrap</a> &rsaquo;
+        <strong>Documentation</strong>
+    </div>
+
+    <!-- ========== MAIN ========== -->
+    <div id="main">
+        <div id="mainContent">
+
+            <div class="page-title">Documentation technique &mdash; exportInrap</div>
+
+            <!-- ===== INTRO ===== -->
+            <div class="intro-box">
+                <p>Le plugin <strong>exportInrap</strong> g&eacute;n&egrave;re des <strong>catalogues PDF</strong> d&rsquo;objets arch&eacute;ologiques &agrave; partir des op&eacute;rations, ensembles ou occurrences de CollectiveAccess.</p>
+                <p>Il propose une interface en 3 &eacute;tapes (s&eacute;lection de l&rsquo;op&eacute;ration, des objets, puis des m&eacute;tadonn&eacute;es et de la mise en page), <strong>6 styles de mise en page</strong> et <strong>8 strat&eacute;gies de regroupement</strong> des objets.</p>
+                <p>La conversion HTML &rarr; PDF est assur&eacute;e par <strong>PhantomJS</strong> (biblioth&egrave;que H2P), puis finalis&eacute;e par <strong>pdftk</strong>.</p>
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== VUE D'ENSEMBLE ===== -->
+
+            <div class="subTitle">Vue d&rsquo;ensemble</div>
+
+            <div class="two-col">
+                <div class="ca-widget">
+                    <div class="ca-widget-header">R&ocirc;le du plugin</div>
+                    <div class="ca-widget-body">
+                        <ul class="ca-list">
+                            <li>G&eacute;n&eacute;rer des catalogues PDF d&rsquo;objets arch&eacute;ologiques</li>
+                            <li>S&eacute;lection interactive des objets, m&eacute;tadonn&eacute;es et mise en page</li>
+                            <li>6 styles de mise en page (1, 2 ou 4 objets par page)</li>
+                            <li>8 strat&eacute;gies de regroupement (mat&eacute;riaux, domaine, inventaire, etc.)</li>
+                            <li>Page de couverture avec donn&eacute;es de l&rsquo;op&eacute;ration</li>
+                            <li>Export depuis une op&eacute;ration, un ensemble (<code>ca_sets</code>) ou une occurrence (<code>ca_occurrences</code>)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="ca-widget">
+                    <div class="ca-widget-header">Hooks utilis&eacute;s</div>
+                    <div class="ca-widget-body">
+                        <ul class="ca-list">
+                            <li><strong>hookRenderMenuBar</strong> &mdash; Ajoute le menu &laquo;&nbsp;Catalogue objets par op&eacute;ration&nbsp;&raquo; dans la barre de navigation (sous &laquo;&nbsp;G&eacute;rer&nbsp;&raquo;)</li>
+                            <li><strong>hookAppendToEditorInspector</strong> &mdash; Ajoute un bouton &laquo;&nbsp;Catalogue d&rsquo;objets&nbsp;&raquo; dans la barre lat&eacute;rale des ensembles et des occurrences (type 116)</li>
+                            <li><strong>hookGetRoleActionList</strong> &mdash; D&eacute;clar&eacute; mais retourne la liste inchang&eacute;e</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== POINTS D'ENTRÉE ===== -->
+
+            <div class="subTitle">Points d&rsquo;entr&eacute;e</div>
+
+            <p>Le plugin est accessible de 3 fa&ccedil;ons :</p>
+
+            <table class="ca-table" style="margin-top:12px;">
+                <tr>
+                    <th>Point d&rsquo;entr&eacute;e</th>
+                    <th>Source</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>Menu principal</td>
+                    <td><code>hookRenderMenuBar</code></td>
+                    <td>Entr&eacute;e &laquo;&nbsp;Catalogue objets par op&eacute;ration&nbsp;&raquo; dans G&eacute;rer &rarr; Navigation. L&rsquo;utilisateur saisit un code op&eacute;ration INRAP.</td>
+                </tr>
+                <tr>
+                    <td>Bouton sur un ensemble</td>
+                    <td><code>hookAppendToEditorInspector</code></td>
+                    <td>Bouton <span style="background:#1ab3c8;color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;">Catalogue d&rsquo;objets</span> sur les fiches <code>ca_sets</code> (table_num = 57). Exporte directement les objets de l&rsquo;ensemble.</td>
+                </tr>
+                <tr>
+                    <td>Bouton sur une occurrence</td>
+                    <td><code>hookAppendToEditorInspector</code></td>
+                    <td>Bouton <span style="background:#1ab3c8;color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;">Catalogue d&rsquo;objets</span> sur les fiches <code>ca_occurrences</code> de type 116. Exporte les objets li&eacute;s &agrave; l&rsquo;occurrence.</td>
+                </tr>
+            </table>
+
+            <div class="divide"></div>
+
+            <!-- ===== WORKFLOW ===== -->
+
+            <div class="subTitle">Processus d&rsquo;export (3 &eacute;tapes)</div>
+
+            <div class="subTitle-small">&Eacute;tape 1 &mdash; S&eacute;lection de l&rsquo;op&eacute;ration</div>
+
+            <div class="ca-widget">
+                <div class="ca-widget-body">
+                    <p>L&rsquo;utilisateur saisit le <strong>code op&eacute;ration INRAP</strong>. Le syst&egrave;me charge alors via AJAX (<code>/ajax/objectByCodeOp.php</code>) la liste des objets rattach&eacute;s &agrave; cette op&eacute;ration.</p>
+                    <p><em>Cette &eacute;tape est saut&eacute;e si l&rsquo;export est lanc&eacute; depuis un ensemble ou une occurrence (le param&egrave;tre <code>set_id</code> ou <code>occurrence_id</code> est d&eacute;j&agrave; fourni).</em></p>
+                </div>
+            </div>
+
+            <div class="subTitle-small">&Eacute;tape 2 &mdash; S&eacute;lection des objets</div>
+
+            <div class="ca-widget">
+                <div class="ca-widget-body">
+                    <p>L&rsquo;utilisateur coche les <strong>types d&rsquo;objets</strong> &agrave; inclure dans le catalogue :</p>
+                    <ul class="ca-list">
+                        <li>Mobilier (type 24)</li>
+                        <li>Pr&eacute;l&egrave;vement (type 25)</li>
+                        <li>Document (type 26)</li>
+                        <li>Contenant mobilier (type 28)</li>
+                        <li>Contenant documentation (type 30)</li>
+                        <li>Contenant documentation num&eacute;rique (type 1886)</li>
+                    </ul>
+                    <p>Des boutons &laquo;&nbsp;Tout cocher&nbsp;&raquo; / &laquo;&nbsp;Tout d&eacute;cocher&nbsp;&raquo; sont disponibles.</p>
+                </div>
+            </div>
+
+            <div class="subTitle-small">&Eacute;tape 3 &mdash; M&eacute;tadonn&eacute;es et mise en page</div>
+
+            <div class="ca-widget">
+                <div class="ca-widget-body">
+                    <p>L&rsquo;utilisateur configure le catalogue :</p>
+                    <ul class="ca-list">
+                        <li><strong>M&eacute;tadonn&eacute;es de l&rsquo;op&eacute;ration</strong> (11 champs : lieu d&rsquo;entr&eacute;e, n&deg; OA, code INRAP, commune, etc.)</li>
+                        <li><strong>M&eacute;tadonn&eacute;es des objets</strong> (20+ champs : photos, identification, dimensions, p&eacute;riode, etc.)</li>
+                        <li><strong>Style de mise en page</strong> (6 styles avec aper&ccedil;u visuel)</li>
+                        <li><strong>Strat&eacute;gie de regroupement</strong> (8 options)</li>
+                        <li><strong>Titre du catalogue</strong> (facultatif)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== STYLES DE PAGE ===== -->
+
+            <div class="subTitle">Styles de mise en page</div>
+
+            <table class="ca-table">
+                <tr><th>Style</th><th>Objets/page</th><th>Disposition</th></tr>
+                <tr><td><code>texte-deux-images-gauche</code></td><td>1</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+                <tr><td><code>texte-deux-images-droite</code></td><td>1</td><td>Images &agrave; droite, texte &agrave; gauche</td></tr>
+                <tr><td><code>ensemble-2-par-page-texte-bas</code></td><td>2</td><td>Images en haut, texte en bas</td></tr>
+                <tr><td><code>ensemble-2-par-page-texte-droite</code></td><td>2</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+                <tr><td><code>ensemble-4-par-page-texte-droite</code></td><td>4</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+                <tr><td><code>ensemble-4-par-page-texte-bas</code></td><td>4</td><td>Images en haut, texte en bas</td></tr>
+            </table>
+
+            <div class="ca-info">
+                <strong>Images :</strong> selon le style, 1 &agrave; 3 repr&eacute;sentations (<code>ca_object_representations</code>) sont incluses par objet. Les styles &agrave; 1 objet/page affichent jusqu&rsquo;&agrave; 3 images, les styles &agrave; 4 objets/page n&rsquo;en affichent qu&rsquo;une.
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== REGROUPEMENT ===== -->
+
+            <div class="subTitle">Strat&eacute;gies de regroupement</div>
+
+            <table class="ca-table">
+                <tr><th>Code</th><th>Crit&egrave;re de regroupement</th><th>Champ source</th></tr>
+                <tr><td><code>mat</code></td><td>Mat&eacute;riaux</td><td><code>ca_objects.inrap_materiaux</code></td></tr>
+                <tr><td><code>dom</code></td><td>Domaine</td><td><code>ca_objects.inrap_domaine</code></td></tr>
+                <tr><td><code>inv</code></td><td>Num&eacute;ro d&rsquo;inventaire</td><td><code>ca_objects.idno</code> (tri)</td></tr>
+                <tr><td><code>iso</code></td><td>Num&eacute;ro d&rsquo;isolation</td><td><code>ca_objects.inrap_numero_isolation</code></td></tr>
+                <tr><td><code>pcm</code></td><td>P&eacute;riode chronologique mus&eacute;e</td><td><code>ca_objects.inrap_musee_chrono</code></td></tr>
+                <tr><td><code>matm</code></td><td>Mat&eacute;riaux mus&eacute;e</td><td><code>ca_objects.inrap_musee_materiaux</code></td></tr>
+                <tr><td><code>pc</code></td><td>P&eacute;riode chronologique site</td><td><code>ca_objects.inrap_periode_chrono_site</code></td></tr>
+                <tr><td><em>(d&eacute;faut)</em></td><td>Type de mobilier</td><td><code>ca_objects.type_mobilier</code></td></tr>
+            </table>
+
+            <div class="divide"></div>
+
+            <!-- ===== MÉTADONNÉES ===== -->
+
+            <div class="subTitle">M&eacute;tadonn&eacute;es export&eacute;es</div>
+
+            <div class="two-col">
+                <div class="ca-widget">
+                    <div class="ca-widget-header">M&eacute;tadonn&eacute;es de l&rsquo;op&eacute;ration (page de couverture)</div>
+                    <div class="ca-widget-body">
+                        <ul class="ca-list">
+                            <li>Lieu d&rsquo;entr&eacute;e (<code>ca_storage_locations_entree</code>)</li>
+                            <li>Num&eacute;ro OA</li>
+                            <li>Code INRAP</li>
+                            <li>Commune / Lieu-dit (<code>ca_places</code>)</li>
+                            <li>Responsable d&rsquo;op&eacute;ration (<code>ca_entities_RO</code>)</li>
+                            <li>Ann&eacute;e d&rsquo;intervention</li>
+                            <li>Type d&rsquo;op&eacute;ration / Statut</li>
+                            <li>SRA (<code>ca_entities_SRA</code>)</li>
+                            <li>Direction INRAP (<code>ca_entities_DIR</code>)</li>
+                            <li>Volume total</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="ca-widget">
+                    <div class="ca-widget-header">M&eacute;tadonn&eacute;es des objets (fiches)</div>
+                    <div class="ca-widget-body">
+                        <ul class="ca-list">
+                            <li>Photos (1 &agrave; 3 selon le style)</li>
+                            <li>Identification / D&eacute;signation</li>
+                            <li>N&deg; OA, N&deg; inventaire, N&deg; isolation</li>
+                            <li>Unit&eacute; d&rsquo;enregistrement</li>
+                            <li>P&eacute;riode chronologique / Datation</li>
+                            <li>Mat&eacute;riaux / Pr&eacute;cision mat&eacute;riau</li>
+                            <li>Quantification / Fragmentation</li>
+                            <li>&Eacute;tat sanitaire (<code>ca_occurrences</code>)</li>
+                            <li>Dimensions (mm et cm)</li>
+                            <li>Contexte arch&eacute;ologique</li>
+                            <li>Emplacement de stockage</li>
+                            <li>Valeur d&rsquo;assurance / Labo</li>
+                            <li>Contenants li&eacute;s / Traitements</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== ACTIONS DU CONTROLLER ===== -->
+
+            <div class="subTitle">Actions du contr&ocirc;leur (ExportController)</div>
+
+            <p style="margin-bottom:10px;"><em>Fichier : <code>controllers/ExportController.php</code></em></p>
+
+            <div class="ca-widget">
+                <div class="ca-widget-header">Actions disponibles</div>
+                <div class="ca-widget-body">
+                    <table class="ca-table">
+                        <tr><th>Action</th><th>Description</th></tr>
+                        <tr><td><code>Index</code></td><td>Affiche l&rsquo;interface de configuration de l&rsquo;export (formulaire Bootstrap 5 en 3 &eacute;tapes). Re&ccedil;oit optionnellement <code>set_id</code> ou <code>occurrence_id</code>.</td></tr>
+                        <tr><td><code>Export</code></td><td>G&eacute;n&egrave;re le catalogue PDF : collecte les donn&eacute;es, appelle <code>generateHTML()</code>, convertit via PhantomJS, finalise avec pdftk, et redirige vers le fichier PDF.</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subTitle-small">G&eacute;n&eacute;ration du PDF (Export)</div>
+
+            <div class="ca-widget">
+                <div class="ca-widget-body">
+                    <p>Le processus de g&eacute;n&eacute;ration du PDF suit ces &eacute;tapes :</p>
+                    <ol style="margin: 6px 0 6px 22px;">
+                        <li>Collecte des donn&eacute;es des objets via <code>getWithTemplate()</code> (mod&egrave;le CA)</li>
+                        <li>Regroupement selon la strat&eacute;gie choisie</li>
+                        <li>G&eacute;n&eacute;ration du HTML avec CSS int&eacute;gr&eacute; (<code>assets/css/pdf.css</code>) et logo INRAP</li>
+                        <li>Sauvegarde en fichier temporaire (<code>tmp/pdf-content_[timestamp].html</code>)</li>
+                        <li>Conversion HTML &rarr; PDF via <strong>PhantomJS</strong> (A4 paysage, zoom 0.4, marge 1cm)</li>
+                        <li>Finalisation via <strong>pdftk</strong> (<code>tmp/rapport_[timestamp].pdf</code>)</li>
+                        <li>Redirection vers le PDF pour t&eacute;l&eacute;chargement</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="ca-warning">
+                <strong>Fichiers temporaires :</strong> les fichiers HTML et PDF interm&eacute;diaires sont stock&eacute;s dans le dossier <code>tmp/</code> du plugin. Ils ne sont pas automatiquement nettoy&eacute;s.
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== CONFIGURATION ===== -->
+
+            <div class="subTitle">Configuration</div>
+
+            <p style="margin-bottom:10px;"><em>Fichier : <code>conf/exportInrap.conf</code></em></p>
+
+            <table class="ca-table">
+                <tr><th>Param&egrave;tre</th><th>Valeur</th><th>Description</th></tr>
+                <tr><td><code>enabled</code></td><td><code>1</code></td><td>Active le plugin</td></tr>
+                <tr><td><code>menu_title</code></td><td><code>Catalogue objets par op&eacute;ration</code></td><td>Texte du menu principal</td></tr>
+            </table>
+
+            <div class="divide"></div>
+
+            <!-- ===== FICHIERS ===== -->
+
+            <div class="subTitle">Structure des fichiers</div>
+
+            <div class="code-block">
+exportInrap/<br>
+&nbsp;&nbsp;exportInrapPlugin.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Plugin principal (hooks, menu, boutons)</em><br>
+&nbsp;&nbsp;conf/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;exportInrap.conf &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Configuration (enabled, menu_title)</em><br>
+&nbsp;&nbsp;controllers/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ExportController.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Contr&ocirc;leur (Index, Export, generateHTML)</em><br>
+&nbsp;&nbsp;views/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;index_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Interface de configuration (Bootstrap 5)</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;view_pdf_html.php &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># T&eacute;l&eacute;chargement du PDF g&eacute;n&eacute;r&eacute;</em><br>
+&nbsp;&nbsp;lib/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;h2p/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Biblioth&egrave;que H2P (PhantomJS wrapper)</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bin/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Binaires PhantomJS (linux, mac)</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;src/H2P/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Classes PHP du convertisseur</em><br>
+&nbsp;&nbsp;assets/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;css/pdf.css &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Styles CSS du catalogue PDF</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;fonts/EBGaramond/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Police EB Garamond (ttf, otf)</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;img/inrap_0.jpg &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Logo INRAP pour le PDF</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;styles/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Aper&ccedil;us des styles de mise en page</em><br>
+&nbsp;&nbsp;&nbsp;&nbsp;sass/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Sources SASS du CSS</em><br>
+&nbsp;&nbsp;tmp/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em style="color:#888;"># Fichiers temporaires (HTML, PDF)</em>
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== DÉPENDANCES ===== -->
+
+            <div class="subTitle">D&eacute;pendances externes</div>
+
+            <div class="ca-widget">
+                <div class="ca-widget-header">Biblioth&egrave;ques et outils</div>
+                <div class="ca-widget-body">
+                    <ul class="ca-list">
+                        <li><strong>H2P (PhantomJS wrapper)</strong> &mdash; Biblioth&egrave;que PHP incluse dans <code>lib/h2p/</code> pour la conversion HTML &rarr; PDF. Binaires PhantomJS inclus pour Linux (x86, x86_64) et Mac.</li>
+                        <li><strong>pdftk</strong> &mdash; Outil externe (ligne de commande) utilis&eacute; pour finaliser le PDF. Doit &ecirc;tre install&eacute; sur le serveur.</li>
+                        <li><strong>Bootstrap 5</strong> &mdash; Utilis&eacute; dans l&rsquo;interface de configuration (vue <code>index_html.php</code>)</li>
+                        <li><strong>EB Garamond</strong> &mdash; Police de caract&egrave;res embarqu&eacute;e pour le rendu PDF</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="ca-warning">
+                <strong>pdftk requis :</strong> l&rsquo;outil <code>pdftk</code> doit &ecirc;tre install&eacute; sur le serveur pour la finalisation des PDF. Sur Debian/Ubuntu : <code>apt install pdftk</code>.
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== PARAMÈTRES PDF ===== -->
+
+            <div class="subTitle">Param&egrave;tres de rendu PDF</div>
+
+            <table class="ca-table">
+                <tr><th>Param&egrave;tre</th><th>Valeur</th></tr>
+                <tr><td>Orientation</td><td>Paysage (landscape)</td></tr>
+                <tr><td>Format</td><td>A4</td></tr>
+                <tr><td>Zoom</td><td>0.4</td></tr>
+                <tr><td>Marge</td><td>1 cm</td></tr>
+                <tr><td>Pied de page</td><td>Num&eacute;ro de page + m&eacute;tadonn&eacute;es de l&rsquo;op&eacute;ration</td></tr>
+                <tr><td>Police</td><td>EB Garamond</td></tr>
+            </table>
+
+            <div class="divide"></div>
+
+            <!-- ===== NOTES ===== -->
+
+            <div class="subTitle">Notes techniques</div>
+
+            <div class="ca-warning">
+                <strong>Bug identifi&eacute; :</strong> dans le constructeur de <code>ExportController.php</code>, le nom du plugin est d&eacute;fini comme <code>"importInrap"</code> au lieu de <code>"exportInrap"</code> (ligne 20). Cela charge potentiellement une mauvaise configuration, mais n&rsquo;affecte pas le fonctionnement car le fichier de configuration est charg&eacute; correctement via le chemin du plugin.
+            </div>
+
+            <div class="ca-info">
+                <strong>Pas de restriction par r&ocirc;le :</strong> <code>getRoleActionList()</code> retourne un tableau vide. Le plugin est accessible &agrave; tous les utilisateurs ayant acc&egrave;s &agrave; l&rsquo;interface d&rsquo;administration.
+            </div>
+
+            <div class="ca-info">
+                <strong>Donn&eacute;es via templates CA :</strong> toutes les donn&eacute;es des objets sont extraites via la syntaxe de templates CollectiveAccess (<code>getWithTemplate()</code>) et les m&eacute;thodes de relations (<code>restrictToRelationshipTypes</code>, <code>restrictToTypes</code>).
+            </div>
+
+            <div class="divide"></div>
+
+            <!-- ===== TÉLÉCHARGEMENTS ===== -->
+
+            <div class="subTitle">T&eacute;l&eacute;chargements</div>
+
+            <p style="margin-bottom:12px;">Documentation disponible en t&eacute;l&eacute;chargement dans plusieurs formats :</p>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <a href="exportInrap.md" download style="display:inline-block;background:#138290;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">Markdown (.md)</a>
+                <a href="exportInrap_doc.html" download style="display:inline-block;background:#138290;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">HTML (.html)</a>
+                <a href="exportInrap_doc.docx" download style="display:inline-block;background:#134959;color:#fff;padding:8px 18px;border-radius:4px;text-decoration:none;font-size:12px;font-weight:bold;">Word (.docx)</a>
+            </div>
+
+        </div><!-- /mainContent -->
+    </div><!-- /main -->
+
+    <!-- ========== FOOTER ========== -->
+    <div class="ca-footer">
+        <strong>exportInrap</strong> &mdash; Plugin CollectiveAccess Providence &mdash; INRAP<br>
+        Documentation g&eacute;n&eacute;r&eacute;e le 15 f&eacute;vrier 2026 &mdash;
+        <a href="/app/plugins/archeologyBoxes/documentation/index.html">archeologyBoxes</a> &middot;
+        <a href="/app/plugins/etatsInrap/documentation/index.html">etatsInrap</a> &middot;
+        <a href="/app/plugins/expoInrap/documentation/index.html">expoInrap</a> &middot;
+        <a href="/app/plugins/labelMaker/documentation/index.html">labelMaker</a>
+    </div>
+
+</body>
+</html>

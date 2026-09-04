@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Documentation technique — exportInrap</title>
+    <style>
+        body { font-family: 'Calibri', 'Arial', sans-serif; line-height: 1.6; max-width: 950px; margin: 40px auto; padding: 20px; color: #333; background: #fff; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-top: 30px; font-size: 1.8em; }
+        h2 { color: #34495e; border-bottom: 2px solid #95a5a6; padding-bottom: 8px; margin-top: 35px; font-size: 1.4em; }
+        h3 { color: #2980b9; margin-top: 20px; font-size: 1.15em; }
+        p { margin: 8px 0; }
+        code { background: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; padding: 2px 6px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; page-break-inside: avoid; }
+        th, td { border: 1px solid #bbb; padding: 8px 12px; text-align: left; font-size: 0.92em; }
+        th { background: #3498db; color: white; font-weight: bold; }
+        tr:nth-child(even) { background: #f5f8fa; }
+        ul, ol { margin: 8px 0; padding-left: 28px; }
+        li { margin: 4px 0; }
+        hr { border: none; border-top: 2px solid #ecf0f1; margin: 25px 0; }
+        .note { background: #eaf6fd; border-left: 4px solid #3498db; padding: 12px 15px; margin: 15px 0; border-radius: 3px; }
+        .warn { background: #fef9e7; border-left: 4px solid #f39c12; padding: 12px 15px; margin: 15px 0; border-radius: 3px; }
+        .meta { background: #ecf0f1; padding: 10px; border-radius: 5px; margin-top: 30px; font-size: 0.9em; }
+        strong { color: #2c3e50; }
+        em { color: #7f8c8d; }
+        pre { background: #f4f4f4; border: 1px solid #ddd; padding: 12px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.85em; line-height: 1.5; overflow-x: auto; }
+    </style>
+</head>
+<body>
+
+<h1>Documentation technique &mdash; exportInrap</h1>
+
+<p><strong>Plugin CollectiveAccess Providence &mdash; INRAP</strong></p>
+
+<hr>
+
+<h2>Vue d&rsquo;ensemble</h2>
+
+<p>Le plugin <strong>exportInrap</strong> g&eacute;n&egrave;re des <strong>catalogues PDF</strong> d&rsquo;objets arch&eacute;ologiques &agrave; partir des op&eacute;rations, ensembles ou occurrences de CollectiveAccess.</p>
+
+<p>Il propose une interface en 3 &eacute;tapes (s&eacute;lection de l&rsquo;op&eacute;ration, des objets, puis des m&eacute;tadonn&eacute;es et de la mise en page), <strong>6 styles de mise en page</strong> et <strong>8 strat&eacute;gies de regroupement</strong> des objets.</p>
+
+<p>La conversion HTML &rarr; PDF est assur&eacute;e par <strong>PhantomJS</strong> (biblioth&egrave;que H2P), puis finalis&eacute;e par <strong>pdftk</strong>.</p>
+
+<h3>R&ocirc;le du plugin</h3>
+<ul>
+    <li>G&eacute;n&eacute;rer des catalogues PDF d&rsquo;objets arch&eacute;ologiques</li>
+    <li>S&eacute;lection interactive des objets, m&eacute;tadonn&eacute;es et mise en page</li>
+    <li>6 styles de mise en page (1, 2 ou 4 objets par page)</li>
+    <li>8 strat&eacute;gies de regroupement (mat&eacute;riaux, domaine, inventaire, etc.)</li>
+    <li>Page de couverture avec donn&eacute;es de l&rsquo;op&eacute;ration</li>
+    <li>Export depuis une op&eacute;ration, un ensemble (<code>ca_sets</code>) ou une occurrence (<code>ca_occurrences</code>)</li>
+</ul>
+
+<h3>Hooks utilis&eacute;s</h3>
+<ul>
+    <li><strong>hookRenderMenuBar</strong> &mdash; Ajoute le menu &laquo;&nbsp;Catalogue objets par op&eacute;ration&nbsp;&raquo; dans la barre de navigation</li>
+    <li><strong>hookAppendToEditorInspector</strong> &mdash; Ajoute un bouton &laquo;&nbsp;Catalogue d&rsquo;objets&nbsp;&raquo; sur les ensembles et occurrences (type 116)</li>
+    <li><strong>hookGetRoleActionList</strong> &mdash; D&eacute;clar&eacute; mais retourne la liste inchang&eacute;e</li>
+</ul>
+
+<hr>
+
+<h2>Points d&rsquo;entr&eacute;e</h2>
+
+<table>
+<tr><th>Point d&rsquo;entr&eacute;e</th><th>Source</th><th>Description</th></tr>
+<tr><td>Menu principal</td><td><code>hookRenderMenuBar</code></td><td>Entr&eacute;e &laquo;&nbsp;Catalogue objets par op&eacute;ration&nbsp;&raquo; dans G&eacute;rer &rarr; Navigation</td></tr>
+<tr><td>Bouton sur un ensemble</td><td><code>hookAppendToEditorInspector</code></td><td>Bouton sur les fiches <code>ca_sets</code> (table_num = 57)</td></tr>
+<tr><td>Bouton sur une occurrence</td><td><code>hookAppendToEditorInspector</code></td><td>Bouton sur les fiches <code>ca_occurrences</code> de type 116</td></tr>
+</table>
+
+<hr>
+
+<h2>Processus d&rsquo;export (3 &eacute;tapes)</h2>
+
+<h3>&Eacute;tape 1 &mdash; S&eacute;lection de l&rsquo;op&eacute;ration</h3>
+
+<p>L&rsquo;utilisateur saisit le <strong>code op&eacute;ration INRAP</strong>. Le syst&egrave;me charge via AJAX (<code>/ajax/objectByCodeOp.php</code>) la liste des objets rattach&eacute;s.</p>
+<p><em>Cette &eacute;tape est saut&eacute;e si l&rsquo;export est lanc&eacute; depuis un ensemble ou une occurrence.</em></p>
+
+<h3>&Eacute;tape 2 &mdash; S&eacute;lection des objets</h3>
+
+<p>L&rsquo;utilisateur coche les <strong>types d&rsquo;objets</strong> &agrave; inclure :</p>
+<ul>
+    <li>Mobilier (type 24)</li>
+    <li>Pr&eacute;l&egrave;vement (type 25)</li>
+    <li>Document (type 26)</li>
+    <li>Contenant mobilier (type 28)</li>
+    <li>Contenant documentation (type 30)</li>
+    <li>Contenant documentation num&eacute;rique (type 1886)</li>
+</ul>
+
+<h3>&Eacute;tape 3 &mdash; M&eacute;tadonn&eacute;es et mise en page</h3>
+
+<p>L&rsquo;utilisateur configure :</p>
+<ul>
+    <li><strong>M&eacute;tadonn&eacute;es de l&rsquo;op&eacute;ration</strong> (11 champs : lieu d&rsquo;entr&eacute;e, n&deg; OA, code INRAP, commune, etc.)</li>
+    <li><strong>M&eacute;tadonn&eacute;es des objets</strong> (20+ champs : photos, identification, dimensions, p&eacute;riode, etc.)</li>
+    <li><strong>Style de mise en page</strong> (6 styles avec aper&ccedil;u visuel)</li>
+    <li><strong>Strat&eacute;gie de regroupement</strong> (8 options)</li>
+    <li><strong>Titre du catalogue</strong> (facultatif)</li>
+</ul>
+
+<hr>
+
+<h2>Styles de mise en page</h2>
+
+<table>
+<tr><th>Style</th><th>Objets/page</th><th>Disposition</th></tr>
+<tr><td><code>texte-deux-images-gauche</code></td><td>1</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+<tr><td><code>texte-deux-images-droite</code></td><td>1</td><td>Images &agrave; droite, texte &agrave; gauche</td></tr>
+<tr><td><code>ensemble-2-par-page-texte-bas</code></td><td>2</td><td>Images en haut, texte en bas</td></tr>
+<tr><td><code>ensemble-2-par-page-texte-droite</code></td><td>2</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+<tr><td><code>ensemble-4-par-page-texte-droite</code></td><td>4</td><td>Images &agrave; gauche, texte &agrave; droite</td></tr>
+<tr><td><code>ensemble-4-par-page-texte-bas</code></td><td>4</td><td>Images en haut, texte en bas</td></tr>
+</table>
+
+<div class="note">
+<strong>Images :</strong> selon le style, 1 &agrave; 3 repr&eacute;sentations (<code>ca_object_representations</code>) sont incluses par objet. Les styles &agrave; 1 objet/page affichent jusqu&rsquo;&agrave; 3 images, les styles &agrave; 4 objets/page n&rsquo;en affichent qu&rsquo;une.
+</div>
+
+<hr>
+
+<h2>Strat&eacute;gies de regroupement</h2>
+
+<table>
+<tr><th>Code</th><th>Crit&egrave;re</th><th>Champ source</th></tr>
+<tr><td><code>mat</code></td><td>Mat&eacute;riaux</td><td><code>ca_objects.inrap_materiaux</code></td></tr>
+<tr><td><code>dom</code></td><td>Domaine</td><td><code>ca_objects.inrap_domaine</code></td></tr>
+<tr><td><code>inv</code></td><td>Num&eacute;ro d&rsquo;inventaire</td><td><code>ca_objects.idno</code> (tri)</td></tr>
+<tr><td><code>iso</code></td><td>Num&eacute;ro d&rsquo;isolation</td><td><code>ca_objects.inrap_numero_isolation</code></td></tr>
+<tr><td><code>pcm</code></td><td>P&eacute;riode chrono. mus&eacute;e</td><td><code>ca_objects.inrap_musee_chrono</code></td></tr>
+<tr><td><code>matm</code></td><td>Mat&eacute;riaux mus&eacute;e</td><td><code>ca_objects.inrap_musee_materiaux</code></td></tr>
+<tr><td><code>pc</code></td><td>P&eacute;riode chrono. site</td><td><code>ca_objects.inrap_periode_chrono_site</code></td></tr>
+<tr><td><em>(d&eacute;faut)</em></td><td>Type de mobilier</td><td><code>ca_objects.type_mobilier</code></td></tr>
+</table>
+
+<hr>
+
+<h2>M&eacute;tadonn&eacute;es export&eacute;es</h2>
+
+<h3>M&eacute;tadonn&eacute;es de l&rsquo;op&eacute;ration (page de couverture)</h3>
+<ul>
+    <li>Lieu d&rsquo;entr&eacute;e (<code>ca_storage_locations_entree</code>)</li>
+    <li>Num&eacute;ro OA / Code INRAP</li>
+    <li>Commune / Lieu-dit (<code>ca_places</code>)</li>
+    <li>Responsable d&rsquo;op&eacute;ration (<code>ca_entities_RO</code>)</li>
+    <li>Ann&eacute;e d&rsquo;intervention / Type d&rsquo;op&eacute;ration / Statut</li>
+    <li>SRA (<code>ca_entities_SRA</code>) / Direction INRAP (<code>ca_entities_DIR</code>)</li>
+    <li>Volume total</li>
+</ul>
+
+<h3>M&eacute;tadonn&eacute;es des objets (fiches)</h3>
+<ul>
+    <li>Photos (1 &agrave; 3 selon le style)</li>
+    <li>Identification / D&eacute;signation</li>
+    <li>N&deg; OA, N&deg; inventaire, N&deg; isolation</li>
+    <li>Unit&eacute; d&rsquo;enregistrement</li>
+    <li>P&eacute;riode chronologique / Datation</li>
+    <li>Mat&eacute;riaux / Pr&eacute;cision mat&eacute;riau</li>
+    <li>Quantification / Fragmentation</li>
+    <li>&Eacute;tat sanitaire (<code>ca_occurrences</code>)</li>
+    <li>Dimensions (mm et cm)</li>
+    <li>Contexte arch&eacute;ologique / Emplacement de stockage</li>
+    <li>Valeur d&rsquo;assurance / Labo / Contenants li&eacute;s / Traitements</li>
+</ul>
+
+<hr>
+
+<h2>Actions du contr&ocirc;leur (ExportController)</h2>
+
+<p><em>Fichier : <code>controllers/ExportController.php</code></em></p>
+
+<table>
+<tr><th>Action</th><th>Description</th></tr>
+<tr><td><code>Index</code></td><td>Affiche l&rsquo;interface de configuration de l&rsquo;export (formulaire Bootstrap 5 en 3 &eacute;tapes). Re&ccedil;oit optionnellement <code>set_id</code> ou <code>occurrence_id</code>.</td></tr>
+<tr><td><code>Export</code></td><td>G&eacute;n&egrave;re le catalogue PDF : collecte les donn&eacute;es, appelle <code>generateHTML()</code>, convertit via PhantomJS, finalise avec pdftk, redirige vers le PDF.</td></tr>
+</table>
+
+<h3>G&eacute;n&eacute;ration du PDF</h3>
+
+<ol>
+    <li>Collecte des donn&eacute;es des objets via <code>getWithTemplate()</code> (mod&egrave;le CA)</li>
+    <li>Regroupement selon la strat&eacute;gie choisie</li>
+    <li>G&eacute;n&eacute;ration du HTML avec CSS int&eacute;gr&eacute; (<code>assets/css/pdf.css</code>) et logo INRAP</li>
+    <li>Sauvegarde en fichier temporaire (<code>tmp/pdf-content_[timestamp].html</code>)</li>
+    <li>Conversion HTML &rarr; PDF via <strong>PhantomJS</strong> (A4 paysage, zoom 0.4, marge 1cm)</li>
+    <li>Finalisation via <strong>pdftk</strong> (<code>tmp/rapport_[timestamp].pdf</code>)</li>
+    <li>Redirection vers le PDF pour t&eacute;l&eacute;chargement</li>
+</ol>
+
+<div class="warn">
+<strong>Fichiers temporaires :</strong> les fichiers HTML et PDF interm&eacute;diaires sont stock&eacute;s dans le dossier <code>tmp/</code> du plugin. Ils ne sont pas automatiquement nettoy&eacute;s.
+</div>
+
+<hr>
+
+<h2>Configuration</h2>
+
+<p><em>Fichier : <code>conf/exportInrap.conf</code></em></p>
+
+<table>
+<tr><th>Param&egrave;tre</th><th>Valeur</th><th>Description</th></tr>
+<tr><td><code>enabled</code></td><td><code>1</code></td><td>Active le plugin</td></tr>
+<tr><td><code>menu_title</code></td><td><code>Catalogue objets par op&eacute;ration</code></td><td>Texte du menu principal</td></tr>
+</table>
+
+<hr>
+
+<h2>Structure des fichiers</h2>
+
+<pre>
+exportInrap/
+  exportInrapPlugin.php        # Plugin principal (hooks, menu, boutons)
+  conf/
+    exportInrap.conf            # Configuration (enabled, menu_title)
+  controllers/
+    ExportController.php        # Contr&ocirc;leur (Index, Export, generateHTML)
+  views/
+    index_html.php              # Interface de configuration (Bootstrap 5)
+    view_pdf_html.php           # T&eacute;l&eacute;chargement du PDF g&eacute;n&eacute;r&eacute;
+  lib/
+    h2p/                        # Biblioth&egrave;que H2P (PhantomJS wrapper)
+      bin/                      # Binaires PhantomJS (linux, mac)
+      src/H2P/                  # Classes PHP du convertisseur
+  assets/
+    css/pdf.css                 # Styles CSS du catalogue PDF
+    fonts/EBGaramond/           # Police EB Garamond (ttf, otf)
+    img/inrap_0.jpg             # Logo INRAP pour le PDF
+    styles/                     # Aper&ccedil;us des styles de mise en page
+    sass/                       # Sources SASS du CSS
+  tmp/                          # Fichiers temporaires (HTML, PDF)
+</pre>
+
+<hr>
+
+<h2>D&eacute;pendances externes</h2>
+
+<ul>
+    <li><strong>H2P (PhantomJS wrapper)</strong> &mdash; Biblioth&egrave;que PHP incluse dans <code>lib/h2p/</code> pour la conversion HTML &rarr; PDF. Binaires PhantomJS inclus pour Linux et Mac.</li>
+    <li><strong>pdftk</strong> &mdash; Outil externe (ligne de commande) pour finaliser le PDF. Doit &ecirc;tre install&eacute; sur le serveur (<code>apt install pdftk</code>).</li>
+    <li><strong>Bootstrap 5</strong> &mdash; Utilis&eacute; dans l&rsquo;interface de configuration</li>
+    <li><strong>EB Garamond</strong> &mdash; Police de caract&egrave;res embarqu&eacute;e pour le rendu PDF</li>
+</ul>
+
+<div class="warn">
+<strong>pdftk requis :</strong> l&rsquo;outil <code>pdftk</code> doit &ecirc;tre install&eacute; sur le serveur pour la finalisation des PDF. Sur Debian/Ubuntu : <code>apt install pdftk</code>.
+</div>
+
+<hr>
+
+<h2>Param&egrave;tres de rendu PDF</h2>
+
+<table>
+<tr><th>Param&egrave;tre</th><th>Valeur</th></tr>
+<tr><td>Orientation</td><td>Paysage (landscape)</td></tr>
+<tr><td>Format</td><td>A4</td></tr>
+<tr><td>Zoom</td><td>0.4</td></tr>
+<tr><td>Marge</td><td>1 cm</td></tr>
+<tr><td>Pied de page</td><td>Num&eacute;ro de page + m&eacute;tadonn&eacute;es</td></tr>
+<tr><td>Police</td><td>EB Garamond</td></tr>
+</table>
+
+<hr>
+
+<h2>Notes techniques</h2>
+
+<div class="warn">
+<strong>Bug identifi&eacute; :</strong> dans le constructeur de <code>ExportController.php</code>, le nom du plugin est d&eacute;fini comme <code>"importInrap"</code> au lieu de <code>"exportInrap"</code> (ligne 20). Cela n&rsquo;affecte pas le fonctionnement car le chemin du plugin est utilis&eacute; directement.
+</div>
+
+<div class="note">
+<strong>Pas de restriction par r&ocirc;le :</strong> <code>getRoleActionList()</code> retourne un tableau vide. Le plugin est accessible &agrave; tous les utilisateurs de l&rsquo;interface d&rsquo;administration.
+</div>
+
+<div class="note">
+<strong>Donn&eacute;es via templates CA :</strong> toutes les donn&eacute;es des objets sont extraites via la syntaxe de templates CollectiveAccess (<code>getWithTemplate()</code>) et les m&eacute;thodes de relations (<code>restrictToRelationshipTypes</code>, <code>restrictToTypes</code>).
+</div>
+
+<div class="meta">
+<strong>Date de documentation :</strong> 2026-02-15<br>
+<strong>Plugin :</strong> exportInrap<br>
+<strong>Version CollectiveAccess :</strong> Providence
+</div>
+
+</body>
+</html>

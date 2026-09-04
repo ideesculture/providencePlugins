@@ -20,3 +20,22 @@ bookCreator/tmp/*
 # Listés unitairement pour ne pas ignorer d'autres .md du plugin par erreur.
 bookCreator/plan-1-refonte-bookcreator.md
 bookCreator/plan-2-chaine-html-pdf.md
+
+# --- Plugins INRAP (SGA, etatsInrap, exportInrap) ---
+# Binaires phantomjs vendorisés (lourds, plusieurs Mo) : non versionnés.
+# À redéposer au déploiement d'une instance neuve (cf. message de commit d'ajout).
+etatsInrap/lib/phantomjs/
+exportInrap/lib/phantomjs/
+exportInrap/lib/h2p/bin/
+# Sorties etatsInrap générées à l'exécution ; on garde le dossier et son .htaccess.
+etatsInrap/tmp/*
+!etatsInrap/tmp/.gitkeep
+!etatsInrap/tmp/.htaccess
+# Rapports d'import SGA générés par lib/update_table.php (dumps HTML, recréés à chaque import).
+SGA/views/table_importe.html
+SGA/views/table_non_importe.html
+# Sauvegardes locales
+*.bak
+*.bak-*
+*.bak_*
+*.rejete-*

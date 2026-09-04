@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Documentation technique — Plugin SGA</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #333; max-width: 900px; margin: 30px auto; padding: 0 20px; line-height: 1.6; }
+h1 { font-size: 20pt; color: #3498db; border-bottom: 3px solid #3498db; padding-bottom: 6px; margin-top: 30px; }
+h2 { font-size: 15pt; color: #3498db; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 25px; }
+h3 { font-size: 12pt; color: #555; margin-top: 18px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
+th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; }
+th { background: #f0f0f0; font-weight: bold; }
+tr:nth-child(even) { background: #fafafa; }
+code { background: #f4f4f4; padding: 1px 4px; border-radius: 2px; font-size: 10pt; }
+ul, ol { margin: 8px 0 8px 20px; }
+li { margin: 3px 0; }
+.note { background: #eaf6fa; border-left: 4px solid #3498db; padding: 8px 12px; margin: 12px 0; font-size: 10pt; }
+.warn { background: #fef9e7; border-left: 4px solid #d4a017; padding: 8px 12px; margin: 12px 0; font-size: 10pt; }
+.meta { color: #999; font-size: 9pt; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 8px; }
+pre { background: #f5f5f5; border: 1px solid #ddd; padding: 10px; font-size: 10pt; line-height: 1.5; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>Documentation technique — Plugin SGA</h1>
+<p><strong>Plugin CollectiveAccess Providence — INRAP</strong></p>
+
+<h2>Vue d'ensemble</h2>
+
+<p>Le plugin <strong>SGA</strong> permet de <strong>synchroniser les données d'opérations archéologiques</strong> depuis le Système de Gestion d'Archéologie (SGA) vers la base CollectiveAccess (Comodo).</p>
+
+<p>Le plugin offre un <strong>workflow complet</strong> : consultation des opérations SGA (importées ou non), comparaison côte à côte des données SGA/Comodo, import de nouvelles opérations ou mise à jour sélective des opérations existantes. Il compare <strong>plus de 30 champs métadonnées</strong> et gère automatiquement les relations avec les entités, les lieux et les emplacements.</p>
+
+<h3>Rôle du plugin</h3>
+<ul>
+<li>Importer des opérations archéologiques depuis la table <code>_sga_comodo</code> vers les collections CollectiveAccess</li>
+<li>Comparer les données SGA avec les données existantes dans Comodo (plus de 30 champs)</li>
+<li>Permettre la mise à jour sélective (champ par champ) des collections existantes</li>
+<li>Créer ou rechercher automatiquement les entités (responsables, SRA, prescripteurs)</li>
+<li>Créer ou rechercher automatiquement les lieux (communes) et emplacements</li>
+<li>Afficher un bouton d'import rapide dans l'inspecteur de l'éditeur de collections</li>
+<li>Générer des tables HTML (via DataTables) pour lister les opérations importées et non importées</li>
+</ul>
+
+<h3>Hooks utilisés</h3>
+<ul>
+<li><strong>hookRenderMenuBar</strong> — Ajoute deux sous-menus dans la barre de navigation : « Liste des opérations importées SGA » et « Liste des opérations non importées SGA »</li>
+<li><strong>hookAppendToEditorInspector</strong> — Affiche un bouton « Importation donnée du SGA » dans l'inspecteur latéral de l'éditeur de collections lorsque des différences sont détectées avec le SGA</li>
+</ul>
+<p><strong>Aucune restriction de rôle</strong> — <code>getRoleActionList</code> retourne un tableau vide.</p>
+
+<h2>Workflow de synchronisation</h2>
+
+<h3>Import d'une nouvelle opération</h3>
+<ol>
+<li>L'utilisateur accède à « Liste des opérations non importées SGA »</li>
+<li>Sélection d'une opération → action <code>Compare()</code></li>
+<li>Affichage des données SGA (la collection n'existe pas dans Comodo)</li>
+<li>Clic sur « Importer » → action <code>Importer()</code></li>
+<li>Création de la collection avec toutes les métadonnées et relations</li>
+<li>Page de résultat avec lien vers la fiche créée</li>
+</ol>
+
+<h3>Mise à jour d'une opération existante</h3>
+<ol>
+<li>L'utilisateur accède à « Liste des opérations importées SGA » ou via le bouton dans l'inspecteur</li>
+<li>Sélection d'une opération → action <code>Compare()</code></li>
+<li>Affichage côte à côte : valeur SGA vs valeur Comodo</li>
+<li>Sélection des champs à mettre à jour (cases à cocher)</li>
+<li>Clic sur « Mettre à jour » → action <code>Update()</code></li>
+<li>Mise à jour sélective et rapport d'écarts restants</li>
+</ol>
+
+<div class="note">
+<strong>Intégration éditeur :</strong> Lorsqu'un utilisateur consulte une fiche collection dans l'éditeur, le plugin vérifie automatiquement s'il existe des différences avec le SGA. Si c'est le cas, un bouton bleu « Importation donnée du SGA » apparaît dans l'inspecteur latéral.
+</div>
+
+<h2>Champs comparés et importés</h2>
+
+<p>Le plugin compare et synchronise plus de 30 champs métadonnées entre le SGA et Comodo :</p>
+
+<table>
+<tr><th>Champ SGA</th><th>Métadonnée CA</th><th>Type</th></tr>
+<tr><td>Code INRAP (idno)</td><td><code>idno</code></td><td>Identifiant</td></tr>
+<tr><td>Ancien code INRAP</td><td><code>inrap_ancien_code</code></td><td>Attribut</td></tr>
+<tr><td>Type d'opération</td><td><code>inrap_type_op.inrap_type_ope</code></td><td>Attribut (container)</td></tr>
+<tr><td>Axe analytique</td><td><code>inrap_type_op.inrap_axe_analytique</code></td><td>Attribut (container)</td></tr>
+<tr><td>Numéro OA</td><td><code>inrap_numero_oa</code></td><td>Attribut</td></tr>
+<tr><td>Responsable d'opération</td><td><code>ca_entities</code> (rel. type 1515)</td><td>Relation</td></tr>
+<tr><td>Commune</td><td><code>ca_places</code> (rel. type 1474)</td><td>Relation</td></tr>
+<tr><td>Lieu-dit</td><td><code>inrap_lieu_dit</code></td><td>Attribut</td></tr>
+<tr><td>Code INSEE</td><td><code>inrap_code_insee</code></td><td>Attribut</td></tr>
+<tr><td>Parcelle</td><td><code>inrap_parcelle</code></td><td>Attribut</td></tr>
+<tr><td>Centre opérationnel</td><td><code>inrap_centre_op</code></td><td>Attribut</td></tr>
+<tr><td>SRA</td><td><code>ca_entities</code> (rel. type 252)</td><td>Relation</td></tr>
+<tr><td>Agent prescripteur</td><td><code>ca_entities</code> (rel. type 1519)</td><td>Relation</td></tr>
+<tr><td>Direction INRAP</td><td><code>ca_entities</code> (rel. type 1516)</td><td>Relation</td></tr>
+<tr><td>N° autorisation</td><td><code>inrap_numero_autorisation</code></td><td>Attribut</td></tr>
+<tr><td>Date d'autorisation</td><td><code>inrap_date_autorisation</code></td><td>Attribut</td></tr>
+<tr><td>Dates terrain (début/fin)</td><td><code>inrap_date_terrain.*</code></td><td>Container</td></tr>
+<tr><td>Date remise rapport</td><td><code>inrap_date_rapport.*</code></td><td>Container</td></tr>
+<tr><td>Dates programmation</td><td><code>inrap_date_programmation.*</code></td><td>Container</td></tr>
+<tr><td>Surface</td><td><code>inrap_surface_ope</code></td><td>Attribut</td></tr>
+</table>
+
+<h2>Mapping des directions</h2>
+
+<p>Le plugin convertit les noms de direction SGA en codes de direction INRAP :</p>
+
+<table>
+<tr><th>Direction SGA</th><th>Code INRAP</th></tr>
+<tr><td>Centre Ile de France</td><td><code>DIR CIF</code></td></tr>
+<tr><td>Grand Ouest</td><td><code>DIR GO</code></td></tr>
+<tr><td>Grand Est</td><td><code>DIR GE</code></td></tr>
+<tr><td>Auvergne-Rhône-Alpes</td><td><code>DIR ARA</code></td></tr>
+<tr><td>Hauts-de-France</td><td><code>DIR HDF</code></td></tr>
+<tr><td>Midi-Méditerranée</td><td><code>DIR MIDIMED</code></td></tr>
+<tr><td>Outre-mer</td><td><code>DIR NAOM</code></td></tr>
+<tr><td>Nouvelle Aquitaine</td><td><code>DIR NAOM</code></td></tr>
+<tr><td>Bourgogne-Franche-Comté</td><td><code>DIR BFC</code></td></tr>
+</table>
+
+<h2>Contrôleur</h2>
+
+<h3>SGAController (711 lignes)</h3>
+
+<p><em>Fichier : <code>controllers/SGAController.php</code></em> — Contrôleur principal gérant les actions d'import, comparaison et mise à jour.</p>
+
+<table>
+<tr><th>Action</th><th>Description</th><th>Vue</th></tr>
+<tr><td><code>Compare()</code></td><td><strong>Comparaison SGA/Comodo</strong> — Récupère l'enregistrement SGA depuis <code>_sga_comodo</code>, charge la collection par idno, compare 30+ champs et affiche les différences côte à côte.</td><td><code>compare_html.php</code></td></tr>
+<tr><td><code>IndexImporte()</code></td><td><strong>Opérations importées</strong> — Affiche la liste des opérations SGA déjà présentes dans Comodo.</td><td><code>index_importe_html.php</code></td></tr>
+<tr><td><code>IndexNonImporte()</code></td><td><strong>Opérations non importées</strong> — Affiche la liste des opérations SGA pas encore importées.</td><td><code>index_non_import_html.php</code></td></tr>
+<tr><td><code>Importer()</code></td><td><strong>Import complet</strong> — Crée une nouvelle collection avec toutes les métadonnées SGA, crée/lie les entités et lieux, génère le libellé automatique, déclenche les hooks.</td><td><code>import_html.php</code></td></tr>
+<tr><td><code>Update()</code></td><td><strong>Mise à jour sélective</strong> — Met à jour uniquement les champs sélectionnés par l'utilisateur (via cases à cocher), génère le nouveau libellé, déclenche les hooks.</td><td><code>update_html.php</code></td></tr>
+</table>
+
+<div class="note">
+<strong>Génération du libellé :</strong> Lors de l'import ou de la mise à jour, le plugin génère automatiquement le libellé de la collection au format : <em>Commune / Lieu-dit / Année / Responsable d'opération</em>.
+</div>
+
+<div class="note">
+<strong>Détection d'erreurs :</strong> Après chaque import ou mise à jour, le plugin effectue une nouvelle comparaison pour détecter les écarts restants. Les causes courantes sont : différences de formatage de noms, entités ou lieux non trouvés, ou valeurs similaires mais pas identiques.
+</div>
+
+<h2>Fonctions utilitaires (lib/)</h2>
+
+<h3>migration_functionlib.php (561 lignes)</h3>
+
+<p><em>Fichier : <code>lib/migration_functionlib.php</code></em> — Bibliothèque de fonctions utilitaires pour la migration de données.</p>
+
+<table>
+<tr><th>Fonction</th><th>Description</th></tr>
+<tr><td><code>getListID()</code></td><td>Crée ou charge un vocabulaire (liste)</td></tr>
+<tr><td><code>ExistsItemID()</code></td><td>Vérifie l'existence d'un élément de liste</td></tr>
+<tr><td><code>getItemID()</code></td><td>Récupère ou crée un élément de liste hiérarchique</td></tr>
+<tr><td><code>getStorageLocationID()</code></td><td>Crée ou récupère un emplacement de stockage</td></tr>
+<tr><td><code>getStorageLocationIDfromPartialName()</code></td><td>Recherche d'emplacement par nom partiel (SQL direct)</td></tr>
+<tr><td><code>getMovementID()</code></td><td>Récupère ou crée un mouvement</td></tr>
+<tr><td><code>getCollectionID()</code></td><td>Récupère ou crée une collection</td></tr>
+<tr><td><code>getOccurrenceID()</code></td><td>Récupère ou crée une occurrence</td></tr>
+<tr><td><code>getObjectID()</code></td><td>Récupère ou crée un objet</td></tr>
+<tr><td><code>getPlaceID()</code></td><td>Récupère ou crée un lieu</td></tr>
+<tr><td><code>getEntityID()</code></td><td>Recherche d'entité par nom (via EntitySearch, multiples formats)</td></tr>
+<tr><td><code>getEntityIDByIdno()</code></td><td>Recherche d'entité par idno (création si inexistante)</td></tr>
+<tr><td><code>insertRelationEntitiesXPlaces()</code></td><td>Crée une relation entité-lieu (sans doublons)</td></tr>
+<tr><td><code>updateObjetLot()</code></td><td>Met à jour l'affectation lot d'un objet</td></tr>
+<tr><td><code>cleanupDate()</code></td><td>Normalise les dates (suppression approximations, conversion formats)</td></tr>
+<tr><td><code>show_status()</code></td><td>Affiche une barre de progression console</td></tr>
+</table>
+
+<h3>update_table.php</h3>
+
+<p><em>Fichier : <code>lib/update_table.php</code></em> — Script utilitaire qui génère les tables HTML statiques des opérations SGA.</p>
+
+<ul>
+<li>Interroge la table <code>_sga_comodo</code> pour toutes les opérations</li>
+<li>Pour chaque opération, vérifie son existence dans <code>ca_collections</code> par idno</li>
+<li>Génère deux fichiers HTML statiques :
+    <ul>
+    <li><code>table_importe.html</code> — Opérations déjà importées (avec lien « Mettre à jour »)</li>
+    <li><code>table_non_importe.html</code> — Opérations non importées (avec lien « Importer »)</li>
+    </ul>
+</li>
+<li>Colonnes : Code INRAP, Direction, Centre opérationnel, Commune, Lieu-dit, Action</li>
+<li>Utilise le plugin jQuery <strong>DataTables</strong> pour le tri et la recherche</li>
+</ul>
+
+<div class="warn">
+<strong>Fichiers volumineux :</strong> Les tables générées peuvent être très volumineuses (~5,7 Mo pour les opérations importées, ~13 Mo pour les non importées).
+</div>
+
+<h2>Vues</h2>
+
+<table>
+<tr><th>Fichier</th><th>Description</th></tr>
+<tr><td><code>compare_html.php</code></td><td><strong>Page de comparaison</strong> — Tableau à trois colonnes (Champ / Valeur SGA / Valeur Comodo). Si la collection n'existe pas, propose « Importer ». Sinon, cases à cocher pour mise à jour sélective.</td></tr>
+<tr><td><code>import_html.php</code></td><td><strong>Résultat d'import</strong> — Message de succès avec lien vers la fiche créée. Tableau des écarts restants si applicable.</td></tr>
+<tr><td><code>update_html.php</code></td><td><strong>Résultat de mise à jour</strong> — Similaire à <code>import_html.php</code> pour les mises à jour sélectives.</td></tr>
+<tr><td><code>index_importe_html.php</code></td><td><strong>Liste importées</strong> — Intègre <code>table_importe.html</code> avec DataTables.</td></tr>
+<tr><td><code>index_non_import_html.php</code></td><td><strong>Liste non importées</strong> — Intègre <code>table_non_importe.html</code> dans une iframe.</td></tr>
+<tr><td><code>table_importe.html</code></td><td>Table HTML générée (~5,7 Mo) — opérations déjà importées.</td></tr>
+<tr><td><code>table_non_importe.html</code></td><td>Table HTML générée (~13 Mo) — opérations non importées.</td></tr>
+</table>
+
+<h2>Configuration</h2>
+
+<p><em>Fichier : <code>conf/sga.conf</code></em></p>
+
+<table>
+<tr><th>Paramètre</th><th>Valeur</th><th>Description</th></tr>
+<tr><td><code>enabled</code></td><td><code>1</code></td><td>Active ou désactive le plugin. <strong>Activé par défaut.</strong></td></tr>
+</table>
+
+<h2>Structure des fichiers</h2>
+
+<pre>
+SGA/
+  SGAPlugin.php                    # Classe principale du plugin (hooks)
+  conf/
+    sga.conf                       # Configuration (enabled = 1)
+  controllers/
+    SGAController.php              # Contrôleur principal (711 lignes)
+  lib/
+    migration_functionlib.php      # Fonctions utilitaires migration (561 lignes)
+    update_table.php               # Générateur de tables HTML
+  views/
+    compare_html.php               # Comparaison SGA / Comodo
+    import_html.php                # Résultat d'import
+    update_html.php                # Résultat de mise à jour
+    index_importe_html.php         # Liste opérations importées
+    index_non_import_html.php      # Liste opérations non importées
+    table_importe.html             # Table HTML générée (importées)
+    table_non_importe.html         # Table HTML générée (non importées)
+    index_html.php                 # Page index (vide)
+  documentation/                   # Documentation (cette page)
+</pre>
+
+<h2>Dépendances et interactions</h2>
+
+<table>
+<tr><th>Composant</th><th>Type d'interaction</th></tr>
+<tr><td><strong>Table <code>_sga_comodo</code></strong></td><td>Table source contenant les données SGA synchronisées. Accès direct en SQL pour la lecture des opérations.</td></tr>
+<tr><td><strong>DataTables (jQuery)</strong></td><td>Plugin JavaScript chargé depuis CDN pour le tri, la pagination et la recherche dans les listes d'opérations.</td></tr>
+<tr><td><strong>EntitySearch</strong></td><td>Classe de recherche CA utilisée pour retrouver les entités (responsables, SRA, prescripteurs) par nom.</td></tr>
+<tr><td><strong>ApplicationPluginManager</strong></td><td>Déclenche <code>hookSaveItem</code> après chaque import ou mise à jour pour activer les plugins aval (prepopulate, etc.).</td></tr>
+<tr><td><strong>ca_collections</strong></td><td>Table cible : les opérations SGA sont importées comme collections de type 125.</td></tr>
+<tr><td><strong>ca_entities / ca_places</strong></td><td>Création ou recherche automatique des entités et lieux lors de l'import.</td></tr>
+</table>
+
+<h2>Activation</h2>
+
+<p>Le plugin est <strong>activé par défaut</strong> (<code>enabled = 1</code> dans <code>sga.conf</code>).</p>
+
+<h3>Prérequis</h3>
+<ul>
+<li>Table <code>_sga_comodo</code> alimentée et à jour dans la base de données</li>
+<li>Entités (responsables, SRA, directions) pré-créées pour la recherche par nom</li>
+<li>Tables de listes (<code>ca_list_items</code>) configurées pour les types d'opération et axes analytiques</li>
+<li>Exécuter <code>lib/update_table.php</code> pour régénérer les tables HTML</li>
+</ul>
+
+<div class="meta">
+<strong>Date de documentation :</strong> 2026-02-15 — <strong>Plugin :</strong> SGA — <strong>Version CollectiveAccess :</strong> Providence
+</div>
+
+</body>
+</html>

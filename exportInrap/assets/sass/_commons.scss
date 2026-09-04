@@ -1,0 +1,49 @@
+
+blockquote {
+	background: #f9f9f9;
+	border-left: 10px solid #ccc;
+	margin: 1.5em 10px;
+	padding: 0.5em 10px;
+	quotes: "\201C""\201D""\2018""\2019";
+}
+blockquote:before {
+	color: #ccc;
+	content: open-quote;
+	font-size: 4em;
+	line-height: 0.1em;
+	margin-right: 0.25em;
+	vertical-align: -0.4em;
+}
+blockquote p {
+	color: #444;
+	font-size:1.15em;
+}
+
+A, A:visited, A:hover {
+	color:#666666;
+	text-decoration:none;
+
+}
+
+@media screen {
+	BODY {
+		background-color:#eeeeee;
+	}
+	BODY > DIV {
+		background-color:white;
+		border:1px solid grey;
+		height:740px !important;
+		width:1120px !important;
+		max-width: 1120px !important;
+		min-width: 1120px !important;;
+		display: block;
+		position:relative !important;
+		bottom:auto !important;
+		top:auto !important;
+		margin:120px !important;
+		box-sizing: border-box;
+		overflow: hidden;
+		box-shadow: 0 0 2.5em #999;
+	}
+
+}

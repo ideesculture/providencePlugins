@@ -1,0 +1,674 @@
+{
+    "region": [
+        {
+            "place_id": "23228",
+            "name": "Corse"
+        },
+        {
+            "place_id": "23230",
+            "name": "Provence-Alpes-Côte d'Azur"
+        },
+        {
+            "place_id": "23236",
+            "name": "Centre"
+        },
+        {
+            "place_id": "23239",
+            "name": "Bretagne"
+        },
+        {
+            "place_id": "23243",
+            "name": "Pays de la Loire"
+        },
+        {
+            "place_id": "23247",
+            "name": "Île-de-France"
+        },
+        {
+            "place_id": "23248",
+            "name": "Guadeloupe"
+        },
+        {
+            "place_id": "23249",
+            "name": "Martinique"
+        },
+        {
+            "place_id": "23250",
+            "name": "Guyane"
+        },
+        {
+            "place_id": "23251",
+            "name": "La Réunion"
+        },
+        {
+            "place_id": "23252",
+            "name": "Saint-Pierre-et-Miquelon"
+        },
+        {
+            "place_id": "23253",
+            "name": "Mayotte"
+        },
+        {
+            "place_id": "62836",
+            "name": "Auvergne-Rhône-Alpes"
+        },
+        {
+            "place_id": "62837",
+            "name": "Bourgogne-Franche-Comté"
+        },
+        {
+            "place_id": "62838",
+            "name": "Grand-Est"
+        },
+        {
+            "place_id": "62839",
+            "name": "Hauts-de-France"
+        },
+        {
+            "place_id": "62840",
+            "name": "Normandie"
+        },
+        {
+            "place_id": "62841",
+            "name": "Nouvelle-Aquitaine"
+        },
+        {
+            "place_id": "62842",
+            "name": "Occitanie"
+        }
+    ],
+    "departement": [
+        {
+            "place_id": "23254",
+            "parent_id": "23226",
+            "name": "Ain"
+        },
+        {
+            "place_id": "23255",
+            "parent_id": "23227",
+            "name": "Aisne"
+        },
+        {
+            "place_id": "23256",
+            "parent_id": "23228",
+            "name": "Corse-du-Sud"
+        },
+        {
+            "place_id": "23257",
+            "parent_id": "23228",
+            "name": "Haute-Corse"
+        },
+        {
+            "place_id": "23258",
+            "parent_id": "23229",
+            "name": "Allier"
+        },
+        {
+            "place_id": "23259",
+            "parent_id": "23230",
+            "name": "Alpes-de-Haute-Provence"
+        },
+        {
+            "place_id": "23260",
+            "parent_id": "23230",
+            "name": "Hautes-Alpes"
+        },
+        {
+            "place_id": "23261",
+            "parent_id": "23230",
+            "name": "Alpes-Maritimes"
+        },
+        {
+            "place_id": "23262",
+            "parent_id": "23226",
+            "name": "Ardèche"
+        },
+        {
+            "place_id": "23263",
+            "parent_id": "23231",
+            "name": "Ardennes"
+        },
+        {
+            "place_id": "23264",
+            "parent_id": "23232",
+            "name": "Ariège"
+        },
+        {
+            "place_id": "23265",
+            "parent_id": "23231",
+            "name": "Aube"
+        },
+        {
+            "place_id": "23266",
+            "parent_id": "23233",
+            "name": "Aude"
+        },
+        {
+            "place_id": "23267",
+            "parent_id": "23232",
+            "name": "Aveyron"
+        },
+        {
+            "place_id": "23268",
+            "parent_id": "23230",
+            "name": "Bouches-du-Rhône"
+        },
+        {
+            "place_id": "23269",
+            "parent_id": "23234",
+            "name": "Calvados"
+        },
+        {
+            "place_id": "23270",
+            "parent_id": "23229",
+            "name": "Cantal"
+        },
+        {
+            "place_id": "23271",
+            "parent_id": "23235",
+            "name": "Charente"
+        },
+        {
+            "place_id": "23272",
+            "parent_id": "23235",
+            "name": "Charente-Maritime"
+        },
+        {
+            "place_id": "23273",
+            "parent_id": "23236",
+            "name": "Cher"
+        },
+        {
+            "place_id": "23274",
+            "parent_id": "23237",
+            "name": "Corrèze"
+        },
+        {
+            "place_id": "23275",
+            "parent_id": "23238",
+            "name": "Côte-d'Or"
+        },
+        {
+            "place_id": "23276",
+            "parent_id": "23239",
+            "name": "Côtes-d'Armor"
+        },
+        {
+            "place_id": "23277",
+            "parent_id": "23237",
+            "name": "Creuse"
+        },
+        {
+            "place_id": "23278",
+            "parent_id": "23240",
+            "name": "Dordogne"
+        },
+        {
+            "place_id": "23279",
+            "parent_id": "23241",
+            "name": "Doubs"
+        },
+        {
+            "place_id": "23280",
+            "parent_id": "23226",
+            "name": "Drôme"
+        },
+        {
+            "place_id": "23281",
+            "parent_id": "23242",
+            "name": "Eure"
+        },
+        {
+            "place_id": "23282",
+            "parent_id": "23236",
+            "name": "Eure-et-Loir"
+        },
+        {
+            "place_id": "23283",
+            "parent_id": "23239",
+            "name": "Finistère"
+        },
+        {
+            "place_id": "23284",
+            "parent_id": "23233",
+            "name": "Gard"
+        },
+        {
+            "place_id": "23285",
+            "parent_id": "23232",
+            "name": "Haute-Garonne"
+        },
+        {
+            "place_id": "23286",
+            "parent_id": "23232",
+            "name": "Gers"
+        },
+        {
+            "place_id": "23287",
+            "parent_id": "23240",
+            "name": "Gironde"
+        },
+        {
+            "place_id": "23288",
+            "parent_id": "23233",
+            "name": "Hérault"
+        },
+        {
+            "place_id": "23289",
+            "parent_id": "23239",
+            "name": "Ille et Vilaine"
+        },
+        {
+            "place_id": "23290",
+            "parent_id": "23236",
+            "name": "Indre"
+        },
+        {
+            "place_id": "23291",
+            "parent_id": "23236",
+            "name": "Indre et Loire"
+        },
+        {
+            "place_id": "23292",
+            "parent_id": "23226",
+            "name": "Isère"
+        },
+        {
+            "place_id": "23293",
+            "parent_id": "23241",
+            "name": "Jura"
+        },
+        {
+            "place_id": "23294",
+            "parent_id": "23240",
+            "name": "Landes"
+        },
+        {
+            "place_id": "23295",
+            "parent_id": "23236",
+            "name": "Loir-et-Cher"
+        },
+        {
+            "place_id": "23296",
+            "parent_id": "23226",
+            "name": "Loire"
+        },
+        {
+            "place_id": "23297",
+            "parent_id": "23229",
+            "name": "Haute-Loire"
+        },
+        {
+            "place_id": "23298",
+            "parent_id": "23243",
+            "name": "Loire-Atlantique"
+        },
+        {
+            "place_id": "23299",
+            "parent_id": "23236",
+            "name": "Loiret"
+        },
+        {
+            "place_id": "23300",
+            "parent_id": "23232",
+            "name": "Lot"
+        },
+        {
+            "place_id": "23301",
+            "parent_id": "23240",
+            "name": "Lot-et-Garonne"
+        },
+        {
+            "place_id": "23302",
+            "parent_id": "23233",
+            "name": "Lozère"
+        },
+        {
+            "place_id": "23303",
+            "parent_id": "23243",
+            "name": "Maine-et-Loire"
+        },
+        {
+            "place_id": "23304",
+            "parent_id": "23234",
+            "name": "Manche"
+        },
+        {
+            "place_id": "23305",
+            "parent_id": "23231",
+            "name": "Marne"
+        },
+        {
+            "place_id": "23306",
+            "parent_id": "23231",
+            "name": "Haute-Marne"
+        },
+        {
+            "place_id": "23307",
+            "parent_id": "23243",
+            "name": "Mayenne"
+        },
+        {
+            "place_id": "23308",
+            "parent_id": "23244",
+            "name": "Meurthe-et-Moselle"
+        },
+        {
+            "place_id": "23309",
+            "parent_id": "23244",
+            "name": "Meuse"
+        },
+        {
+            "place_id": "23310",
+            "parent_id": "23239",
+            "name": "Morbihan"
+        },
+        {
+            "place_id": "23311",
+            "parent_id": "23244",
+            "name": "Moselle"
+        },
+        {
+            "place_id": "23312",
+            "parent_id": "23238",
+            "name": "Nièvre"
+        },
+        {
+            "place_id": "23313",
+            "parent_id": "23245",
+            "name": "Nord"
+        },
+        {
+            "place_id": "23314",
+            "parent_id": "23227",
+            "name": "Oise"
+        },
+        {
+            "place_id": "23315",
+            "parent_id": "23234",
+            "name": "Orne"
+        },
+        {
+            "place_id": "23316",
+            "parent_id": "23245",
+            "name": "Pas-de-Calais"
+        },
+        {
+            "place_id": "23317",
+            "parent_id": "23229",
+            "name": "Puy-de-Dôme"
+        },
+        {
+            "place_id": "23318",
+            "parent_id": "23240",
+            "name": "Pyrénées-Atlantiques"
+        },
+        {
+            "place_id": "23319",
+            "parent_id": "23232",
+            "name": "Hautes-Pyrénées"
+        },
+        {
+            "place_id": "23320",
+            "parent_id": "23233",
+            "name": "Pyrénées-Orientales"
+        },
+        {
+            "place_id": "23321",
+            "parent_id": "23246",
+            "name": "Bas-Rhin"
+        },
+        {
+            "place_id": "23322",
+            "parent_id": "23246",
+            "name": "Haut-Rhin"
+        },
+        {
+            "place_id": "23323",
+            "parent_id": "23226",
+            "name": "Rhône"
+        },
+        {
+            "place_id": "23324",
+            "parent_id": "23241",
+            "name": "Haute-Saône"
+        },
+        {
+            "place_id": "23325",
+            "parent_id": "23238",
+            "name": "Saône-et-Loire"
+        },
+        {
+            "place_id": "23326",
+            "parent_id": "23243",
+            "name": "Sarthe"
+        },
+        {
+            "place_id": "23327",
+            "parent_id": "23226",
+            "name": "Savoie"
+        },
+        {
+            "place_id": "23328",
+            "parent_id": "23226",
+            "name": "Haute-Savoie"
+        },
+        {
+            "place_id": "23329",
+            "parent_id": "23247",
+            "name": "Paris "
+        },
+        {
+            "place_id": "23330",
+            "parent_id": "23242",
+            "name": "Seine-Maritime"
+        },
+        {
+            "place_id": "23331",
+            "parent_id": "23247",
+            "name": "Seine-et-Marne"
+        },
+        {
+            "place_id": "23332",
+            "parent_id": "23247",
+            "name": "Yvelines"
+        },
+        {
+            "place_id": "23333",
+            "parent_id": "23235",
+            "name": "Deux-Sèvres"
+        },
+        {
+            "place_id": "23334",
+            "parent_id": "23227",
+            "name": "Somme"
+        },
+        {
+            "place_id": "23335",
+            "parent_id": "23232",
+            "name": "Tarn"
+        },
+        {
+            "place_id": "23336",
+            "parent_id": "23232",
+            "name": "Tarn-et-Garonne"
+        },
+        {
+            "place_id": "23337",
+            "parent_id": "23230",
+            "name": "Var"
+        },
+        {
+            "place_id": "23338",
+            "parent_id": "23230",
+            "name": "Vaucluse"
+        },
+        {
+            "place_id": "23339",
+            "parent_id": "23243",
+            "name": "Vendée"
+        },
+        {
+            "place_id": "23340",
+            "parent_id": "23235",
+            "name": "Vienne"
+        },
+        {
+            "place_id": "23341",
+            "parent_id": "23237",
+            "name": "Haute-Vienne"
+        },
+        {
+            "place_id": "23342",
+            "parent_id": "23244",
+            "name": "Vosges"
+        },
+        {
+            "place_id": "23343",
+            "parent_id": "23238",
+            "name": "Yonne"
+        },
+        {
+            "place_id": "23344",
+            "parent_id": "23241",
+            "name": "Territoire de Belfort"
+        },
+        {
+            "place_id": "23345",
+            "parent_id": "23247",
+            "name": "Essonne"
+        },
+        {
+            "place_id": "23346",
+            "parent_id": "23247",
+            "name": "Hauts-de-Seine"
+        },
+        {
+            "place_id": "23347",
+            "parent_id": "23247",
+            "name": "Seine-Saint-Denis"
+        },
+        {
+            "place_id": "23348",
+            "parent_id": "23247",
+            "name": "Val-de-Marne"
+        },
+        {
+            "place_id": "23349",
+            "parent_id": "23247",
+            "name": "Val-d'Oise"
+        },
+        {
+            "place_id": "23350",
+            "parent_id": "23248",
+            "name": "Guadeloupe"
+        },
+        {
+            "place_id": "23351",
+            "parent_id": "23249",
+            "name": "Martinique"
+        },
+        {
+            "place_id": "23352",
+            "parent_id": "23250",
+            "name": "Guyane"
+        },
+        {
+            "place_id": "23353",
+            "parent_id": "23251",
+            "name": "Réunion"
+        },
+        {
+            "place_id": "23354",
+            "parent_id": "23252",
+            "name": "Saint-Pierre-et-Miquelon"
+        },
+        {
+            "place_id": "23355",
+            "parent_id": "23253",
+            "name": "Mayotte"
+        }
+    ],
+    "ancienne_region": [
+        {
+            "parent_id": "62836",
+            "place_id": "23226",
+            "name": "Rhône-Alpes"
+        },
+        {
+            "parent_id": "62839",
+            "place_id": "23227",
+            "name": "Picardie"
+        },
+        {
+            "parent_id": "62836",
+            "place_id": "23229",
+            "name": "Auvergne"
+        },
+        {
+            "parent_id": "62838",
+            "place_id": "23231",
+            "name": "Champagne-Ardenne"
+        },
+        {
+            "parent_id": "62842",
+            "place_id": "23232",
+            "name": "Midi-Pyrénées"
+        },
+        {
+            "parent_id": "62842",
+            "place_id": "23233",
+            "name": "Languedoc-Roussillon"
+        },
+        {
+            "parent_id": "62840",
+            "place_id": "23234",
+            "name": "Basse-Normandie"
+        },
+        {
+            "parent_id": "62841",
+            "place_id": "23235",
+            "name": "Poitou-Charentes"
+        },
+        {
+            "parent_id": "62841",
+            "place_id": "23237",
+            "name": "Limousin"
+        },
+        {
+            "parent_id": "62837",
+            "place_id": "23238",
+            "name": "Bourgogne"
+        },
+        {
+            "parent_id": "62841",
+            "place_id": "23240",
+            "name": "Aquitaine"
+        },
+        {
+            "parent_id": "62837",
+            "place_id": "23241",
+            "name": "Franche-Comté"
+        },
+        {
+            "parent_id": "62840",
+            "place_id": "23242",
+            "name": "Haute-Normandie"
+        },
+        {
+            "parent_id": "62838",
+            "place_id": "23244",
+            "name": "Lorraine"
+        },
+        {
+            "parent_id": "62839",
+            "place_id": "23245",
+            "name": "Nord-Pas-de-Calais"
+        },
+        {
+            "parent_id": "62838",
+            "place_id": "23246",
+            "name": "Alsace"
+        }
+    ]
+}
