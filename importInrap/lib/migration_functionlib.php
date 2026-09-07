@@ -428,22 +428,72 @@ function getPlaceIDByName($ps_place, $pn_place_type_id) {
 }
 
 // ----------------------------------------------------------------------
-function getEntityID($psname) {
-	global $pn_locale_id, $vn_date_created, $vn_date_dateUnspecified, $vn_individual, $vn_undefined;
-	global $VERBOSE;
-	$pn_locale_id = 2;
-	
-	$entitySeach = new EntitySearch();
-	$result = $entitySeach->search("ca_entities:".$psname);
-	while ($result->nextHit()){
-		$name = explode(" ",$psname);
-		$t_entity = new ca_entities($result->get("entity_id"));
+// ----------------------------------------------------------------------
+// 07/09/2026 GM (ticket 7988) — appariement des entités par leur nom.
+//
+// La version précédente rattachait n'importe quoi. Trois défauts cumulés :
+//   1. la recherche plein texte portait sur TOUTES les entités, sans restriction ;
+//   2. les arguments de stripos étaient INVERSÉS — on demandait si « MAZET » contenait
+//      « Musée Louvre-Lens » — et le premier candidat venu était accepté ;
+//   3. même à l'endroit, une correspondance en position 0 rend 0, donc faux : la bonne
+//      réponse aurait été rejetée.
+// Conséquence mesurée : l'entité 11853 « Musée Louvre-Lens » rattachée à 1 403 opérations
+// d'Occitanie et du Grand Est, où ce musée n'a rien à faire.
+//
+// On exige désormais une correspondance FRANCHE : mêmes mots, à la casse, aux accents, à la
+// ponctuation et à l'ordre près — « MAZET, Sylvain » apparie « Sylvain Mazet », mais rien
+// n'apparie « Musée Louvre-Lens ». En cas d'ambiguïté (plusieurs candidats) ou d'absence de
+// correspondance, on rend null : mieux vaut un rattachement manquant, visible, qu'un
+// rattachement faux, invisible.
+//
+// Pas de restriction de type par défaut, volontairement : « attribué à » et « suivi par »
+// portent légitimement sur une personne comme sur un organisme. Le paramètre existe pour
+// l'appelant qui sait ce qu'il cherche.
+if (!function_exists('inrap_cle_de_nom')) {
+	function inrap_cle_de_nom($ps_nom) {
+		$vs = (string)$ps_nom;
+		$vs = mb_strtolower($vs, 'UTF-8');
+		// Repli des accents. iconv rend false sur certaines locales : on garde alors la valeur.
+		$vs_sans_accent = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $vs);
+		if ($vs_sans_accent !== false) { $vs = $vs_sans_accent; }
+		$vs = preg_replace('/[^a-z0-9]+/', ' ', $vs);   // ponctuation et tirets -> séparateurs
+		$va_mots = preg_split('/\s+/', trim($vs), -1, PREG_SPLIT_NO_EMPTY);
+		if (!sizeof($va_mots)) { return ''; }
+		sort($va_mots);                                  // l'ordre nom/prénom ne doit pas compter
+		return join(' ', $va_mots);
+	}
+}
 
-		if (stripos($name[0], $t_entity->get("ca_entities.preferred_labels.displayname"))){
-			return $result->get("entity_id");
-			break;
+function getEntityID($psname, $pn_type_id = null) {
+	global $VERBOSE;
+
+	$vs_cherche = inrap_normaliser_idno($psname);
+	$vs_cle = inrap_cle_de_nom($vs_cherche);
+	if ($vs_cle === '') { return null; }
+
+	$entitySeach = new EntitySearch();
+	$result = $entitySeach->search("ca_entities:".$vs_cherche);
+
+	$va_trouves = array();
+	while ($result->nextHit()) {
+		$vn_id = (int)$result->get("entity_id");
+		if (!$vn_id) { continue; }
+		$t_entity = new ca_entities($vn_id);
+		if (!$t_entity->getPrimaryKey()) { continue; }
+		if ($pn_type_id && ((int)$t_entity->get('type_id') !== (int)$pn_type_id)) { continue; }
+		if (inrap_cle_de_nom($t_entity->get("ca_entities.preferred_labels.displayname")) === $vs_cle) {
+			$va_trouves[$vn_id] = true;
 		}
 	}
+
+	if (sizeof($va_trouves) !== 1) {
+		if ($VERBOSE) {
+			print "\tEntite non resolue pour \"{$vs_cherche}\" : ".sizeof($va_trouves)." correspondance(s) franche(s)\n";
+		}
+		return null;
+	}
+	$va_ids = array_keys($va_trouves);
+	return $va_ids[0];
 }
 
 // ----------------------------------------------------------------------	

@@ -64,7 +64,18 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                 case "ca_entities":
                     if (!$data) continue;
 
+                    global $VERBOSE;
                     $entity_id = getEntityID($data);
+                    // 07/09/2026 GM (ticket 7988) : ne rattacher que si le nom a ete resolu
+                    // franchement. Auparavant getEntityID pouvait rendre null, ou pire une
+                    // entite sans rapport, et le resultat etait attache sans aucun controle :
+                    // 1403 operations d'Occitanie et du Grand Est se sont ainsi retrouvees
+                    // rattachees au « Musee Louvre-Lens ». Mieux vaut un rattachement
+                    // manquant, que l'agent verra, qu'un rattachement faux qu'il ne verra pas.
+                    if (!$entity_id) {
+                        if ($VERBOSE) { print "\tNom non resolu, relation ignoree : \"{$data}\"\n"; }
+                        break;
+                    }
                     $vt_col->addRelationship("ca_entities", $entity_id, $map["relation_type"]);
                     break;
                 case "ca_storage_locations":
