@@ -1,4 +1,5 @@
 <?php
+require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -132,7 +133,7 @@ class ImportController extends ActionController{
             // 07/09/2026 GM (ticket 7987) : normalisation à la SOURCE, dès la lecture du tableur.
             // Les cellules Excel sont reprises telles quelles ligne au-dessus ; un identifiant
             // saisi avec une espace se propageait ensuite partout, JSON intermédiaire compris.
-            if (isset($data_to_map[$row]["idno"])) { $data_to_map[$row]["idno"] = trim((string)$data_to_map[$row]["idno"]); }
+            if (isset($data_to_map[$row]["idno"])) { $data_to_map[$row]["idno"] = inrap_normaliser_idno($data_to_map[$row]["idno"]); }
             $idnos[] = $data_to_map[$row]["idno"]; 
             $row++;
         }

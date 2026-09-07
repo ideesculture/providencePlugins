@@ -1,4 +1,5 @@
 <?php
+require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ERROR);
@@ -11,7 +12,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
     // dont l'idno porte une espace en tête ou en queue. Deux effets : la fiche est introuvable
     // par une recherche sur l'identifiant propre, et surtout le `load` ci-dessous ne retrouve
     // pas la fiche existante — l'import en crée alors une seconde, d'où les doublons.
-    if (isset($data_to_map["idno"])) { $data_to_map["idno"] = trim((string)$data_to_map["idno"]); }
+    if (isset($data_to_map["idno"])) { $data_to_map["idno"] = inrap_normaliser_idno($data_to_map["idno"]); }
     $vt_col = new ca_collections();
     $opo_app_plugin_manager = new ApplicationPluginManager();
 
@@ -80,7 +81,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                     if (!$data) continue;
 
                     $vt_mouv = new ca_movements();
-                    $vt_mouv->load(["idno" => trim((string)$data), "deleted" => 0]);
+                    $vt_mouv->load(["idno" => inrap_normaliser_idno($data), "deleted" => 0]);
                     if ($vt_mouv->getPrimaryKey()){
                         $vt_col->addRelationship("ca_movements", $vt_mouv->getPrimaryKey(), $map["relation_type"]);
                     }

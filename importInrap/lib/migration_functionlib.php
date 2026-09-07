@@ -1,4 +1,5 @@
 <?php
+require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 require_once(__CA_LIB_DIR__."/Search/EntitySearch.php");
 require_once(__CA_LIB_DIR__."/Search/PlaceSearch.php");
 require_once(__CA_LIB_DIR__."/Search/StorageLocationSearch.php");
@@ -141,7 +142,7 @@ function getStorageLocationID($ps_location, $vn_loc_type_id, $options = []) {
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_location = trim((string)$ps_location);
+	$ps_location = inrap_normaliser_idno($ps_location);
 	global $pn_locale_id;
 	global $VERBOSE;
 	
@@ -185,7 +186,7 @@ function getMovementID($ps_mov, $vn_loc_type_id, $options = []) {
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_mov = trim((string)$ps_mov);
+	$ps_mov = inrap_normaliser_idno($ps_mov);
 	global $pn_locale_id;
 	global $VERBOSE;
 	//$VERBOSE=1;
@@ -249,7 +250,7 @@ function getCollectionID($ps_collection, $ps_collection_idno, $pn_collection_typ
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_collection_idno = trim((string)$ps_collection_idno);
+	$ps_collection_idno = inrap_normaliser_idno($ps_collection_idno);
 	global $pn_locale_id;
 	global $VERBOSE;
 	
@@ -295,8 +296,8 @@ function getOccurrenceID($ps_occurrence, $ps_occurrence_idno, $pn_occurrence_typ
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_occurrence = trim((string)$ps_occurrence);
-	$ps_occurrence_idno = trim((string)$ps_occurrence_idno);
+	$ps_occurrence = inrap_normaliser_idno($ps_occurrence);
+	$ps_occurrence_idno = inrap_normaliser_idno($ps_occurrence_idno);
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
@@ -346,7 +347,7 @@ function getObjectID($ps_object, $ps_object_idno, $pn_object_type_id) {
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_object = trim((string)$ps_object);
+	$ps_object = inrap_normaliser_idno($ps_object);
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
@@ -363,7 +364,7 @@ function getPlaceID($ps_place, $ps_place_idno, $pn_place_type_id) {
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$ps_place_idno = trim((string)$ps_place_idno);
+	$ps_place_idno = inrap_normaliser_idno($ps_place_idno);
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
@@ -450,7 +451,7 @@ function getEntityIDByIdno($idno) {
 	// 07/09/2026 GM (ticket 7987) : identifiant normalise en entree. Il vient d'un tableur et
 	// portait des espaces parasites : le `load` ne retrouvait alors pas la fiche existante et
 	// l'appelant en creait une seconde. La normalisation couvre aussi le `set` plus bas.
-	$idno = trim((string)$idno);
+	$idno = inrap_normaliser_idno($idno);
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;

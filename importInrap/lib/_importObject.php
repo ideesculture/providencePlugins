@@ -1,11 +1,12 @@
 <?php
+require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 function _importObject($data_to_map, $mapping, $keys, $type_id){
     // 07/09/2026 GM (ticket 7987) : les identifiants arrivaient du tableur avec des espaces
     // parasites, jamais retirés. Relevé en base : 1423 contenants et 208 opérations vivantes
     // dont l'idno porte une espace en tête ou en queue. Deux effets : la fiche est introuvable
     // par une recherche sur l'identifiant propre, et surtout le `load` ci-dessous ne retrouve
     // pas la fiche existante — l'import en crée alors une seconde, d'où les doublons.
-    if (isset($data_to_map["idno"])) { $data_to_map["idno"] = trim((string)$data_to_map["idno"]); }
+    if (isset($data_to_map["idno"])) { $data_to_map["idno"] = inrap_normaliser_idno($data_to_map["idno"]); }
     $vt_object = new ca_objects();
     $opo_app_plugin_manager = new ApplicationPluginManager();
 
@@ -62,7 +63,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if (!$data) continue;
 
                     $vt_occ = new ca_collections();
-                    $vt_occ->load(["idno" => trim($data), "deleted" =>0]);
+                    $vt_occ->load(["idno" => inrap_normaliser_idno($data), "deleted" =>0]);
                     $primKey = $vt_occ->getPrimaryKey();
                     if ($primKey){
                         $vt_object->addRelationship("ca_collections", $primKey, $map["relation_type"]);
@@ -113,10 +114,10 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                         $vt_contenant = new ca_objects();
                         $vt_contenant->setMode(ACCESS_WRITE);
 
-                        $vt_contenant->load(["idno" => trim((string)$data), "deleted" => 0]);
+                        $vt_contenant->load(["idno" => inrap_normaliser_idno($data), "deleted" => 0]);
 
                         if (!in_array($vt_contenant->getPrimaryKey(), $contenantLiesOperation)){
-                            $vt_contenant->set(array('idno' => trim((string)$data), 'type_id' => $map["item_type"], 'locale_id'=>2));
+                            $vt_contenant->set(array('idno' => inrap_normaliser_idno($data), 'type_id' => $map["item_type"], 'locale_id'=>2));
                             $vt_contenant->insert();
 
                             $vt_contenant->addLabel(array("name" => $data), 2, null, true);
@@ -169,7 +170,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if (!$data) continue;
 
                     $vt_mouv = new ca_movements();
-                    $vt_mouv->load(["idno" => trim((string)$data), "deleted" => 0]);
+                    $vt_mouv->load(["idno" => inrap_normaliser_idno($data), "deleted" => 0]);
                     if ($vt_mouv->getPrimaryKey()){
                         $vt_object->addRelationship("ca_movements", $vt_mouv->getPrimaryKey(), $map["relation_type"]);
                     }
