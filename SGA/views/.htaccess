@@ -1,0 +1,23 @@
+# 07/09/2026 GM — ticket 7913.
+#
+# table_importe.html et table_non_importe.html sont chargées en iframe par les vues
+# index_importe_html.php et index_non_import_html.php : Apache les sert donc en direct, sans
+# passer par le socle et sans rien savoir de la session. Elles étaient lisibles par n'importe
+# qui — relevé : HTTP 200 et 12,8 Mo sur table_non_importe.html sans cookie ni authentification,
+# soit 88 645 opérations SGA (identifiant, DIR, centre opérationnel, commune, lieu-dit) exposées
+# sur un domaine public.
+#
+# On exige le cookie de session, comme pour les exports de Pawtucket (cf. .claude/CLAUDE.md §4).
+# Un utilisateur connecté l'envoie forcément avec la requête d'iframe ; un robot ou un appel à
+# froid ne l'a pas. Le cookie s'appelle « collectiveaccess » sur cette instance (relevé sur
+# l'en-tête Set-Cookie, cohérent avec __CA_APP_NAME__).
+#
+# Ne pas remplacer par un « Require all denied » sec : cela couperait l'iframe et donc les deux
+# pages, pour tout le monde.
+#
+# Garde-fou volontairement modeste : il arrête les accès anonymes et l'indexation, pas quelqu'un
+# qui forgerait l'en-tête. Le correctif de fond est de cesser de servir ces tables en fichiers
+# statiques, au profit d'une pagination côté serveur sur _sga_comodo.
+<If "! %{HTTP_COOKIE} -strmatch '*collectiveaccess=*'">
+	Require all denied
+</If>
