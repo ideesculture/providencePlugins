@@ -277,7 +277,13 @@ class PhantomJS extends ConverterAbstract
             'request' => $request,
         ) + $this->options;
 
-        $result = json_decode(trim(shell_exec($this->getBinPath() . ' ' . escapeshellarg(json_encode($args)))));
+        // 07/09/2026 GM (ticket 7994) : PhantomJS 2.1.1 est lie a OpenSSL 1.0 et tente de charger
+        // libproviders.so au demarrage. Depuis la migration du 26/08 vers Debian 13, qui fournit
+        // OpenSSL 3, il echoue avec « Auto configuration failed » et sort en code 1 SANS rien
+        // produire — d'ou un PDF intermediaire de 0 octet, puis l'echec de la chaine en aval.
+        // Neutraliser la configuration OpenSSL contourne le chargement fautif : mesure faite,
+        // le binaire repond alors « 2.1.1 » et rend un PDF valide.
+        $result = json_decode(trim(shell_exec('OPENSSL_CONF=/dev/null ' . $this->getBinPath() . ' ' . escapeshellarg(json_encode($args)))));
 
         if (!$result->success) {
             throw new Exception('Error while executing PhantomJS: "' . $result->response . '"');
