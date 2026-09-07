@@ -2,8 +2,27 @@
     // 04/09/2026 GM : le chemin était figé sur /var/www/comodo2024, répertoire disparu à la
     // migration du 26/08 — d'où la fatale « Failed opening required PhpWord/Settings.php » sur
     // les conditions de prêt et le dossier d'exposition (signalée le 31/08, expo 2023-613003).
-    // On le déduit de l'emplacement du fichier : ce gabarit vit sous app/plugins/etatsInrap/views.
-    if (!defined("__CA_APP_DIR__")) { define("__CA_APP_DIR__", dirname(__DIR__, 3)); }
+    //
+    // 07/09/2026 GM : ne pas le déduire de __DIR__. Depuis le passage du plugin en dépôt
+    // providencePlugins déployé par lien symbolique (cf. .claude/CLAUDE.md §3), __DIR__ pointe
+    // vers le dépôt et non vers l'instance : dirname(__DIR__, 3) rendait la racine du dépôt.
+    // En rendu normal la constante est déjà posée par setup.php et ce repli ne sert jamais ;
+    // on le garde correct pour une exécution isolée, en remontant vers la racine de Providence
+    // (modèle de MeilisearchAppPlugin/tools/, CA_RACINE force le chemin).
+    if (!defined("__CA_APP_DIR__")) {
+        $racine = getenv('CA_RACINE') ?: null;
+        if (!$racine) {
+            $candidat = getcwd();
+            for ($i = 0; $i < 6 && $candidat && $candidat !== '/'; $i++) {
+                if (file_exists($candidat . '/setup.php') && is_dir($candidat . '/app/lib')) { $racine = $candidat; break; }
+                $candidat = dirname($candidat);
+            }
+        }
+        if (!$racine || !file_exists($racine . '/setup.php')) {
+            throw new Exception('Racine de Providence introuvable ; se placer dedans ou poser CA_RACINE.');
+        }
+        require_once($racine . '/setup.php');
+    }
     //require __CA_APP_DIR__."/plugins/etatsInrap/lib/PHPWord/bootstrap.php";
     
     require_once __CA_APP_DIR__."/plugins/etatsInrap/lib/PHPWord/src/PhpWord/Settings.php";

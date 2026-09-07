@@ -15,7 +15,32 @@
  * @license     http://www.gnu.org/licenses/lgpl.txt LGPL version 3
  */
 
-$vendorDirPath = realpath("/var/www/inrapidc/collectiveaccess/providence/vendor");
+// 07/09/2026 GM : le chemin du vendor était figé sur « /var/www/inrapidc/… », instance qui
+// n'existe plus — realpath() rendait false et ce bootstrap ne pouvait que lever son exception.
+// On passe par les constantes de CollectiveAccess plutôt que par __DIR__ : ce fichier est
+// déployé par lien symbolique depuis providencePlugins (cf. .claude/CLAUDE.md §3), __DIR__
+// pointe donc vers le dépôt et jamais vers l'instance.
+//
+// En fonctionnement normal — vue de plugin rendue par Providence, script caUtils — setup.php a
+// déjà posé les constantes et l'on ne recharge rien. En exécution isolée (ce fichier est le
+// bootstrap de tests de PHPWord), on remonte jusqu'à la racine de Providence pour charger son
+// setup.php, sur le modèle de MeilisearchAppPlugin/tools/. CA_RACINE force le chemin.
+if (!defined('__CA_BASE_DIR__')) {
+    $racine = getenv('CA_RACINE') ?: null;
+    if (!$racine) {
+        $candidat = getcwd();
+        for ($i = 0; $i < 6 && $candidat && $candidat !== '/'; $i++) {
+            if (file_exists($candidat . '/setup.php') && is_dir($candidat . '/app/lib')) { $racine = $candidat; break; }
+            $candidat = dirname($candidat);
+        }
+    }
+    if (!$racine || !file_exists($racine . '/setup.php')) {
+        throw new Exception('Racine de Providence introuvable ; se placer dedans ou poser CA_RACINE.');
+    }
+    require_once($racine . '/setup.php');
+}
+
+$vendorDirPath = __CA_BASE_DIR__ . '/vendor';
 if (file_exists($vendorDirPath . '/autoload.php')) {
     require $vendorDirPath . '/autoload.php';
 } else {
