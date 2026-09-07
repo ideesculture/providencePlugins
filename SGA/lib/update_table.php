@@ -1,5 +1,19 @@
 <?php 
-    require_once "../../../../setup.php";
+    // 07/09/2026 GM : le chemin relatif partait de app/plugins/SGA/lib et remontait de quatre
+    // niveaux jusqu'à providence/setup.php. Depuis que le plugin est déployé par lien
+    // symbolique depuis providencePlugins (cf. .claude/CLAUDE.md §3), PHP résout le lien : la
+    // remontée sort du dépôt et ne trouve plus rien. Ce script étant lancé hors du socle (cron
+    // quotidien), aucune constante n'est posée pour l'aider. On cherche donc la racine parmi
+    // des candidats, en ne retenant que celui qui porte setup.php ET app/lib. CA_RACINE force.
+    $_racine = null;
+    foreach ([getenv('CA_RACINE') ?: null,
+              isset($_SERVER['SCRIPT_FILENAME']) ? dirname($_SERVER['SCRIPT_FILENAME'], 5) : null,
+              getcwd() ?: null,
+              '/var/www/comodo/collectiveaccess/providence'] as $_c) {
+        if ($_c && file_exists($_c . '/setup.php') && is_dir($_c . '/app/lib')) { $_racine = $_c; break; }
+    }
+    if (!$_racine) { fwrite(STDERR, "update_table : racine de Providence introuvable ; poser CA_RACINE.\n"); exit(2); }
+    require_once $_racine . "/setup.php";
     require_once __CA_MODELS_DIR__."/ca_collections.php";
     $req = "select id, idno, dir_inrap, centre_op, commune, lieudit from _sga_comodo;";
     $o_data = new Db();

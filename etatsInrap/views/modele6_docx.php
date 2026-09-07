@@ -3,25 +3,33 @@
     // migration du 26/08 — d'où la fatale « Failed opening required PhpWord/Settings.php » sur
     // les conditions de prêt et le dossier d'exposition (signalée le 31/08, expo 2023-613003).
     //
-    // 07/09/2026 GM : ne pas le déduire de __DIR__. Depuis le passage du plugin en dépôt
-    // providencePlugins déployé par lien symbolique (cf. .claude/CLAUDE.md §3), __DIR__ pointe
-    // vers le dépôt et non vers l'instance : dirname(__DIR__, 3) rendait la racine du dépôt.
-    // En rendu normal la constante est déjà posée par setup.php et ce repli ne sert jamais ;
-    // on le garde correct pour une exécution isolée, en remontant vers la racine de Providence
-    // (modèle de MeilisearchAppPlugin/tools/, CA_RACINE force le chemin).
+    // 07/09/2026 GM : ce fichier n'est PAS une vue rendue par le socle. modele6_html.php
+    // propose le téléchargement par un lien direct vers son URL
+    // (<a href="…/app/plugins/etatsInrap/views/modele6_docx.php?date=…">), il s'exécute donc
+    // comme script principal, sans bootstrap : aucune constante n'est posée, et le repli
+    // ci-dessous est le chemin normal, pas un cas limite.
+    //
+    // Ne pas le déduire de __DIR__ ni de __FILE__ : le plugin est déployé par lien symbolique
+    // depuis providencePlugins (cf. .claude/CLAUDE.md §3) et PHP les résout, ils désignent donc
+    // le dépôt. Ne pas se fier à getcwd() non plus : sous PHP-FPM il ne vaut pas la racine de
+    // l'instance. On part de DOCUMENT_ROOT, qui est précisément la racine de l'instance servie,
+    // puis du chemin d'appel ; chaque candidat n'est retenu que s'il porte bien setup.php et
+    // app/lib. CA_RACINE force le chemin.
     if (!defined("__CA_APP_DIR__")) {
-        $racine = getenv('CA_RACINE') ?: null;
+        $racine = null;
+        $candidats = [
+            getenv('CA_RACINE') ?: null,
+            $_SERVER['DOCUMENT_ROOT'] ?? null,
+            isset($_SERVER['SCRIPT_FILENAME']) ? dirname($_SERVER['SCRIPT_FILENAME'], 5) : null,
+            getcwd() ?: null,
+        ];
+        foreach ($candidats as $c) {
+            if ($c && file_exists($c . '/setup.php') && is_dir($c . '/app/lib')) { $racine = $c; break; }
+        }
         if (!$racine) {
-            $candidat = getcwd();
-            for ($i = 0; $i < 6 && $candidat && $candidat !== '/'; $i++) {
-                if (file_exists($candidat . '/setup.php') && is_dir($candidat . '/app/lib')) { $racine = $candidat; break; }
-                $candidat = dirname($candidat);
-            }
+            throw new Exception("Racine de Providence introuvable (DOCUMENT_ROOT=" . ($_SERVER['DOCUMENT_ROOT'] ?? '?') . ") ; poser CA_RACINE.");
         }
-        if (!$racine || !file_exists($racine . '/setup.php')) {
-            throw new Exception('Racine de Providence introuvable ; se placer dedans ou poser CA_RACINE.');
-        }
-        require_once($racine . '/setup.php');
+        define("__CA_APP_DIR__", $racine . "/app");
     }
     //require __CA_APP_DIR__."/plugins/etatsInrap/lib/PHPWord/bootstrap.php";
     
