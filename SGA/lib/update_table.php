@@ -68,18 +68,17 @@
 
     file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_importe.html", $sga_table_import);
 
-
-	$headers = '
-	<script src="https://code.jquery.com/jquery-1.12.4.js" integrity="sha256-Qw82+bXyGq6MydymqBxNPYTaUXXq7c8v3CwiYwLLNXU=" crossorigin="anonymous"></script>
-	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
-	<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
-	
-	<script>
-	$(document).ready( function () {
-		$("#sga").DataTable();
-	} );
-	</script>';
-	file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html", $headers);
-    file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html", $sga_table_non_import, FILE_APPEND);
+    // 07/09/2026 GM (ticket 7913) : la table des non importées était précédée d'un bloc chargeant
+    // jQuery et DataTables, puis armant $("#sga").DataTable(). Ces deux pages sont affichées dans
+    // une iframe : le DataTable s'exécutait donc bel et bien, sur 60 604 lignes, et figeait le
+    // navigateur — c'est le « le script ne va pas jusqu'au bout » signalé par le client. La table
+    // des importées n'a jamais eu ce bloc, d'où le déséquilibre entre les deux pages.
+    //
+    // On écrit désormais les deux tables de la même façon : un document HTML simple, sans script,
+    // que le navigateur affiche au fil de l'eau. L'identifiant « sga » est conservé.
+    //
+    // Ce n'est pas la solution de fond : à cette volumétrie il faudra une pagination côté serveur
+    // sur _sga_comodo, avec un tri et une recherche qui s'exécutent en base et non chez le client.
+    file_put_contents(__CA_APP_DIR__."/plugins/SGA/views/table_non_importe.html", $sga_table_non_import);
 
         ?>
