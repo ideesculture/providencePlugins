@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Documentation technique — importInrap</title>
+    <style>
+        body { font-family: 'Calibri', 'Arial', sans-serif; line-height: 1.6; max-width: 950px; margin: 40px auto; padding: 20px; color: #333; background: #fff; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-top: 30px; font-size: 1.8em; }
+        h2 { color: #34495e; border-bottom: 2px solid #95a5a6; padding-bottom: 8px; margin-top: 35px; font-size: 1.4em; }
+        h3 { color: #2980b9; margin-top: 20px; font-size: 1.15em; }
+        p { margin: 8px 0; }
+        code { background: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; padding: 2px 6px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; page-break-inside: avoid; }
+        th, td { border: 1px solid #bbb; padding: 8px 12px; text-align: left; font-size: 0.92em; }
+        th { background: #3498db; color: white; font-weight: bold; }
+        tr:nth-child(even) { background: #f5f8fa; }
+        ul, ol { margin: 8px 0; padding-left: 28px; }
+        li { margin: 4px 0; }
+        hr { border: none; border-top: 2px solid #ecf0f1; margin: 25px 0; }
+        .note { background: #eaf6fd; border-left: 4px solid #3498db; padding: 12px 15px; margin: 15px 0; border-radius: 3px; }
+        .warn { background: #fef9e7; border-left: 4px solid #f39c12; padding: 12px 15px; margin: 15px 0; border-radius: 3px; }
+        .meta { background: #ecf0f1; padding: 10px; border-radius: 5px; margin-top: 30px; font-size: 0.9em; }
+        strong { color: #2c3e50; }
+        em { color: #7f8c8d; }
+        pre { background: #f4f4f4; border: 1px solid #ddd; padding: 12px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.85em; line-height: 1.5; overflow-x: auto; }
+    </style>
+</head>
+<body>
+
+<h1>Documentation technique &mdash; importInrap</h1>
+
+<p><strong>Plugin CollectiveAccess Providence &mdash; INRAP</strong></p>
+
+<hr>
+
+<h2>Vue d&rsquo;ensemble</h2>
+
+<p>Le plugin <strong>importInrap</strong> permet d&rsquo;<strong>importer des donn&eacute;es depuis des fichiers Excel</strong> (XLS/XLSX) dans la base CollectiveAccess, avec un processus en <strong>5 &eacute;tapes guid&eacute;es</strong> : upload du fichier, s&eacute;lection de la feuille, mapping des colonnes, s&eacute;lection des lignes, puis import pagin&eacute;.</p>
+
+<p>Le plugin g&egrave;re <strong>8 types d&rsquo;import</strong> : mobilier arch&eacute;ologique, objets mus&eacute;e, op&eacute;rations, documentation num&eacute;rique, documentation &eacute;crite, contenants mobilier, contenants documentation et contenants num&eacute;riques.</p>
+
+<h3>R&ocirc;le du plugin</h3>
+<ul>
+    <li>Importer des objets, collections et documents depuis des fichiers Excel</li>
+    <li>Mapper interactivement les colonnes Excel vers les champs CollectiveAccess</li>
+    <li>Cr&eacute;er ou mettre &agrave; jour les enregistrements existants (d&eacute;tection par idno)</li>
+    <li>G&eacute;rer les relations : collections, entit&eacute;s, lieux, emplacements, mouvements, contenants</li>
+    <li>Traiter les attributs complexes : containers (dimensions, notes), valeurs multiples</li>
+    <li>Import pagin&eacute; (1 ligne par requ&ecirc;te HTTP) avec barre de progression</li>
+    <li>D&eacute;clencher les hooks <code>hookSaveItem</code> apr&egrave;s chaque import</li>
+</ul>
+
+<h3>Hooks utilis&eacute;s</h3>
+<ul>
+    <li><strong>hookRenderMenuBar</strong> &mdash; Ajoute un menu &laquo;&nbsp;Import Inrap&nbsp;&raquo; dans la barre de navigation</li>
+</ul>
+
+<div class="note">
+<strong>Aucune restriction de r&ocirc;le</strong> &mdash; <code>getRoleActionList</code> retourne un tableau vide.
+</div>
+
+<hr>
+
+<h2>Processus d&rsquo;import (5 &eacute;tapes)</h2>
+
+<h3>&Eacute;tape 1 &mdash; Upload du fichier et s&eacute;lection du type (Index)</h3>
+
+<p>L&rsquo;utilisateur s&eacute;lectionne le <strong>type d&rsquo;import</strong> et uploade un fichier Excel :</p>
+<ul>
+    <li>Mobilier arch&eacute;ologique / Objets mus&eacute;e / Op&eacute;rations</li>
+    <li>Documentation num&eacute;rique / &eacute;crite</li>
+    <li>Contenant mobilier / documentation / num&eacute;rique</li>
+</ul>
+
+<h3>&Eacute;tape 2 &mdash; S&eacute;lection de la feuille (SelectSheet)</h3>
+
+<p>PhpSpreadsheet charge le classeur et affiche la <strong>liste des feuilles</strong>. L&rsquo;utilisateur choisit celle &agrave; importer.</p>
+
+<h3>&Eacute;tape 3 &mdash; Mapping des colonnes (SelectBeforeImport)</h3>
+
+<p>Le syst&egrave;me lit les en-t&ecirc;tes et affiche un formulaire de mapping (en-t&ecirc;tes Excel &harr; champs CA). Un script jQuery tente un <strong>auto-matching</strong> par similarit&eacute; de nom.</p>
+
+<h3>&Eacute;tape 4 &mdash; S&eacute;lection des lignes (SelectLineBeforeImport)</h3>
+
+<p>Les donn&eacute;es sont mapp&eacute;es et sauvegard&eacute;es en JSON. L&rsquo;utilisateur coche les lignes &agrave; importer.</p>
+
+<h3>&Eacute;tape 5 &mdash; Import pagin&eacute; (Import)</h3>
+
+<p>Import <strong>ligne par ligne</strong> avec barre de progression. Pour chaque ligne :</p>
+<ul>
+    <li>Appelle <code>_importObject()</code> ou <code>_importCollection()</code> selon le type</li>
+    <li>Auto-submit apr&egrave;s 500ms pour la ligne suivante</li>
+    <li>Page de succ&egrave;s avec liens vers les fiches cr&eacute;&eacute;es en fin d&rsquo;import</li>
+</ul>
+
+<div class="warn">
+<strong>M&eacute;moire et temps :</strong> l&rsquo;action <code>Import()</code> d&eacute;finit <code>memory_limit = -1</code> et <code>max_execution_time = 0</code>.
+</div>
+
+<hr>
+
+<h2>Types d&rsquo;import et identifiants de type</h2>
+
+<table>
+<tr><th>Type d&rsquo;import</th><th>type_id CA</th><th>Table cible</th><th>Fonction</th></tr>
+<tr><td>Mobilier arch&eacute;ologique</td><td>24</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Documentation &eacute;crite</td><td>26</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Documentation num&eacute;rique</td><td>26</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Op&eacute;rations</td><td>125</td><td><code>ca_collections</code></td><td><code>_importCollection()</code></td></tr>
+<tr><td>Objets mus&eacute;e</td><td>39119</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Contenant mobilier</td><td>28</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Contenant num&eacute;rique</td><td>1886</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+<tr><td>Contenant documentation</td><td>30</td><td><code>ca_objects</code></td><td><code>_importObject()</code></td></tr>
+</table>
+
+<hr>
+
+<h2>Fonctions d&rsquo;import (lib/)</h2>
+
+<h3>_importObject() &mdash; Import d&rsquo;objets</h3>
+
+<p><em>Fichier : <code>lib/_importObject.php</code></em></p>
+
+<p>Fonction principale pour tous les types d&rsquo;objets. Processus :</p>
+<ol>
+    <li><strong>Chargement ou cr&eacute;ation</strong> par <code>idno</code></li>
+    <li><strong>Champs sp&eacute;ciaux :</strong> poids (unit&eacute;), dimensions (cm), titre, titre document, containers</li>
+    <li><strong>Relations :</strong> <code>ca_collections</code>, <code>ca_entities</code>, <code>ca_places</code>, <code>ca_objects</code> (contenants), <code>ca_storage_locations</code>, <code>ca_movements</code></li>
+    <li><strong>Attributs standards :</strong> suppression puis ajout. Valeurs multiples (s&eacute;parateur &laquo;&nbsp;;&nbsp;&raquo;) si <code>canBeMultiple = 1</code></li>
+    <li><strong>Containers :</strong> suppression des existants, insertion des nouveaux</li>
+    <li><strong>Hooks :</strong> appel de <code>hookSaveItem()</code></li>
+</ol>
+
+<div class="note">
+<strong>Cr&eacute;ation automatique de contenants :</strong> si le contenant r&eacute;f&eacute;renc&eacute; n&rsquo;existe pas dans l&rsquo;op&eacute;ration, la fonction le cr&eacute;e automatiquement (type 28) et le rattache &agrave; la collection.
+</div>
+
+<h3>_importCollection() &mdash; Import d&rsquo;op&eacute;rations</h3>
+
+<p><em>Fichier : <code>lib/_importCollection.php</code></em></p>
+
+<p>M&ecirc;me structure que <code>_importObject()</code> pour les collections (<code>ca_collections</code>, type 125). Relations : <code>ca_places</code>, <code>ca_entities</code>, <code>ca_storage_locations</code>, <code>ca_movements</code>. Appelle <code>hookEditItem()</code> en fin de traitement.</p>
+
+<h3>migration_functionlib.php &mdash; Fonctions utilitaires</h3>
+
+<p><em>Fichier : <code>lib/migration_functionlib.php</code></em></p>
+
+<table>
+<tr><th>Fonction</th><th>Description</th></tr>
+<tr><td><code>getListID()</code></td><td>Cr&eacute;e ou charge un vocabulaire</td></tr>
+<tr><td><code>ExistsItemID()</code></td><td>V&eacute;rifie l&rsquo;existence d&rsquo;un &eacute;l&eacute;ment de liste</td></tr>
+<tr><td><code>getItemID()</code></td><td>R&eacute;cup&egrave;re ou cr&eacute;e un &eacute;l&eacute;ment de liste hi&eacute;rarchique</td></tr>
+<tr><td><code>getStorageLocationID()</code></td><td>Trouve un emplacement par idno</td></tr>
+<tr><td><code>getStorageLocationIDfromPartialName()</code></td><td>Recherche par nom partiel (SQL)</td></tr>
+<tr><td><code>getMovementID()</code></td><td>R&eacute;cup&egrave;re ou cr&eacute;e un mouvement</td></tr>
+<tr><td><code>getCollectionID()</code></td><td>R&eacute;cup&egrave;re ou cr&eacute;e une collection</td></tr>
+<tr><td><code>getOccurrenceID()</code></td><td>R&eacute;cup&egrave;re ou cr&eacute;e une occurrence</td></tr>
+<tr><td><code>getObjectID()</code></td><td>R&eacute;cup&egrave;re un objet par idno</td></tr>
+<tr><td><code>getPlaceID()</code> / <code>getPlaceIDByName()</code></td><td>R&eacute;cup&egrave;re ou cr&eacute;e un lieu</td></tr>
+<tr><td><code>getEntityID()</code> / <code>getEntityIDByIdno()</code></td><td>Recherche d&rsquo;entit&eacute; par nom ou idno</td></tr>
+<tr><td><code>cleanupDate()</code></td><td>Normalisation des dates</td></tr>
+</table>
+
+<hr>
+
+<h2>Configuration &mdash; Mapping des champs</h2>
+
+<p><em>Fichier : <code>conf/importInrap.conf</code></em></p>
+
+<table>
+<tr><th>Propri&eacute;t&eacute;</th><th>Description</th></tr>
+<tr><td><code>metadata</code></td><td>Chemin du m&eacute;tadonn&eacute;e CA</td></tr>
+<tr><td><code>label</code></td><td>Libell&eacute; dans l&rsquo;interface</td></tr>
+<tr><td><code>type</code></td><td><code>standard</code>, <code>title</code>, <code>relation</code>, <code>idno</code></td></tr>
+<tr><td><code>relation_table</code></td><td>Table cible de la relation</td></tr>
+<tr><td><code>relation_type</code></td><td>ID du type de relation</td></tr>
+<tr><td><code>container</code></td><td>Container parent pour champs group&eacute;s</td></tr>
+<tr><td><code>canBeMultiple</code></td><td><code>1</code> = valeurs multiples (s&eacute;parateur &laquo;&nbsp;;&nbsp;&raquo;)</td></tr>
+</table>
+
+<h3>Types d&rsquo;import configur&eacute;s</h3>
+
+<table>
+<tr><th>Section</th><th>Nb champs</th><th>Champs principaux</th></tr>
+<tr><td><code>mobilier</code></td><td>40+</td><td>idno, identification, mat&eacute;riaux, dimensions, poids, commune, contenant, p&eacute;riode, notes, labo</td></tr>
+<tr><td><code>operation</code></td><td>11</td><td>idno, parcelle, responsable, lieu-dit, ann&eacute;e, n&deg; OA, type, commune</td></tr>
+<tr><td><code>documentation_numerique</code></td><td>14</td><td>idno, titre, code OA, contenant, auteur, famille, support, format</td></tr>
+<tr><td><code>documentation_ecrite</code></td><td>13</td><td>idno, code OA, contenant, auteur, famille, support, format</td></tr>
+<tr><td><code>musee</code></td><td>25</td><td>idno, commune, mat&eacute;riaux, dimensions, bibliographie, p&eacute;riode, domaine, lien externe</td></tr>
+<tr><td><code>contenant_mobilier</code></td><td>13</td><td>idno, code INRAP, dimensions, mat&eacute;riaux, emplacements, r&eacute;f&eacute;rentiels</td></tr>
+<tr><td><code>contenant_doc</code></td><td>6</td><td>idno, code INRAP, emplacements, r&eacute;f&eacute;rentiels, description</td></tr>
+<tr><td><code>contenant_num</code></td><td>8</td><td>idno, code INRAP, mat&eacute;riaux, emplacements, r&eacute;f&eacute;rentiels</td></tr>
+</table>
+
+<hr>
+
+<h2>Structure des fichiers</h2>
+
+<pre>
+importInrap/
+  importInrapPlugin.php              # Classe principale du plugin (hooks)
+  conf/
+    importInrap.conf                 # Configuration et mapping (600+ lignes)
+  controllers/
+    ImportController.php             # Contr&ocirc;leur (5 actions, 256 lignes)
+  lib/
+    _importObject.php                # Import objets (222 lignes)
+    _importCollection.php            # Import collections (121 lignes)
+    migration_functionlib.php        # 20 fonctions utilitaires (561 lignes)
+  views/
+    index_html.php                   # Page d'accueil (type + upload)
+    select_sheet_html.php            # S&eacute;lection de la feuille Excel
+    before_import_html.php           # Mapping colonnes
+    select_line_html.php             # S&eacute;lection des lignes
+    progress_html.php                # Barre de progression
+    imported_html.php                # Page de succ&egrave;s
+  temp/                              # Fichiers temporaires
+  backup/                            # Copies de sauvegarde
+</pre>
+
+<hr>
+
+<h2>D&eacute;pendances et interactions</h2>
+
+<table>
+<tr><th>Composant</th><th>Type d&rsquo;interaction</th></tr>
+<tr><td><strong>PhpSpreadsheet</strong></td><td>Lecture des fichiers Excel (XLS, XLSX). Charg&eacute;e via Composer.</td></tr>
+<tr><td><strong>EntitySearch / PlaceSearch / etc.</strong></td><td>Classes de recherche CA pour retrouver entit&eacute;s, lieux, emplacements, objets.</td></tr>
+<tr><td><strong>ApplicationPluginManager</strong></td><td>D&eacute;clenche <code>hookSaveItem</code> / <code>hookEditItem</code> apr&egrave;s chaque import.</td></tr>
+<tr><td><strong>prepopulateInrap</strong></td><td>Le hook <code>hookSaveItem</code> d&eacute;clenche les calculs automatiques (volumes, comptages).</td></tr>
+</table>
+
+<div class="warn">
+<strong>PhpSpreadsheet requis :</strong> la biblioth&egrave;que <code>PhpOffice/PhpSpreadsheet</code> doit &ecirc;tre install&eacute;e via Composer.
+</div>
+
+<hr>
+
+<h2>Activation</h2>
+
+<p>Le plugin est <strong>activ&eacute; par d&eacute;faut</strong> (<code>enabled = 1</code>).</p>
+
+<h3>Pr&eacute;requis</h3>
+<ul>
+    <li><code>PhpSpreadsheet</code> install&eacute; via Composer</li>
+    <li>R&eacute;pertoire <code>temp/</code> accessible en &eacute;criture</li>
+    <li>Mapping configur&eacute; dans <code>conf/importInrap.conf</code></li>
+    <li>Types d&rsquo;objets et relations r&eacute;f&eacute;renc&eacute;s existants dans la base</li>
+</ul>
+
+<div class="meta">
+<strong>Date de documentation :</strong> 2026-02-15<br>
+<strong>Plugin :</strong> importInrap<br>
+<strong>Version CollectiveAccess :</strong> Providence
+</div>
+
+</body>
+</html>

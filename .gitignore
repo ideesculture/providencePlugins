@@ -39,3 +39,9 @@ SGA/views/table_non_importe.html
 *.bak-*
 *.bak_*
 *.rejete-*
+
+# importInrap : dépôts de classeurs et fichiers de travail des imports, écrits à l'exécution
+# (315 Mo accumulés depuis août 2025). On ignore le contenu, on garde le dossier : le code
+# écrit dedans sans le créer.
+importInrap/temp/*
+!importInrap/temp/.gitkeep
