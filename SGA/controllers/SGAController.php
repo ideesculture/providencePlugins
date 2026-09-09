@@ -358,8 +358,20 @@ class SGAController extends ActionController
 			}
 
 			if ($col->numErrors()) {
-				var_dump($col->getErrors());
-				die();
+				// 09/09/2026 (ticket 8008) : un var_dump suivi d'un die() vidait un tableau PHP brut
+				// en pleine page et arretait le traitement sans un mot pour l'utilisateur. On journalise
+				// et on affiche un message exploitable.
+				$vs_err = join(' ; ', $col->getErrors());
+				@error_log('[SGA] mise a jour operation #' . $col->getPrimaryKey() . ' : ' . $vs_err);
+				if (class_exists('NotificationManager') && $this->getRequest()) {
+					$o_n = new NotificationManager($this->getRequest());
+					$o_n->addNotification("La mise a jour de cette operation a echoue : " . htmlspecialchars($vs_err, ENT_QUOTES, 'UTF-8')
+						. " Les autres operations du lot ne sont pas affectees.", __NOTIFICATION_TYPE_ERROR__);
+				}
+				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
+				// ce qui n'était pas mieux que le vidage brut d'avant.
+				$this->render("import_html.php");
+				return;
 			}
 
 			$col->update();
@@ -568,16 +580,28 @@ class SGAController extends ActionController
 				while ($result->nextHit()) {
 					$name = $result->get("ca_entities.preferred_labels.displayname");
 					$idno = $result->get("ca_entities.idno");
-					var_dump($name);
-					var_dump($idno);
+					// 09/09/2026 (ticket 8008) : deux var_dump de mise au point tournaient ICI, donc à
+					// chaque résultat de la recherche d'entité, sans condition. Ils imprimaient des
+					// « string(n) "..." » en plein milieu de la page de mise à jour SGA — c'est le
+					// « code erreur » que les gestionnaires signalaient, alors que la mise à jour
+					// aboutissait normalement.
 					if ($name == $value[$qr_result->get("dir_inrap")] || trim($idno) == trim($value[$qr_result->get("dir_inrap")])) {
 						$col->removeRelationships("ca_entities", 236);
 						$rel = $col->addRelationship("ca_entities", $result->get("ca_entities.entity_id"), 236 );
 						
 						$col->update();
 						if ($col->numErrors()) {
-							var_dump($col->getErrors());
-							die();
+							// 09/09/2026 (ticket 8008) : un var_dump suivi d'un die() vidait un tableau PHP brut
+							// en pleine page et arretait le traitement sans un mot pour l'utilisateur. On journalise
+							// et on affiche un message exploitable.
+							$vs_err = join(' ; ', $col->getErrors());
+							@error_log('[SGA] mise a jour operation #' . $col->getPrimaryKey() . ' : ' . $vs_err);
+							if (class_exists('NotificationManager') && $this->getRequest()) {
+								$o_n = new NotificationManager($this->getRequest());
+								$o_n->addNotification("La mise a jour de cette operation a echoue : " . htmlspecialchars($vs_err, ENT_QUOTES, 'UTF-8')
+									. " Les autres operations du lot ne sont pas affectees.", __NOTIFICATION_TYPE_ERROR__);
+							}
+							break;   // on cesse d'essayer cette entité ; la page se rend normalement
 						}
 						break;
 					}
@@ -623,14 +647,38 @@ class SGAController extends ActionController
 			}
 
 			if ($col->numErrors()) {
-				var_dump($col->getErrors());
-				die();
+				// 09/09/2026 (ticket 8008) : un var_dump suivi d'un die() vidait un tableau PHP brut
+				// en pleine page et arretait le traitement sans un mot pour l'utilisateur. On journalise
+				// et on affiche un message exploitable.
+				$vs_err = join(' ; ', $col->getErrors());
+				@error_log('[SGA] mise a jour operation #' . $col->getPrimaryKey() . ' : ' . $vs_err);
+				if (class_exists('NotificationManager') && $this->getRequest()) {
+					$o_n = new NotificationManager($this->getRequest());
+					$o_n->addNotification("La mise a jour de cette operation a echoue : " . htmlspecialchars($vs_err, ENT_QUOTES, 'UTF-8')
+						. " Les autres operations du lot ne sont pas affectees.", __NOTIFICATION_TYPE_ERROR__);
+				}
+				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
+				// ce qui n'était pas mieux que le vidage brut d'avant.
+				$this->render("update_html.php");
+				return;
 			}
 
 			$col->update();
 			if ($col->numErrors()) {
-				var_dump($col->getErrors());
-				die();
+				// 09/09/2026 (ticket 8008) : un var_dump suivi d'un die() vidait un tableau PHP brut
+				// en pleine page et arretait le traitement sans un mot pour l'utilisateur. On journalise
+				// et on affiche un message exploitable.
+				$vs_err = join(' ; ', $col->getErrors());
+				@error_log('[SGA] mise a jour operation #' . $col->getPrimaryKey() . ' : ' . $vs_err);
+				if (class_exists('NotificationManager') && $this->getRequest()) {
+					$o_n = new NotificationManager($this->getRequest());
+					$o_n->addNotification("La mise a jour de cette operation a echoue : " . htmlspecialchars($vs_err, ENT_QUOTES, 'UTF-8')
+						. " Les autres operations du lot ne sont pas affectees.", __NOTIFICATION_TYPE_ERROR__);
+				}
+				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
+				// ce qui n'était pas mieux que le vidage brut d'avant.
+				$this->render("update_html.php");
+				return;
 			}
 
 			$label = $col->getWithTemplate("^ca_places.preferred_labels.name / ^ca_collections.lieudit / ^ca_collections.inrap_annee_inter%trim=1 / <unit relativeTo='ca_entities' restrictToRelationshipTypes='responsable'>^ca_entities.preferred_labels.displayname</unit>");

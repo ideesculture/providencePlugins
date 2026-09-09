@@ -3,7 +3,7 @@ $errors = $this->getVar("error");?>
 
 
 <h1>Mise à jour SGA</h1>
-<h2>Mise à jour réussie <?php if (!empty($errors)){print "mais avec quelques erreurs";}?></h2>
+<h2>Mise à jour réussie <?php if (!empty($errors)){print "mais certaines données n'ont pas pu être rapprochées";}?></h2>
 
 Voir l'opération mise à jour <a href="/index.php/editor/collections/CollectionEditor/Summary/collection_id/<?= $id ?>">ici</a>.
 <br/>
@@ -11,7 +11,7 @@ Voir l'opération mise à jour <a href="/index.php/editor/collections/Collection
 <?php 
 if (!empty($errors)){
     print "<hr>";
-    print "Ces données sont différentes entre celles présentes dans le SGA et Comodo.";
+    print "Ces données diffèrent entre le SGA et Comodo. Ce ne sont pas des erreurs : ce sont des écarts à vérifier.";
     print "<table class='table table-bordered'> <thead><tr>
         <th>Nom du champ dans comodo</th>
         <th>Donnée présente dans le SGA</th>
@@ -52,7 +52,7 @@ if (!empty($errors)){
     }
     print "</tbody></table>";
     ?>
-    Les données peuvent être considérées comme une erreur à cause des causes suivantes :
+    Un écart peut apparaître pour les raisons suivantes :
     <ul>
         <li>Il se peut que la donnée ne puisse être liée à l'opération, car elle n'est pas trouvée dans comodo :
             <ul>
