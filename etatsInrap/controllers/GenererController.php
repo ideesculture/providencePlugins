@@ -48,6 +48,35 @@
  	error_reporting(E_ERROR);
 
  	class GenererController extends ActionController {
+
+	/**
+	 * Remonte la hiérarchie des emplacements jusqu'au centre de recherche (type
+	 * « Centre_de_recherche », item 133), en partant d'un emplacement quelconque.
+	 *
+	 * Posé le 09/09/2026 (ticket 7999) : les coordonnées du gestionnaire sont portées par le
+	 * centre, alors que la relation « entrée de collection » d'une opération pointe souvent sur
+	 * un local situé sous ce centre. Sans cette remontée, la lettre de versement sort sans nom
+	 * ni téléphone. Sur 10 197 emplacements vivants, 58 seulement portent un gestionnaire.
+	 *
+	 * Rend l'emplacement de départ si aucun centre n'est trouvé — le comportement est alors
+	 * celui d'avant le correctif, jamais pire.
+	 */
+	private static function remonterAuCentre($emplacement) {
+		if (!is_object($emplacement) || !$emplacement->getPrimaryKey()) { return $emplacement; }
+		$type_centre = 133;
+		$courant = $emplacement;
+		$vus = array();				// garde-fou : une hiérarchie circulaire ne doit pas boucler
+		while (is_object($courant) && $courant->getPrimaryKey()) {
+			$id = (int)$courant->getPrimaryKey();
+			if (isset($vus[$id])) { break; }
+			$vus[$id] = true;
+			if ((int)$courant->get('type_id') === $type_centre) { return $courant; }
+			$parent = (int)$courant->get('parent_id');
+			if (!$parent) { break; }
+			$courant = new ca_storage_locations($parent);
+		}
+		return $emplacement;
+	}
  		# -------------------------------------------------------
   		protected $opo_config,		// plugin configuration file
         $ops_plugin_name, $ops_plugin_path,
@@ -2588,8 +2617,19 @@
 			$collections_id = explode(";", $vt_occ->getWithTemplate("^ca_collections.collection_id"));
 
 			$col_0 = new ca_collections($collections_id[0]);
-			$entree_id = $col_0->getWithTemplate("<unit relativeTo='ca_storage_locations' restrictToTypes='CRA' restrictToRelationshipTypes='entree_collection'>^ca_storage_locations.location_id</unit>");
+			// 09/09/2026 (ticket 7999) : la restriction portait sur restrictToTypes='CRA', or « CRA »
+			// n'est pas un code de type d'emplacement — les codes réels sont Centre_de_recherche,
+			// building, epi, trav__e, tablette, cce, sra, musee. Le filtre était donc inerte et on
+			// retenait le premier emplacement venu, souvent un local (« Montauban_Dépôt », type
+			// building) au lieu de son centre (« CRA Montauban »). Les coordonnées du gestionnaire,
+			// portées par le centre, ressortaient vides.
+			// On ne peut pas simplement corriger le code de type : la relation entree_collection
+			// pointe légitimement sur le local, et filtrer sur Centre_de_recherche ne rendrait rien.
+			// On garde donc l'emplacement d'entrée tel quel pour le libellé du lieu, et on remonte
+			// la hiérarchie jusqu'au centre pour y chercher le gestionnaire.
+			$entree_id = $col_0->getWithTemplate("<unit relativeTo='ca_storage_locations' restrictToRelationshipTypes='entree_collection'>^ca_storage_locations.location_id</unit>");
 			$entree = new ca_storage_locations(explode(";",$entree_id)[0]);
+			$entree_cra = self::remonterAuCentre($entree);
 
 
 
@@ -2599,9 +2639,9 @@
 				"date" => $vt_occ->getWithTemplate("<ifdef code='ca_occurrences.infos_courrier.date_info_courrier'>le ^ca_occurrences.infos_courrier.date_info_courrier</ifdef>"),
 				"signataire" => $vt_occ->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='signa_inrap'>^ca_entities.preferred_labels.forename ^ca_entities.preferred_labels.surname</unit>"),
 				"qualite_signataire" => $vt_occ->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='signa_inrap'>^ca_entities.precision_entite</unit>"),
-				"nom_gestionnaire" => $entree->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.preferred_labels.forename ^ca_entities.preferred_labels.surname</unit>"),
-				"tel_gestionnaire" => $entree->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.telephone.numero</unit>"),
-				"mail_gestionnaire" => $entree->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.email</unit>"),
+				"nom_gestionnaire" => $entree_cra->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.preferred_labels.forename ^ca_entities.preferred_labels.surname</unit>"),
+				"tel_gestionnaire" => $entree_cra->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.telephone.numero</unit>"),
+				"mail_gestionnaire" => $entree_cra->getWithTemplate("<unit relativeTo='ca_entities_x_storage_locations' restrictToRelationshipTypes='gestionnaire'>^ca_entities.email</unit>"),
 				"dir_nom" => $col_0->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='DIR'>^ca_entities.preferred_labels.displayname</unit>"),
 				"dir_adresse" => $col_0->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='DIR'>^ca_entities.address.address1<ifdef code='ca_entities.address.address2'>,sautdeligne^ca_entities.address.address2</ifdef><ifdef code='ca_entities.address.postalcode|ca_entities.address.city|ca_entities.address.country'>,sautdeligne^ca_entities.address.postalcode ^ca_entities.address.city ^ca_entities.address.country</ifdef></unit>"),
 				"dast_nom" => $col_0->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='DAST'>^ca_entities.preferred_labels.forename ^ca_entities.preferred_labels.surname</unit>"),
