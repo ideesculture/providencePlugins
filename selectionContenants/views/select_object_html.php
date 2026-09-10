@@ -88,11 +88,16 @@ $render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, 
 					} ?>
 				</select>
 			</label>
-			<label>Contenu :
+			<?php /* 7963 — « Contenu » ne disait pas ce qu'il filtrait : le client a signalé
+			   ne pas comprendre l'indication. Le critère est le fait qu'un contenant ait au
+			   moins un enregistrement lié (objet à l'intérieur, occurrence, image) — soit,
+			   en clair, un contenant rempli ou vide. Le filtre est conservé (savoir qu'on
+			   verse un contenant vide a un intérêt), seuls les libellés sont explicités. */ ?>
+			<label>Contenant :
 				<select id="selcont-filter-content">
-					<option value="">Tous les contenants</option>
-					<option value="0">Sans autre enregistrement lié</option>
-					<option value="1">Avec au moins un enregistrement lié</option>
+					<option value="">Remplis et vides</option>
+					<option value="0">Vides — rien d'inventorié dedans</option>
+					<option value="1">Remplis — au moins un objet, document ou image</option>
 				</select>
 			</label>
 			<span class="selcont-filternote">Les filtres n'agissent que sur l'affichage : la sélection est conservée.</span>
@@ -110,6 +115,8 @@ $render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, 
 		<div class="selcont-bar">
 			<span id="selcont-counters"></span>
 			<span class="selcont-actions">
+				<?php /* 7963 — « Tout cocher » manquait, seul « Tout décocher » existait. */ ?>
+				<a href="#" id="selcont-checkall">Tout cocher</a>
 				<a href="#" id="selcont-clear">Tout décocher</a>
 				<button type="button" id="selcont-validate">Valider la sélection</button>
 			</span>
@@ -217,6 +224,21 @@ jQuery(function($) {
 		var $g = $(this).closest('.selcont-group');
 		$g.toggleClass('selcont-collapsed');
 		$(this).find('.selcont-caret').text($g.hasClass('selcont-collapsed') ? '▶' : '▼');
+	});
+
+	// ------- tout cocher (7963)
+	// Ne coche QUE les cartes visibles : les filtres n'agissent que sur l'affichage, et
+	// cocher en aveugle des contenants masqués par un filtre serait le contraire de ce que
+	// l'utilisateur voit. Un même contenant pouvant figurer sous plusieurs opérations, on
+	// passe par son data-oid comme le fait déjà la case à cocher individuelle.
+	$('#selcont-checkall').on('click', function() {
+		$('#selcont-root .selcont-card:visible .selcont-cb').each(function() {
+			var oid = $(this).data('oid'), vol = parseFloat($(this).data('vol')) || 0;
+			selcontSel[oid] = vol;
+			$('#selcont-root .selcont-cb[data-oid="' + oid + '"]').prop('checked', true);
+		});
+		refreshCounters();
+		return false;
 	});
 
 	// ------- tout décocher
