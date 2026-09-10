@@ -1,0 +1,91 @@
+/* === D2026-0103 — écran de sélection des contenants : début ===
+ * Styles du popup de sélection (plugin selectionContenants).
+ * Aucune dépendance externe (pas de Bootstrap/DataTables — pare-feu INRAP). */
+
+/* ---- coquille du popup (injectée par le plugin dans l'inspecteur, déplacée sous <body>) */
+#caSelContOverlay {
+	position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 30000;
+}
+#caSelContPanel {
+	position: fixed; top: 3vh; left: 3vw; width: 94vw; height: 92vh;
+	background: #fff; border: 1px solid #777; border-radius: 6px;
+	box-shadow: 0 6px 30px rgba(0,0,0,0.4); z-index: 30001;
+	display: flex; flex-direction: column; overflow: hidden;
+}
+#caSelContPanelHead {
+	flex: 0 0 auto; background: #1ab3c8; color: #fff; padding: 10px 14px;
+	font-size: 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+}
+#caSelContPanelHead a#caSelContClose {
+	color: #fff; text-decoration: none; font-size: 22px; line-height: 1; padding: 0 4px;
+}
+#caSelContPanelContent { flex: 1 1 auto; overflow: auto; }
+body.selcont-noscroll { overflow: hidden; }
+.selcont-loading { padding: 30px; font-size: 14px; color: #555; }
+.selcont-error { background: #fdecea; border: 1px solid #c0392b; color: #7b241c; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+.selcont-ok { background: #eafaf1; border: 1px solid #1e8449; color: #145a32; padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+
+/* ---- entête : recherche, filtres, colonnes, compteurs (sticky) */
+#selcont-root { font-size: 12px; color: #333; }
+.selcont-head {
+	position: sticky; top: 0; background: #f7f7f7; border-bottom: 1px solid #ccc;
+	padding: 10px 14px; z-index: 5;
+}
+.selcont-title { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+.selcont-mvtidno { font-weight: normal; color: #666; }
+#selcont-search {
+	width: 100%; box-sizing: border-box; font-size: 15px; padding: 9px 12px;
+	border: 1px solid #bbb; border-radius: 4px; margin-bottom: 8px;
+}
+.selcont-filters { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 6px; }
+.selcont-filters select { font-size: 12px; padding: 4px; }
+.selcont-filternote { color: #777; font-style: italic; }
+.selcont-columns { margin-bottom: 6px; color: #555; }
+.selcont-columns label { margin-right: 10px; white-space: nowrap; }
+.selcont-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.selcont-actions a { margin-right: 14px; }
+#selcont-validate {
+	background: #1ab3c8; color: #fff; border: 0; border-radius: 5px;
+	padding: 9px 22px; font-size: 13px; font-weight: bold; cursor: pointer;
+}
+#selcont-validate[disabled] { opacity: 0.6; cursor: wait; }
+
+/* ---- groupes par opération (repliables) */
+.selcont-body { padding: 6px 14px 20px 14px; }
+.selcont-grouphead {
+	cursor: pointer; background: #e8eef0; border: 1px solid #d0d7da; border-radius: 4px;
+	padding: 7px 10px; margin: 12px 0 8px 0; font-size: 13px; user-select: none;
+}
+.selcont-caret { display: inline-block; width: 14px; color: #1a7a88; }
+.selcont-groupcount { color: #666; font-weight: normal; font-size: 11px; margin-left: 6px; }
+.selcont-group.selcont-collapsed .selcont-grid { display: none; }
+
+/* ---- grille multi-colonnes de cartes contenant */
+.selcont-grid {
+	display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px;
+}
+.selcont-card {
+	border: 1px solid #d5d5d5; border-radius: 5px; padding: 8px 10px; background: #fff;
+	line-height: 1.45; position: relative;
+}
+.selcont-card:has(.selcont-cb:checked) { border-color: #1ab3c8; background: #f2fbfc; }
+.selcont-main { font-size: 13px; font-weight: bold; cursor: pointer; display: block; margin-bottom: 3px; }
+.selcont-main input { vertical-align: -2px; margin-right: 6px; }
+.selcont-badge {
+	display: inline-block; background: #eef4f5; border: 1px solid #cfe3e6; color: #23697a;
+	border-radius: 10px; padding: 1px 8px; font-size: 11px; margin: 0 6px 4px 0;
+}
+.selcont-contentflag { font-size: 10px; color: #999; display: inline-block; margin-bottom: 4px; }
+.selcont-card.selcont-avec .selcont-contentflag { color: #8a6d1a; }
+.selcont-field { margin: 1px 0; }
+.selcont-fiche { font-size: 11px; }
+
+/* colonnes masquables */
+#selcont-root.selcont-hide-type .selcont-f-type { display: none; }
+#selcont-root.selcont-hide-ref  .selcont-f-ref  { display: none; }
+#selcont-root.selcont-hide-vol  .selcont-f-vol  { display: none; }
+#selcont-root.selcont-hide-desc .selcont-f-desc { display: none; }
+#selcont-root.selcont-hide-mat  .selcont-f-mat  { display: none; }
+
+.selcont-empty { color: #888; font-style: italic; padding: 8px; }
+/* === D2026-0103 — écran de sélection des contenants : fin === */
