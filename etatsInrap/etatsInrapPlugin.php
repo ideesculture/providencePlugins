@@ -274,14 +274,23 @@
 			$vs_url_lookup = caNavUrl($o_req, "lookup", "Entity", "Get",
 				array("types" => "ind", "noInline" => 1, "quiet" => 1, "limit" => 20));
 
-			$vs_bouton = "background-color:#1ab3c8;color:white;padding:10px 6px;border-radius:6px;text-decoration:none;display:block;";
+			// >>> 7995 — « display:block » retiré : posé en ligne, il l'emportait sur la règle
+			// #caEnSuspensBtnL1,#caEnSuspensBtnL2{display:none} de pageFooter.php, qui ne masquait
+			// donc jamais les boutons hors de l'écran « Suivi des courriers SRA ». Le déplacement
+			// leur repose un display en ligne (inline-block), l'affichage dans le conteneur est
+			// inchangé. <<< 7995
+			$vs_bouton = "background-color:#1ab3c8;color:white;padding:10px 6px;border-radius:6px;text-decoration:none;";
 			$vs_champ  = "width:100%;box-sizing:border-box;padding:5px;border:1px solid #ccc;border-radius:3px;";
 
 			$vs_buf = <<<HTML
-<div style="text-align:center;width:100%;margin:10px 0 10px 0;">
+<!-- 7995 — décision client du 07/09/2026 : ces deux boutons ne s'affichent QUE dans l'onglet
+     « Suivi des courriers SRA », où pageFooter.php les déplace dans le conteneur « en suspens ».
+     Les enveloppes restent masquées : ailleurs elles ne prennent plus la place qui empêchait
+     d'atteindre le menu latéral, et sur l'écran SRA les liens en sont sortis par le déplacement. -->
+<div style="text-align:center;width:100%;margin:10px 0 10px 0;display:none;">
 	<a href="#" id="caEnSuspensBtnL1" style="{$vs_bouton}">Générer Lettre 1 — Impossibilité de remise de rapport</a>
 </div>
-<div style="text-align:center;width:100%;margin:10px 0 20px 0;">
+<div style="text-align:center;width:100%;margin:10px 0 20px 0;display:none;">
 	<a href="#" id="caEnSuspensBtnL2" style="{$vs_bouton}">Générer Lettre 2 — Sollicitation CST SRA</a>
 </div>
 
