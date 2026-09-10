@@ -468,6 +468,10 @@ function getEntityID($ps_forename, $ps_surname, $pn_type_id)
 	if ($qr_results->numHits() == 0) {
 		return false;
 	} else {
+		// 10/09/2026 GM (ticket 7988) : initialisation. Si aucun resultat ne porte le type
+		// demande, la boucle sortait sans jamais affecter la variable, et la fonction rendait
+		// une variable indefinie — avertissement en PHP 8, valeur nulle remise a l'appelant.
+		$vn_entity_id = null;
 		while ($qr_results->nextHit()) {
 			if ($qr_results->get('ca_entities.type_id') != $pn_type_id) {
 				continue;
@@ -487,6 +491,17 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
+
+	// 10/09/2026 GM (ticket 7988) — UN IDENTIFIANT VIDE N'EST PAS UN CRITERE.
+	// load(['idno' => '', 'deleted' => 0]) ne rend pas « rien » : il rend la PREMIERE fiche dont
+	// l'identifiant est vide. Il y en avait 94, et la plus basse par entity_id etait 11853,
+	// « Musee Louvre-Lens ». Ce musee s'est ainsi retrouve rattache a des operations de toute la
+	// France, sans que rien ne le signale — 9 liens encore crees le 09/09/2026 par cinq agents.
+	// Le creer serait pire : on fabriquerait une 95e fiche sans identifiant.
+	if (trim((string)$ps_entity_idno) === '') {
+		if ($VERBOSE) { print "\tIdentifiant vide, entite non resolue : {$ps_surname},{$ps_forename}\n"; }
+		return null;
+	}
 
 	$t_entity = new ca_entities();
 	$t_label = $t_entity->getLabelTableInstance();

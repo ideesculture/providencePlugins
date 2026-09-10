@@ -228,8 +228,13 @@ class SGAController extends ActionController
 			if ($qr_result->get("ro")) {
 				$name_info = explode(',', $qr_result->get("ro_label"));
 				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], $qr_result->get("ro"), 1665);
-				$col->removeRelationships("ca_entities", 124);
-				$col->addRelationship("ca_entities", $entity_id, 124);
+				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
+				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
+				// legitime deja en place etait detruite juste avant par removeRelationships().
+				if ($entity_id) {
+					$col->removeRelationships("ca_entities", 124);
+					$col->addRelationship("ca_entities", $entity_id, 124);
+				}
 			}
 
 			if ($qr_result->get("centre_op")) {
@@ -328,8 +333,13 @@ class SGAController extends ActionController
 			if ($qr_result->get("dir_adj_st")) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
 				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
-				$col->removeRelationships("ca_entities", 242);
-				$col->addRelationship("ca_entities", $entity_id, 242);
+				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
+				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
+				// legitime deja en place etait detruite juste avant par removeRelationships().
+				if ($entity_id) {
+					$col->removeRelationships("ca_entities", 242);
+					$col->addRelationship("ca_entities", $entity_id, 242);
+				}
 			}
 
 			if ($qr_result->get("datesdeterrain.Datedeterrain_date")) {
@@ -499,8 +509,13 @@ class SGAController extends ActionController
 			if ($qr_result->get("ro") && isset($_POST["ro"])) {
 				$name_info = explode(',', $qr_result->get("ro_label"));
 				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], $qr_result->get("ro"), 1665);
-				$col->removeRelationships("ca_entities", 124);
-				$col->addRelationship("ca_entities", $entity_id, 124);
+				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
+				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
+				// legitime deja en place etait detruite juste avant par removeRelationships().
+				if ($entity_id) {
+					$col->removeRelationships("ca_entities", 124);
+					$col->addRelationship("ca_entities", $entity_id, 124);
+				}
 			}
 
 			if ($qr_result->get("commune") && isset($_POST["commune"])) {
@@ -549,10 +564,13 @@ class SGAController extends ActionController
 			if ($qr_result->get("prescripteur") && isset($_POST["prescripteur"])) {
 				$name_info = explode(',', $qr_result->get("prescripteur"));
 				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
-			//	var_dump($entity_id);
-			//	die();
-				$col->removeRelationships("ca_entities", 122);
-				$col->addRelationship("ca_entities", $entity_id, 122);
+				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
+				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
+				// legitime deja en place etait detruite juste avant par removeRelationships().
+				if ($entity_id) {
+					$col->removeRelationships("ca_entities", 122);
+					$col->addRelationship("ca_entities", $entity_id, 122);
+				}
 			}
 
 			if ($qr_result->get("numero_prescription") && isset($_POST["numero_prescription"])) {
@@ -611,8 +629,13 @@ class SGAController extends ActionController
 			if ($qr_result->get("dir_adj_st")  && isset($_POST["dir_adj_st"])) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
 				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
-				$col->removeRelationships("ca_entities", 242);
-				$col->addRelationship("ca_entities", $entity_id, 242);
+				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
+				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
+				// legitime deja en place etait detruite juste avant par removeRelationships().
+				if ($entity_id) {
+					$col->removeRelationships("ca_entities", 242);
+					$col->addRelationship("ca_entities", $entity_id, 242);
+				}
 			}
 
 			if ($qr_result->get("datesdeterrain.Datedeterrain_date") || isset($_POST["datesdeterrain_datedeterrain_datefin"])) {
