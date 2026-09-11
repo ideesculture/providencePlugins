@@ -64,14 +64,32 @@ class selectionContenantsPlugin extends BaseApplicationPlugin {
 		if (!$t_item) { return $va_params; }
 
 		if (($t_item->tableName() !== "ca_movements")
-			|| ($t_item->getTypeCode() !== "versement")
-			|| !($vn_movement_id = (int)$t_item->getPrimaryKey())) {
+			|| ($t_item->getTypeCode() !== "versement")) {
 			return $va_params;
 		}
 
 		$o_req = $this->getRequest();
 		if (!$o_req || !$o_req->isLoggedIn() || !$o_req->user->canDoAction('can_edit_ca_movements')) {
 			return $va_params;	// pas le droit d'éditer les mouvements → pas de bouton
+		}
+
+		// 11/09/2026 GM (ticket 7963, point 9) : tant que la feuille n'est pas enregistrée,
+		// elle n'a pas d'identifiant, et le bouton ne peut pas être construit — l'URL de
+		// sélection a besoin du movement_id. L'écran restait donc muet, et l'utilisateur
+		// cherchait un bouton absent. Laurent ne demande pas de changer ce comportement,
+		// il demande qu'on l'explique : on affiche un encart à la place du bouton.
+		$vn_movement_id = (int)$t_item->getPrimaryKey();
+		if (!$vn_movement_id) {
+			$vs_avis = '<div style="width:100%;margin:10px 0 20px 0;padding:10px 12px;'
+				. 'background-color:#fff4d5;border-left:4px solid #1ab3c8;border-radius:4px;'
+				. 'font-size:12px;line-height:1.45;box-sizing:border-box;">'
+				. '<strong>Enregistrez d\'abord la feuille de versement.</strong><br/>'
+				. 'Le bouton « Sélection des contenants » et le calendrier de la date de versement '
+				. 'apparaîtront ensuite : ils ont besoin du numéro de la feuille, qui est attribué '
+				. 'à l\'enregistrement.'
+				. '</div>';
+			$va_params["caEditorInspectorAppend"] = ($va_params["caEditorInspectorAppend"] ?? '') . $vs_avis;
+			return $va_params;
 		}
 
 		$vs_url_select = caNavUrl($o_req, "selectionContenants", "Selection", "SelectObject", array("movement_id" => $vn_movement_id));

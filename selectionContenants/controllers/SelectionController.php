@@ -76,6 +76,21 @@ class SelectionController extends ActionController {
 	}
 	# -------------------------------------------------------
 	/**
+	 * 7963 (point 10) — familles de contenants déclarées dans
+	 * selectionContenants.conf (contenant_type_families) : le filtre de l'écran
+	 * raisonne en familles (mobilier / documentation / numérique), pas en types.
+	 * Rien n'est résolu ni validé ici : la vue range chaque type dans sa famille
+	 * et laisse sous son propre nom tout type déclaré dans aucune d'elles, de
+	 * sorte qu'un code ajouté à contenant_type_codes reste toujours filtrable.
+	 *
+	 * @return array code de famille => ['label' => string, 'types' => array de codes]
+	 */
+	private function getContenantTypeFamilies() {
+		$va_fams = $this->opo_config->getAssoc('contenant_type_families');
+		return is_array($va_fams) ? $va_fams : array();
+	}
+	# -------------------------------------------------------
+	/**
 	 * Libellés préférés (locale courante ou première disponible) d'items de liste.
 	 */
 	private function getListItemLabels($po_db, $pa_item_ids) {
@@ -283,6 +298,7 @@ class SelectionController extends ActionController {
 			$this->view->setVar('linked_ids', array_keys($va_linked));
 			$this->view->setVar('hors_ops', $va_hors_ops);
 			$this->view->setVar('type_map', $va_type_map);          // code => item_id
+			$this->view->setVar('type_families', $this->getContenantTypeFamilies()); // 7963 (point 10)
 			$this->view->setVar('item_labels', $va_labels);          // item_id => libellé
 			$this->view->setVar('has_content', $va_has_content);    // object_id => true
 			$this->view->setVar('validate_url', caNavUrl($this->request, "selectionContenants", "Selection", "Validate"));

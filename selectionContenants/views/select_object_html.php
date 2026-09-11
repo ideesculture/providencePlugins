@@ -28,6 +28,7 @@ $contenants     = $this->getVar('contenants');
 $linked_ids     = $this->getVar('linked_ids');
 $hors_ops       = $this->getVar('hors_ops');
 $type_map       = $this->getVar('type_map');      // code => item_id
+$type_families  = $this->getVar('type_families'); // famille => ['label','types']
 $item_labels    = $this->getVar('item_labels');   // item_id => libellé
 $has_content    = $this->getVar('has_content');   // object_id => true
 $validate_url   = $this->getVar('validate_url');
@@ -37,16 +38,45 @@ $screen132_url  = $this->getVar('screen132_url');
 $type_code_by_id = array_flip($type_map);
 $e = function($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
 
-// Types effectivement présents à l'écran (pour le filtre)
+// 7963 (point 10) — le filtre raisonne en FAMILLES, pas en types.
+// Le client ne connaît que « mobilier », « documentation » et « numérique » ;
+// l'écran listait les six types CollectiveAccess un par un, d'où les deux
+// seules entrées qu'il voyait (seuls deux types étaient présents à l'écran).
+// Les familles sont déclarées en configuration (selectionContenants.conf), pas
+// ici : ajouter un type à contenant_type_codes puis le ranger dans une famille
+// suffit. Un type rangé dans AUCUNE famille reste filtrable sous son propre
+// nom — le filtre ne peut donc jamais escamoter des contenants affichés.
+// (Le type « VAB » du ticket n'existe pas dans la liste object_types : vérifié
+// le 11/09/2026, 15 types, aucun ne porte ce code ni ce libellé.)
+if (!is_array($type_families)) { $type_families = array(); }
+$family_of_code = array();   // code de type => code de famille
+foreach ($type_families as $vs_fam => $va_fam) {
+	foreach ((array)($va_fam['types'] ?? array()) as $vs_tcode) { $family_of_code[$vs_tcode] = $vs_fam; }
+}
+
+// Types effectivement présents à l'écran, puis familles (et types hors famille)
+// effectivement présents — une option n'est proposée que si elle ramène quelque chose.
 $types_present = array();
 foreach ($contenants as $c) { $types_present[(int)$c['type_id']] = true; }
 
+$family_present = array();   // code de famille => true
+$loose_present  = array();   // code de type hors famille => item_id
+foreach ($type_map as $vs_code => $vn_tid) {
+	if (empty($types_present[$vn_tid])) { continue; }
+	if (isset($family_of_code[$vs_code])) { $family_present[$family_of_code[$vs_code]] = true; }
+	else { $loose_present[$vs_code] = $vn_tid; }
+}
+
 // Rendu d'une carte contenant (fonction locale, réutilisée par groupe)
-$render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, $item_labels, $linked_ids, $editor_url_base, $e) {
+$render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, $family_of_code, $item_labels, $linked_ids, $editor_url_base, $e) {
 	$c = $contenants[$oid];
 	$type_id = (int)$c['type_id'];
 	$type_code = $type_code_by_id[$type_id] ?? ('type_'.$type_id);
 	$type_label = $item_labels[$type_id] ?? $type_code;
+	// 7963 (point 10) — `data-type` porte la FAMILLE (valeur des options du filtre),
+	// plus le code de type ; repli sur le code de type pour un type hors famille.
+	// Le badge de la carte, lui, continue d'afficher le libellé du type exact.
+	$filter_key = $family_of_code[$type_code] ?? $type_code;
 	$vol = isset($c['volume']) ? (float)$c['volume'] : 0.0;
 	$vol_disp = isset($c['volume']) ? str_replace('.', ',', rtrim(rtrim(number_format($vol, 3, '.', ''), '0'), '.')) : '';
 	$refs = array(); foreach (($c['referentiel_items'] ?? array()) as $i) { $refs[] = $item_labels[$i] ?? ''; }
@@ -57,7 +87,7 @@ $render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, 
 	$search = mb_strtolower(implode(' ', array($c['idno'], $type_label, implode(' ', $refs), $desc, implode(' ', $mats))), 'UTF-8');
 	$fiche = $editor_url_base.'/object_id/'.(int)$oid;
 
-	$h  = '<div class="selcont-card'.($avec ? ' selcont-avec' : ' selcont-sans').'" data-oid="'.(int)$oid.'" data-type="'.$e($type_code).'" data-content="'.($avec ? '1' : '0').'" data-search="'.$e($search).'">';
+	$h  = '<div class="selcont-card'.($avec ? ' selcont-avec' : ' selcont-sans').'" data-oid="'.(int)$oid.'" data-type="'.$e($filter_key).'" data-content="'.($avec ? '1' : '0').'" data-search="'.$e($search).'">';
 	$h .= '<label class="selcont-main"><input type="checkbox" class="selcont-cb" data-oid="'.(int)$oid.'" data-vol="'.$e($vol).'"'.$checked.'/> <span class="selcont-idno">'.$e($c['idno']).'</span></label>';
 	$h .= '<span class="selcont-field selcont-f-type selcont-badge">'.$e($type_label).'</span>';
 	$h .= '<span class="selcont-contentflag">'.($avec ? 'Au moins un enregistrement lié' : 'Sans autre enregistrement lié').'</span>';
@@ -82,8 +112,15 @@ $render_card = function($oid) use ($contenants, $has_content, $type_code_by_id, 
 			<label>Type de contenant :
 				<select id="selcont-filter-type">
 					<option value="">Tous les types</option>
-					<?php foreach ($type_map as $vs_code => $vn_tid) {
-						if (empty($types_present[$vn_tid])) { continue; }
+					<?php /* 7963 (point 10) — une entrée par FAMILLE présente à l'écran, dans
+					   l'ordre de selectionContenants.conf ; puis, le cas échéant, une entrée
+					   par type présent qui n'a été rangé dans aucune famille, sous son propre
+					   libellé — un type ajouté à la configuration reste ainsi filtrable. */
+					foreach ($type_families as $vs_fam => $va_fam) {
+						if (empty($family_present[$vs_fam])) { continue; }
+						print '<option value="'.$e($vs_fam).'">'.$e($va_fam['label'] ?? $vs_fam).'</option>';
+					}
+					foreach ($loose_present as $vs_code => $vn_tid) {
 						print '<option value="'.$e($vs_code).'">'.$e($item_labels[$vn_tid] ?? $vs_code).'</option>';
 					} ?>
 				</select>
