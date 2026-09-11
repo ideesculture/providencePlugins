@@ -31,6 +31,14 @@ exportInrap/lib/h2p/bin/
 etatsInrap/tmp/*
 !etatsInrap/tmp/.gitkeep
 !etatsInrap/tmp/.htaccess
+
+# exportInrap/tmp : oublie a l'import des plugins, d'ou quatre fichiers generes
+# committes par erreur en septembre 2026 sur un depot PUBLIC. Meme regle que les
+# deux autres tmp : on ignore le genere, on garde .gitkeep et surtout .htaccess,
+# qui reautorise les extensions docx/odt/pdf/xlsx refusees par le .htaccess racine.
+exportInrap/tmp/*
+!exportInrap/tmp/.gitkeep
+!exportInrap/tmp/.htaccess
 # Rapports d'import SGA générés par lib/update_table.php (dumps HTML, recréés à chaque import).
 SGA/views/table_importe.html
 SGA/views/table_non_importe.html
