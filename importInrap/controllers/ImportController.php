@@ -230,7 +230,11 @@ class ImportController extends ActionController{
         $json = file_get_contents($jsonPath);
 		//print $json;
         $json = json_decode($json, true);
-        $json = array_slice($json, 0, count($authorizeLine) + 1);
+        // 10/09/2026 GM : troncature retiree. Elle gardait les n+1 PREMIERES lignes du
+        // fichier, n etant le NOMBRE de lignes cochees, alors que $authorizeLine porte
+        // leurs positions absolues. Toute selection ne commencant pas a la ligne 1
+        // n'importait donc rien, en affichant « import termine ». Le filtre reel est
+        // plus bas : if (in_array($row, $authorizeLine)).
 
         if($length === '') $length = count($authorizeLine) - 1;
 		$this->view->setVar("length", $length);
@@ -308,8 +312,10 @@ class ImportController extends ActionController{
                 }
             }
 			// if the number of rows processed has reached the page size, set the start for the next page
-			if ($row >= $start + $page_size) {
-				$this->view->setVar("start", $start + $page_size);
+			// 10/09/2026 GM : le test etait evalue AVANT $row++, si bien que la ligne
+			// frontiere etait rejouee a la requete suivante — deux traitements par ligne.
+			if ($row >= $start + $page_size - 1) {
+				$this->view->setVar("start", $row + 1);
 				break;
 			}
 			

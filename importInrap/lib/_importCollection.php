@@ -57,6 +57,16 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                     if (!$data) continue;
 
                     $place_id = getPlaceIDByName($data, $map["item_type"]);
+                    // 10/09/2026 GM (ticket 7988) : ne rattacher que si le lieu a ete resolu franchement.
+                    // C'est l'ecriture qui a produit les 402 relations fantomes du lieu 62620 « Saint magne ».
+                    // Un null n'etait pas une protection : BaseModel::addRelationship() relit un identifiant
+                    // non numerique comme un IDNO et fait load([idno => null, deleted => 0]), soit idno = '',
+                    // donc la premiere fiche a identifiant vide — l'appariement au hasard, en silence.
+                    if (!$place_id) {
+                        global $VERBOSE;
+                        if ($VERBOSE) { print "\tLieu non resolu, relation ignoree : \"{$data}\"\n"; }
+                        break;
+                    }
                     $vt_col->addRelationship("ca_places", $place_id, $map["relation_type"]);
                     break;
                 case "ca_objects":
@@ -81,10 +91,17 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                 case "ca_storage_locations":
                     if (!$data) continue;
 
-                    $data = (int)$data;
-                    if (is_numeric($data)){
-                        $vt_col->addRelationship("ca_storage_locations", $data, $map["relation_type"]);
-                        $vt_col->update();
+                    // 10/09/2026 GM (ticket 7988) : le test etait sans effet. (int) rend toujours un nombre,
+                    // donc is_numeric() etait vrai a tous les coups ; une cellule non numerique valait 0, et
+                    // la relation partait avec l'identifiant 0. On exige un identifiant strictement positif,
+                    // et une fiche qui existe et n'est pas supprimee.
+                    $vn_loc_id = (int)$data;
+                    if ($vn_loc_id > 0) {
+                        $vt_loc_ref = new ca_storage_locations($vn_loc_id);
+                        if ($vt_loc_ref->getPrimaryKey() && ((int)$vt_loc_ref->get('deleted') !== 1)) {
+                            $vt_col->addRelationship("ca_storage_locations", $vn_loc_id, $map["relation_type"]);
+                            $vt_col->update();
+                        }
                     }
                     break;
 

@@ -146,6 +146,17 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                         $vt_rel_obj = $vt_contenant->getPrimaryKey();
                     }
 
+                    // 10/09/2026 GM (ticket 7988) : deux relations partaient sans que $vt_rel_obj soit teste.
+                    // Le cas est atteignable : quand le contenant n'existe pas, $vt_contenant->load() echoue et
+                    // getPrimaryKey() rend null ; or l'operation sans contenant donne $contenantLiesOperation
+                    // = [""], et in_array(null, [""]) est VRAI en comparaison souple — la creation est donc
+                    // sautee et $vt_rel_obj reste null. addRelationship() ne refuse pas ce null : il le relit
+                    // comme un IDNO et rattache la premiere fiche a identifiant vide venue.
+                    if (!$vt_rel_obj) {
+                        global $VERBOSE;
+                        if ($VERBOSE) { print "\tContenant non resolu, relations ignorees : \"{$data}\"\n"; }
+                        break;
+                    }
                     $vt_object->addRelationship("ca_objects", $vt_rel_obj, 177);
                     $vt_rel_op->addRelationship("ca_objects", $vt_rel_obj, 152);
                     $vt_rel_op->update();
@@ -154,9 +165,19 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                 case "ca_storage_locations":
                     if (!$data) continue;
 
-                    if (is_numeric($data)){
-                        $vt_object->removeRelationships("ca_storage_locations", $map["relation_type"]);
-                        $vt_object->addRelationship("ca_storage_locations", $data, $map["relation_type"]);
+                    // 10/09/2026 GM (ticket 7988) : un identifiant numerique venu du tableur etait rattache
+                    // sans verifier que l'emplacement existe. Et le removeRelationships() qui precede detruit
+                    // le rattachement legitime AVANT de savoir si le nouveau tiendra.
+                    if (is_numeric($data)) {
+                        $vn_loc_id = (int)$data;
+                        $vt_loc_ref = ($vn_loc_id > 0) ? new ca_storage_locations($vn_loc_id) : null;
+                        if ($vt_loc_ref && $vt_loc_ref->getPrimaryKey() && ((int)$vt_loc_ref->get('deleted') !== 1)) {
+                            $vt_object->removeRelationships("ca_storage_locations", $map["relation_type"]);
+                            $vt_object->addRelationship("ca_storage_locations", $vn_loc_id, $map["relation_type"]);
+                        } else {
+                            global $VERBOSE;
+                            if ($VERBOSE) { print "\tEmplacement {$data} inconnu, relation ignoree\n"; }
+                        }
                         continue;
                     }
                     $vt_rel_storage = getStorageLocationID($data, $map["item_type"]);

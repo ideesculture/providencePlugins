@@ -146,6 +146,18 @@ function getStorageLocationID($ps_location, $vn_loc_type_id, $options = []) {
 	global $pn_locale_id;
 	global $VERBOSE;
 	
+	// 10/09/2026 GM (ticket 7988) — UN IDENTIFIANT VIDE N'EST PAS UN CRITERE.
+	// load(['idno' => '', 'deleted' => 0]) ne rend pas « rien » : il rend la PREMIERE fiche a
+	// identifiant vide. ca_storage_locations en compte 404, dont 366 vivantes ; l'aimant du
+	// moment est l'emplacement 6297 « SALLE ETUDES », un emplacement bien reel et en service.
+	// Le chemin est atteignable malgre le `if (!$data)` de l'appelant : une cellule ne
+	// contenant qu'une espace est vraie au sens de PHP, et la normalisation ci-dessus la rend
+	// vide juste apres.
+	if ($ps_location === '') {
+		if ($VERBOSE) { print "\tIdentifiant vide, emplacement non resolu\n"; }
+		return null;
+	}
+
 	$t_loc = new ca_storage_locations();
 	$t_loc_search = new StorageLocationSearch();
 	/*$results = $t_loc_search->search("ca_storage_locations:'"+$ps_location+"'");
@@ -254,6 +266,16 @@ function getCollectionID($ps_collection, $ps_collection_idno, $pn_collection_typ
 	global $pn_locale_id;
 	global $VERBOSE;
 	
+	// 10/09/2026 GM (ticket 7988) — NI LIBELLE NI IDENTIFIANT : RIEN A RESOUDRE.
+	// La resolution passe par le libelle (load(['name' => ...]) sur ca_collection_labels)
+	// et la creation par l'identifiant. Sans libelle, la branche « creation » l'emporte et
+	// fabrique une operation sans nom — et sans identifiant si celui-ci est vide lui aussi :
+	// 590 fiches de ca_collections sont deja dans cet etat, dont 452 vivantes.
+	if ((trim((string)$ps_collection) === '') || ($ps_collection_idno === '')) {
+		if ($VERBOSE) { print "\tLibelle ou identifiant d'operation vide, operation non resolue\n"; }
+		return null;
+	}
+
 	$t_loc = new ca_collections();
 	$t_label = $t_loc->getLabelTableInstance();
 	if (!$t_label->load(array('name' => $ps_collection))) {
@@ -351,6 +373,15 @@ function getObjectID($ps_object, $ps_object_idno, $pn_object_type_id) {
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
+
+	// 10/09/2026 GM (ticket 7988) — UN IDENTIFIANT VIDE N'EST PAS UN CRITERE.
+	// Meme mecanique : load(['idno' => '', ...]) rendrait l'objet 123204, premier des 768
+	// objets a identifiant vide (697 vivants), et l'appelant en ferait un contenant.
+	if ($ps_object === '') {
+		if ($VERBOSE) { print "\tIdentifiant vide, objet non resolu\n"; }
+		return false;
+	}
+
 	$t_obj = new ca_objects();
 	$t_obj->load(["idno" => $ps_object, "deleted" => 0]);
 	if (!$t_obj->getPrimaryKey()){
@@ -410,21 +441,68 @@ function getPlaceID($ps_place, $ps_place_idno, $pn_place_type_id) {
 	return $vn_place_id;
 }
 
-function getPlaceIDByName($ps_place, $pn_place_type_id) {
+// ----------------------------------------------------------------------
+// 10/09/2026 GM (ticket 7988) — appariement des lieux par leur nom.
+//
+// La version precedente rendait le PREMIER resultat d'une recherche plein texte, sans rien
+// verifier : ni l'exactitude du nom, ni le type (le parametre $pn_place_type_id n'etait meme
+// pas utilise), ni que la fiche soit vivante. Et faute de return final, elle rendait null
+// implicitement quand la recherche ne ramenait rien.
+//
+// Les deux sorties etaient dangereuses, pour la meme raison :
+//   - un premier resultat faux etait rattache tel quel ;
+//   - et le null ne protegeait rien, car BaseModel::addRelationship() ne refuse PAS un
+//     identifiant nul : un identifiant non numerique y est relu comme un IDNO, via
+//     load([idno => null, deleted => 0]) — soit, apres mise en forme, WHERE idno = '' —
+//     qui rend la PREMIERE fiche a identifiant vide. Passer null a addRelationship, c'est
+//     donc ecrire la relation sur cette fiche-la, en silence.
+// Effet mesure : le lieu 62620 « Saint magne », supprime depuis, porte 1 480 relations
+// fantomes (1 078 sur ca_objects, 402 sur ca_collections), posees de fevrier 2024 a mars 2025
+// par une quinzaine d'agents differents.
+//
+// On applique ici la meme doctrine que getEntityID() (ticket 7988, 07/09/2026) : correspondance
+// FRANCHE exigee — memes mots, a la casse, aux accents, a la ponctuation et a l'ordre pres —
+// fiche vivante, et type respecte quand l'appelant le precise. Zero ou plusieurs candidats :
+// on rend null. Mieux vaut un rattachement manquant, que l'agent verra, qu'un rattachement
+// faux qu'il ne verra pas.
+//
+// ATTENTION : ce null doit etre teste PAR L'APPELANT avant tout addRelationship (cf. ci-dessus).
+function getPlaceIDByName($ps_place, $pn_place_type_id = null) {
 	global $pn_locale_id;
 	global $VERBOSE;
 	$pn_locale_id = 2;
-	
-	
+
+	$vs_cherche = inrap_normaliser_idno($ps_place);
+	$vs_cle = inrap_cle_de_nom($vs_cherche);
+	if ($vs_cle === '') {
+		if ($VERBOSE) { print "\tNom de lieu vide, lieu non resolu\n"; }
+		return null;
+	}
+
 	$placeSearch = new PlaceSearch();
-	$result = $placeSearch->search($ps_place);
-	while ($result->nextHit()){
-		if ($result->get("place_id")){
-			return $result->get("place_id");
-			break;
+	$result = $placeSearch->search($vs_cherche);
+
+	$va_trouves = array();
+	while ($result->nextHit()) {
+		$vn_id = (int)$result->get("place_id");
+		if (!$vn_id) { continue; }
+		$t_place = new ca_places($vn_id);
+		if (!$t_place->getPrimaryKey()) { continue; }
+		if ((int)$t_place->get('deleted') === 1) { continue; }
+		if ($pn_place_type_id && ((int)$t_place->get('type_id') !== (int)$pn_place_type_id)) { continue; }
+		if (inrap_cle_de_nom($t_place->get("ca_places.preferred_labels.name")) === $vs_cle) {
+			$va_trouves[$vn_id] = true;
 		}
 	}
-	
+
+	if (sizeof($va_trouves) !== 1) {
+		if ($VERBOSE) {
+			print "\tLieu non resolu pour \"{$vs_cherche}\" : ".sizeof($va_trouves)." correspondance(s) franche(s)\n";
+		}
+		return null;
+	}
+	$va_ids = array_keys($va_trouves);
+	return $va_ids[0];
 }
 
 // ----------------------------------------------------------------------
@@ -506,6 +584,15 @@ function getEntityIDByIdno($idno) {
 	global $VERBOSE;
 	$pn_locale_id = 2;
 	
+	// 10/09/2026 GM (ticket 7988) — UN IDENTIFIANT VIDE N'EST PAS UN CRITERE.
+	// C'est la garde deja posee dans la version SGA de cette fonction, transposee ici :
+	// load(['idno' => '', 'deleted' => 0]) rend la PREMIERE entite a identifiant vide.
+	// Aucune n'est vivante aujourd'hui, mais la premiere creee le redeviendrait aussitot.
+	if ($idno === '') {
+		if ($VERBOSE) { print "\tIdentifiant vide, entite non resolue\n"; }
+		return null;
+	}
+
 	$t_entity = new ca_entities();
 	$t_entity->load(array('idno' => $idno, 'deleted'=>0));
 	$vn_entity_id = $t_entity->getPrimaryKey();
