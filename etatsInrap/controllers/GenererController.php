@@ -419,6 +419,57 @@
 			$this->render('modele1_html.php');
 		}
 
+		/**
+		 * 7963 (point 14) — cote en CENTIMÈTRES à partir du décimal normalisé par
+		 * CollectiveAccess, sans zéros de queue.
+		 *
+		 * CollectiveAccess range TOUTE longueur en MÈTRES dans value_decimal1, quelle
+		 * que soit l'unité saisie (vérifié en base le 11/09/2026 : « 600 mm » → 0.60).
+		 * ×100 → cm. Définition UNIQUE de la conversion : le bordereau (Modele4) s'y
+		 * garde sa propre copie (decision GM 11/09/2026 : zero effet de bord).
+		 */
+		private function cmDepuisMetres_0103($pm_m) {
+			return rtrim(rtrim(number_format((float)$pm_m * 100, 2, '.', ''), '0'), '.');
+		}
+		/**
+		 * 7963 (point 14) — colonne « Dimensions » en centimètres.
+		 *
+		 * Le gabarit ^ca_objects.dimensions.dimensions_* restituait la valeur TELLE
+		 * QUE SAISIE, c'est-à-dire en millimètres (constaté le 11/09/2026 : les
+		 * valeurs les plus fréquentes du bloc historique `dimensions` sont
+		 * « 600 mm », « 400 mm », « 300 mm »…), et sortait donc
+		 * « H. 280 mm x L. 432 mm x P. 525 mm ». Le client lit des centimètres.
+		 *
+		 * Même mécanique que le bordereau : la cote est reprise en mètres puis
+		 * convertie par cmDepuisMetres_0103(). Le décimal est obtenu par l'option
+		 * `returnAsDecimalMetric` de LengthAttributeValue — procédé du tronc
+		 * CollectiveAccess lui-même (app/helpers/displayHelpers.php, datatype 8),
+		 * jamais un décodage maison du texte « 600 mm ».
+		 *
+		 * Deux différences de forme avec le gabarit remplacé, toutes deux voulues :
+		 *  - l'unité n'est écrite QU'UNE fois, en fin de cellule ;
+		 *  - une cote absente est omise sans laisser de séparateur orphelin (l'ancien
+		 *    gabarit sortait « x P. 525 mm » quand seule la profondeur était saisie).
+		 * Le bloc `dimensions_cm` n'est volontairement PAS consulté ici : 63 794 des
+		 * 64 179 contenants qui le portent portent aussi le bloc historique (relevé du
+		 * 11/09/2026), et le consulter ferait changer la valeur affichée pour des
+		 * dizaines de milliers de lignes — ce n'est pas ce que demande le ticket.
+		 *
+		 * @param mixed $po_row ligne de résultat (SearchResult) ou instance ca_objects
+		 * @return string ex. « H. 28 x L. 43.2 x P. 52.5 cm » ; '' si aucune cote saisie
+		 */
+		private function dimensionsEnCm_0103($po_row) {
+			$va_cotes = [];
+			foreach (['H.' => 'dimensions_height', 'L.' => 'dimensions_width', 'P.' => 'dimensions_depth'] as $vs_lettre => $vs_code) {
+				$va_v = $po_row->get('ca_objects.dimensions.'.$vs_code, ['returnAsDecimalMetric' => true, 'returnAsArray' => true]);
+				if (!is_array($va_v)) { $va_v = (($va_v === null) || ($va_v === '')) ? [] : [$va_v]; }
+				$vm_m = null;
+				foreach ($va_v as $vm) { if (($vm !== null) && ($vm !== '')) { $vm_m = $vm; break; } }
+				if ($vm_m === null) { continue; }
+				$va_cotes[] = $vs_lettre.' '.$this->cmDepuisMetres_0103($vm_m);
+			}
+			return sizeof($va_cotes) ? join(' x ', $va_cotes).' cm' : '';
+		}
 		public function Modele2_help() {
 			$this->render('modele2_help_html.php');
 		}
@@ -523,7 +574,7 @@
 					$qr_results->getWithTemplate("^ca_objects.type_mobilier"),
 					$qr_results->getWithTemplate("^ca_objects.description"),
 					$qr_results->getWithTemplate("^ca_objects.inrap_materiaux"),
-					$qr_results->getWithTemplate("<ifdef code='ca_objects.dimensions.dimensions_height'>H. ^ca_objects.dimensions.dimensions_height x </ifdef><ifdef code='ca_objects.dimensions.dimensions_width'>L. ^ca_objects.dimensions.dimensions_width</ifdef><ifdef code='ca_objects.dimensions.dimensions_depth'> x P. ^ca_objects.dimensions.dimensions_depth</ifdef>"),
+					$this->dimensionsEnCm_0103($qr_results),	// 7963 (point 14) — en cm, plus en mm bruts
 					$qr_results->getWithTemplate("<unit relativeTo='ca_objects_x_objects'>^ca_objects.idno</unit>"),
 					//$qr_results->getWithTemplate("<unit relativeTo='ca_collections'>^ca_storage_locations.preferred_labels.name <ifdef='ca_storage_locations.idno'>(^ca_storage_locations.idno)</ifdef></unit>"),
 					$contenant->getWithTemplate("^ca_storage_locations.hierarchy.preferred_labels.name%delimiter=_➔_ <ifdef='ca_storage_locations.idno'>(^ca_storage_locations.idno)</ifdef></unit>"),
@@ -626,7 +677,7 @@
 					$qr_results->getWithTemplate("^ca_objects.type_id"),
 					$qr_results->getWithTemplate("^ca_objects.description"),
 					$qr_results->getWithTemplate("^ca_objects.inrap_materiaux"),
-					$qr_results->getWithTemplate("<ifdef code='ca_objects.dimensions.dimensions_height'>H. ^ca_objects.dimensions.dimensions_height x </ifdef><ifdef code='ca_objects.dimensions.dimensions_width'>L. ^ca_objects.dimensions.dimensions_width</ifdef><ifdef code='ca_objects.dimensions.dimensions_depth'> x P. ^ca_objects.dimensions.dimensions_depth</ifdef>"),
+					$this->dimensionsEnCm_0103($qr_results),	// 7963 (point 14) — en cm, plus en mm bruts
 					round(tofloat($qr_results->getWithTemplate("^ca_objects.volume_caisse")),4),
 					$qr_results->getWithTemplate("^ca_storage_locations.preferred_labels.name <ifdef='ca_storage_locations.idno'>(^ca_storage_locations.idno)</ifdef>")
 				];
