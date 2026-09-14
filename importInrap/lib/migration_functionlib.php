@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__.'/inrap_echec.inc.php');
 require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 require_once(__CA_LIB_DIR__."/Search/EntitySearch.php");
 require_once(__CA_LIB_DIR__."/Search/PlaceSearch.php");
@@ -68,9 +69,14 @@ function getItemID($t_list,$vn_list_id,$pn_type_id,$ps_idno,$libelle,$comment,$p
 		
 		$t_item->insert();
 		if ($t_item->numErrors()) { 
-			$this->errors = array_merge($this->errors, $t_item->errors);
-			var_dump($this->errors);die();
-			return false;
+			// 14/09/2026 GM : exception au lieu de var_dump()+die(). Le « return false » qui
+			// suivait etait de toute facon inatteignable.
+			//
+			// Au passage : getItemID() est une FONCTION, pas une methode. Le « $this->errors »
+			// qui figurait ici levait donc une Error PHP (« Using $this when not in object
+			// context ») avant meme d'atteindre le var_dump — la vraie cause de l'echec etait
+			// masquee par une seconde erreur. On lit les erreurs du modele directement.
+			inrap_echec_ligne("creation de l'entree de liste « ".$ps_idno." »", $t_item);
 		}
 
 		//var_dump($t_item);
@@ -216,8 +222,9 @@ function getMovementID($ps_mov, $vn_loc_type_id, $options = []) {
 		$t_mov->insert();
 		
 		if ($t_mov->numErrors()) {
-			print "ERROR INSERTING movement ($ps_mov): ".join('; ', $t_mov->getErrors())."\n";
-			die();
+			// 14/09/2026 GM : le message partait en anglais au milieu de la page HTML, suivi
+			// d'un die(). Meme information, mais rattrapable et affichee dans le bilan.
+			inrap_echec_ligne("creation du versement « ".$ps_mov." »", $t_mov);
 		}
 		$t_mov->addLabel(array(
 			'name' => $ps_mov
@@ -250,8 +257,7 @@ function getMovementID($ps_mov, $vn_loc_type_id, $options = []) {
 		}
 		$t_mov->update();
 		if($t_mov->numErrors()) {
-			var_dump($t_mov->getErrors());
-			die();
+			inrap_echec_ligne("attributs du versement « ".$ps_mov." »", $t_mov);
 		}
 	}
 	return $vn_mov_id;

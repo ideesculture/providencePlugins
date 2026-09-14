@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__.'/inrap_echec.inc.php');
 require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 function _importObject($data_to_map, $mapping, $keys, $type_id){
     // 07/09/2026 GM (ticket 7987) : les identifiants arrivaient du tableur avec des espaces
@@ -16,7 +17,9 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
         $vt_object->set(array('idno' => $data_to_map["idno"],'type_id' => $type_id,'locale_id'=>2));//Define some intrinsic data.
         $vt_object->insert();//Insert the object
         if ($vt_object->numErrors()){
-            var_dump($vt_object->getErrors());die();
+            // 14/09/2026 GM : exception au lieu de var_dump()+die(), pour que la ligne soit
+            // mise de cote par ImportController et que l'import se poursuive.
+            inrap_echec_ligne("creation de l'objet « ".$data_to_map["idno"]." »", $vt_object);
         }
     }
     $containers = [];
@@ -68,7 +71,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if ($primKey){
                         $vt_object->addRelationship("ca_collections", $primKey, $map["relation_type"]);
                         if ($vt_object->numErrors()){
-                            var_dump($vt_object->getErrors());die();
+                            inrap_echec_ligne("rattachement a l'operation « ".$data." »", $vt_object);
                         }
 
                     }
@@ -107,7 +110,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     $contenantLiesOperation = explode(";", $contenantLiesOperation);
                 
                     if(!$vt_rel_op->getPrimaryKey()) {
-                        var_dump("No collection found for ".$data_to_map["code_inrap"]);die();
+                        inrap_echec_ligne("aucune operation ne porte l'identifiant « ".$data_to_map["code_inrap"]." »");
                     }
 
                     if(!$vt_rel_obj) {
@@ -124,22 +127,21 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                             $vt_contenant->update();
 
                             if ($vt_contenant->numErrors()){
-                                var_dump($vt_contenant->getErrors());die();
+                                inrap_echec_ligne("creation du contenant « ".$data." »", $vt_contenant);
                             }
 
                             $vt_contenant->addAttribute($data_to_map["contenant_ref"], 'referentiel');
                             $vt_contenant->update();
 
                             if ($vt_contenant->numErrors()){
-                                var_dump($vt_contenant->getErrors());die();
+                                inrap_echec_ligne("referentiel du contenant « ".$data." »", $vt_contenant);
                             }
 
                             $vt_contenant->addRelationship("ca_collections", $vs_rel_op, 152);
                             $vt_contenant->update();
 
                             if ($vt_contenant->numErrors()){
-                                var_dump($vt_contenant->getErrors());
-                                die();
+                                inrap_echec_ligne("rattachement du contenant « ".$data." » a l'operation", $vt_contenant);
                             }
                         }
                         
@@ -226,7 +228,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
     $vt_object->update();
 	
     if ($vt_object->numErrors()){
-        var_dump($vt_object->getErrors());die();
+        inrap_echec_ligne("enregistrement de l'objet « ".$data_to_map["idno"]." »", $vt_object);
     }
 
     //On traite les containers ici
@@ -242,8 +244,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
         if (!$metadata) continue;
         $vt_object->addAttribute($container, $metadata);
         if($vt_object->numErrors()) {
-            var_dump($vt_object->getErrors());
-            die();
+            inrap_echec_ligne("ajout du conteneur « ".$metadata." » sur « ".$data_to_map["idno"]." »", $vt_object);
         }
         
         $vt_object->update();

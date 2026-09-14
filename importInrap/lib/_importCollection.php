@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__.'/inrap_echec.inc.php');
 require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -22,7 +23,8 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
         $vt_col->set(array('idno' => $data_to_map["idno"],'type_id' => $type_id,'locale_id'=>2));//Define some intrinsic data.
         $vt_col->insert();//Insert the object
         if ($vt_col->numErrors()){
-            var_dump($vt_col->getErrors());die();
+            // 14/09/2026 GM : exception au lieu de var_dump()+die() — voir inrap_echec.inc.php.
+            inrap_echec_ligne("creation de l'operation « ".$data_to_map["idno"]." »", $vt_col);
         }
     }
     $keys[$data_to_map["idno"]] = $vt_col->getPrimaryKey();
@@ -125,7 +127,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
     }
     $vt_col->update();
     if ($vt_col->numErrors()){
-        var_dump($vt_col->getErrors());die();
+        inrap_echec_ligne("enregistrement de l'operation « ".$data_to_map["idno"]." »", $vt_col);
     }
 
     //On traite les containers ici
@@ -138,8 +140,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
         if (!$metadata) continue;
         $vt_col->addAttribute($container, $metadata);
         if($vt_col->numErrors()) {
-            var_dump($vt_col->getErrors());
-            die();
+            inrap_echec_ligne("ajout du conteneur « ".$metadata." » sur « ".$data_to_map["idno"]." »", $vt_col);
         }
         
         $vt_col->update();
