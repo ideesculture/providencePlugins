@@ -1,4 +1,19 @@
 <?php
+// 14/09/2026 GM : une cellule dont la formule n'a pas pu etre calculee est reprise en texte
+// brut plutot que de faire echouer tout l'import. C'est un fait a signaler, pas a masquer.
+if (!empty($formules)) { ?>
+<div class="alert alert-warning">
+    <strong><?= sizeof($formules) ?> cellule(s)</strong> commencent par « = » et ont été prises pour des formules par Excel.
+    Leur texte a été repris tel quel. Vérifiez ces valeurs :
+    <ul class="mb-0">
+        <?php foreach (array_slice($formules, 0, 10) as $va_f) { ?>
+        <li><code><?= htmlspecialchars($va_f['cellule'], ENT_QUOTES, 'UTF-8') ?></code> : <?= htmlspecialchars(mb_substr($va_f['valeur'], 0, 120), ENT_QUOTES, 'UTF-8') ?></li>
+        <?php } ?>
+    </ul>
+    <?php if (sizeof($formules) > 10) { ?><span class="small">… et <?= sizeof($formules) - 10 ?> autre(s).</span><?php } ?>
+</div>
+<?php } ?>
+<?php
     $headers = $this->getVar("header");
     $type = $this->getVar("type");
     $sheet = $this->getVar("sheet");

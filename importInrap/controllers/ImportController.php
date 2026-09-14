@@ -1,5 +1,6 @@
 <?php
 require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_idno.inc.php");
+require_once(__CA_APP_DIR__."/plugins/importInrap/lib/inrap_lecture_tableur.inc.php");
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -41,11 +42,62 @@ class ImportController extends ActionController{
         $this->render("index_html.php");
     }
 
+    /**
+     * Affiche une erreur d'import dans le gabarit de l'application, au lieu du die() brut
+     * qui renvoyait une page blanche et un message anglais. 14/09/2026 GM.
+     */
+    private function erreurImport($ps_message, $ps_detail = '') {
+        $this->view->setVar("message", $ps_message);
+        $this->view->setVar("detail", $ps_detail);
+        $this->render("erreur_html.php");
+    }
+
     public function SelectSheet(){
         $type = $this->getRequest()->getParameter("type", pString);
         $date = time();
         $tempDir = __CA_APP_DIR__."/plugins/importInrap/temp/";
-        $uploadedFile = $tempDir . $date . ".xlsx";
+
+        // 14/09/2026 GM — CONTRÔLE DU TÉLÉVERSEMENT. Il n'y en avait aucun : ni code d'erreur,
+        // ni extension, ni taille. Le fichier était renommé en « .xlsx » quoi qu'il arrive, puis
+        // confié à PhpSpreadsheet. C'est ainsi qu'une PHOTOGRAPHIE JPEG de 1,8 Mo, prise au
+        // téléphone et téléversée par erreur le 29/09/2025, a fini en « 1759151226.xlsx » et fait
+        // mourir l'écran sur « Unable to identify a reader for this file ».
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            return $this->erreurImport("Aucun fichier n'a été reçu. Sélectionnez un fichier avant de valider.");
+        }
+        $vn_err = (int)$_FILES['file']['error'];
+        if ($vn_err !== UPLOAD_ERR_OK) {
+            $va_motifs = [
+                UPLOAD_ERR_INI_SIZE   => "Le fichier dépasse la taille maximale autorisée par le serveur (".ini_get('upload_max_filesize').").",
+                UPLOAD_ERR_FORM_SIZE  => "Le fichier dépasse la taille maximale autorisée par le formulaire.",
+                UPLOAD_ERR_PARTIAL    => "Le fichier n'a été transféré que partiellement. Réessayez.",
+                UPLOAD_ERR_NO_FILE    => "Aucun fichier n'a été sélectionné.",
+                UPLOAD_ERR_NO_TMP_DIR => "Le serveur n'a pas de répertoire temporaire disponible.",
+                UPLOAD_ERR_CANT_WRITE => "Le serveur n'a pas pu écrire le fichier sur le disque.",
+                UPLOAD_ERR_EXTENSION  => "Le transfert a été interrompu par une extension PHP.",
+            ];
+            return $this->erreurImport($va_motifs[$vn_err] ?? "Le transfert du fichier a échoué.", "code PHP : ".$vn_err);
+        }
+        if ((int)$_FILES['file']['size'] === 0) {
+            return $this->erreurImport("Le fichier reçu est vide.");
+        }
+
+        // L'extension d'ORIGINE fait foi : c'est elle que la gestionnaire voit, et c'est elle
+        // qui trahit le fichier choisi par erreur. Le type MIME du navigateur, lui, n'est pas
+        // fiable — il varie d'un poste à l'autre pour un même classeur.
+        $vs_nom_origine = (string)$_FILES['file']['name'];
+        $vs_ext = mb_strtolower(pathinfo($vs_nom_origine, PATHINFO_EXTENSION));
+        $va_ext_admises = ['xlsx', 'xls', 'xlsm', 'csv', 'ods'];
+        if (!in_array($vs_ext, $va_ext_admises, true)) {
+            return $this->erreurImport(
+                "« ".$vs_nom_origine." » n'est pas un tableur. L'import attend un fichier ".join(', ', $va_ext_admises).".",
+                $vs_ext === '' ? "Le fichier n'a pas d'extension." : "Extension reçue : .".$vs_ext
+            );
+        }
+
+        // On conserve l'extension réelle plutôt que d'imposer « .xlsx » à tout fichier : un .csv
+        // renommé en .xlsx n'est pas un .xlsx, et le nom du fichier temporaire sert de trace.
+        $uploadedFile = $tempDir . $date . "." . $vs_ext;
 
         if (move_uploaded_file($_FILES['file']['tmp_name'], $uploadedFile)) {
             try {
@@ -55,18 +107,24 @@ class ImportController extends ActionController{
                 $objPHPExcel = $objReader->load($uploadedFile);
                 $sheets = $objPHPExcel->getSheetNames();
                 
-            } catch(Exception $e) {
-                die('Error loading file "'.pathinfo($uploadedFile,PATHINFO_BASENAME).'": '.$e->getMessage());
+            } catch(\Throwable $e) {
+                @unlink($uploadedFile);
+                return $this->erreurImport(
+                    "Le fichier « ".$vs_nom_origine." » n'a pas pu être ouvert comme un tableur. "
+                   ."Vérifiez qu'il s'agit bien du bon fichier, et qu'il s'ouvre correctement dans Excel.",
+                    $e->getMessage()
+                );
             }
             
             $this->view->setVar("sheets", $sheets);
             $this->view->setVar("type", $type);
             $this->view->setVar("date", $date);
-            $this->view->setVar("name", $_FILES["file"]["name"]);
+            $this->view->setVar("name", $vs_nom_origine);
             $this->view->setVar("file", $uploadedFile);
             $this->render("select_sheet_html.php");
         }else{
-            die("Erreur : Le fichier n'a pas pu être déplacé");
+            return $this->erreurImport("Le fichier n'a pas pu être enregistré sur le serveur.",
+                "destination : ".$uploadedFile);
         }
 
     }
@@ -78,15 +136,26 @@ class ImportController extends ActionController{
         $name = $this->getRequest()->getParameter("name", pString);
 
       
-        $inputFileType = IOFactory::identify($uploadedFile);
-        $objReader = IOFactory::createReader($inputFileType);
-        $objPHPExcel = $objReader->load($uploadedFile);
-            
+        // 14/09/2026 GM : chargement protege, comme dans SelectSheet(). Sans cela une erreur
+        // de lecture a cette etape rend une page blanche, sans message ni retour possible.
+        try {
+            $inputFileType = IOFactory::identify($uploadedFile);
+            $objReader = IOFactory::createReader($inputFileType);
+            $objPHPExcel = $objReader->load($uploadedFile);
+        } catch (\Throwable $e) {
+            return $this->erreurImport("Le fichier « ".$name." » n'a pas pu être relu.", $e->getMessage());
+        }
+
         //  Get worksheet dimensions
         $sheet = $objPHPExcel->getSheet($sheetIndex); 
         $highestColumn = $sheet->getHighestColumn();
         $mapping = $this->opo_config->get('mapping');
-        $header = $sheet->rangeToArray('A1:' . $highestColumn . "1",NULL,TRUE,FALSE);
+        // 14/09/2026 GM : lecture resiliente. Une cellule d'en-tete commencant par « = » est
+        // typee formule par Excel ; son calcul echouait et emportait tout l'ecran.
+        $formules = [];
+        $header = inrap_plage_en_tableau($sheet, 'A1:' . $highestColumn . "1", $formules);
+        inrap_journaliser_incidents($formules, $uploadedFile);
+        $this->view->setVar("formules", $formules);
         $header = array_filter($header[0]);
         $this->view->setVar("type", $type);
         $this->view->setVar("sheet", $sheetIndex);
@@ -111,14 +180,26 @@ class ImportController extends ActionController{
         }
 
         // Excel File
-        $inputFileType = IOFactory::identify($uploadedFile);
-        $objReader = IOFactory::createReader($inputFileType);
-        $objPHPExcel = $objReader->load($uploadedFile);
+        // 14/09/2026 GM : chargement protege, meme motif que ci-dessus.
+        try {
+            $inputFileType = IOFactory::identify($uploadedFile);
+            $objReader = IOFactory::createReader($inputFileType);
+            $objPHPExcel = $objReader->load($uploadedFile);
+        } catch (\Throwable $e) {
+            return $this->erreurImport("Le fichier « ".$name." » n'a pas pu être relu.", $e->getMessage());
+        }
         $sheet = $objPHPExcel->getSheet($sheetIndex); 
         $highestRow = $sheet->getHighestDataRow();
         $highestColumn = $sheet->getHighestColumn();
         $row=0;
-        $datas=$sheet->rangeToArray('A1:' . $highestColumn.($highestRow+1),NULL,TRUE,FALSE);
+        // 14/09/2026 GM : meme lecture resiliente sur le corps du tableau. Mesure sur le
+        // classeur 1777965966.xlsx (05/05/2026) : l'ancienne lecture mourait sur la cellule
+        // U102 (« =chateau II? = si oui, prendre le code afan... », saisie prise pour une
+        // formule) et perdait les 3 076 lignes du fichier ; la nouvelle les rend toutes.
+        $formules = [];
+        $datas = inrap_plage_en_tableau($sheet, 'A1:' . $highestColumn.($highestRow+1), $formules);
+        inrap_journaliser_incidents($formules, $uploadedFile);
+        $this->view->setVar("formules", $formules);
 
         $headers = [];
         foreach ($datas as $col=>$data){
@@ -137,7 +218,9 @@ class ImportController extends ActionController{
             $idnos[] = $data_to_map[$row]["idno"]; 
             $row++;
         }
-        $dateTime = mb_substr(end(explode("/", $uploadedFile)), 0, -5);
+        // 14/09/2026 GM : mb_substr(..., 0, -5) retirait « .xlsx » en comptant les caracteres.
+        // Depuis que l'extension d'origine est conservee (.xls, .csv), ce compte est faux.
+        $dateTime = pathinfo($uploadedFile, PATHINFO_FILENAME);
         $jsonPath = __CA_APP_DIR__."/plugins/importInrap/temp/".$dateTime.".json";
         file_put_contents($jsonPath, json_encode($data_to_map));
         $this->view->setVar("data", $jsonPath);

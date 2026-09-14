@@ -22,7 +22,7 @@
     </div>
     <div class="mb-3">
         <label for="formFile" class="form-label">Sélectionner le fichier excel à importer</label>
-        <input class="form-control" type="file" id="formFile" name="file">
+        <input class="form-control" type="file" id="formFile" name="file" accept=".xlsx,.xls,.xlsm,.csv,.ods">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary mb-3">Valider</button>
