@@ -230,7 +230,10 @@ function getMovementID($ps_mov, $vn_loc_type_id, $options = []) {
 			'name' => $ps_mov
 		), 2, null, true);
 		if ($t_mov->numErrors()) {
-			var_dump($t_mov->getErrors());
+			// 14/09/2026 GM : au journal plutot qu'en clair dans la page. Le « return null »
+			// est conserve tel quel : getMovementID() n'est appelee nulle part aujourd'hui,
+			// ce n'est pas le moment d'en changer le comportement.
+			error_log("importInrap : libelle du versement « ".$ps_mov." » refuse — ".join(' ; ', $t_mov->getErrors()));
 			return null;
 		}
 		
@@ -241,7 +244,7 @@ function getMovementID($ps_mov, $vn_loc_type_id, $options = []) {
 		$t_mov->set('type_id', $vn_loc_type_id);
 		$t_mov->update();
 		if ($t_mov->numErrors()) {
-			var_dump($t_mov->getErrors());
+			error_log("importInrap : mise a jour du versement « ".$ps_mov." » refusee — ".join(' ; ', $t_mov->getErrors()));
 			return null;
 		}
 		$vn_mov_id = $t_mov->getPrimaryKey();
