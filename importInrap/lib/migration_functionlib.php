@@ -23,8 +23,10 @@ function getListID($t_list,$list_code,$list_name="") {
 		$t_list->insert();
 		
 		if ($t_list->numErrors()) {
-			print "ERROR: couldn't create ca_list row for $list_code: ".join('; ', $t_list->getErrors())."\n";
-			die;
+			// 14/09/2026 GM : « die » sans parentheses — c'est pour cela qu'il avait echappe
+			// a la recherche des « die() ». Meme traitement que les autres : exception
+			// rattrapable, message en francais, import poursuivi.
+			inrap_echec_ligne("creation de la liste de vocabulaire « ".$list_code." »", $t_list);
 		}
 		
 		$t_list->addLabel(array('name' => $list_name), $pn_locale_id, null, true);
