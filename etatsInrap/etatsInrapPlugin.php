@@ -78,6 +78,19 @@
                     )
                 );
 
+                // 14/09/2026 GM (ticket 8025) : accès à la liste des reculs de statut écartés par
+                // le recalcul de nuit. Consignés depuis le 09/09/2026, ils n'étaient lisibles
+                // qu'en se connectant au serveur — donc jamais arbitrés, donc toujours là.
+                $va_menu_items[2] = array(
+                    'displayName' => "Statuts à arbitrer",
+                    'requires' => array(),
+                    "default" => array(
+                        'module' => 'etatsInrap',
+                        'controller' => 'Statuts',
+                        'action' => 'Index'
+                    )
+                );
+
                 $pa_menu_bar['suiviInventaire_menu'] = array(
 					'displayName' => _t('Etats'),
 					'navigation' => $va_menu_items,
