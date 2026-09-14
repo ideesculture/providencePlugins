@@ -519,6 +519,49 @@ function recalc_cascade_complete(string $table, int $row_id, bool $verbose) {
 
     if ($verbose) log_line("    cascade prepopulate $table #$row_id terminée");
 
+    // 14/09/2026 GM (ticket 8025) — RECALCUL DU STATUT D'OPÉRATION.
+    //
+    // Le statut n'était recalculé que par le balayage de 04:30. Une gestionnaire qui saisissait
+    // une date de rapport à 08:45 voyait donc un statut périmé toute la journée, et le signalait
+    // comme un défaut : c'est exactement ce qui s'est passé sur l'opération D159531 le 14/09.
+    //
+    // C'est ici que cela se répare, et nulle part ailleurs : la phase 3 du greffon avait été
+    // coupée le 24/03 parce qu'elle pesait sur l'ENREGISTREMENT. La file, elle, s'exécute après
+    // coup, hors de la requête de la gestionnaire — le coût ne se voit pas à la saisie.
+    //
+    // AVANT la réindexation, pour que le document indexé porte le statut à jour.
+    //
+    // Les trois garde-fous sont ceux de la nuit, appliqués par inrap_appliquer_statut() :
+    // gel LOT 5, saisie humaine de moins de 30 jours, et refus d'écrire un statut qui recule.
+    // Un recul rencontré ici n'est PAS consigné dans le fichier d'arbitrage : ce fichier est
+    // l'instantané que produit le balayage de nuit, et le nourrir en cours de journée y
+    // ajouterait des doublons de cas déjà listés.
+    if ($table === 'ca_collections' && (int)$instance->get('type_id') === 125) {
+        $fichier_regle = __CA_BASE_DIR__ . '/inrap_scripts/inrap_regle_statut.inc.php';
+        if (is_readable($fichier_regle)) {
+            require_once($fichier_regle);
+            try {
+                $verdict = inrap_appliquer_statut($instance, [
+                    'respecter_manuel' => 30,
+                    'exclure_recul'    => true,
+                    'simulation'       => false,
+                    'note_incomplete'  => false,   // la note « collection incomplète » reste au balayage de nuit
+                ]);
+                if ($verdict['verdict'] === 'ecrit') {
+                    log_line("    statut #$row_id : « {$verdict['avant']} » -> « {$verdict['apres']} »");
+                } elseif ($verbose) {
+                    log_line("    statut #$row_id : {$verdict['verdict']}");
+                }
+            } catch (\Throwable $e) {
+                // Un statut non recalculé ne doit jamais faire échouer la cascade ni la
+                // réindexation : le balayage de nuit repassera dessus.
+                log_line("    [!] statut #$row_id non recalculé : " . $e->getMessage());
+            }
+        } elseif ($verbose) {
+            log_line("    statut #$row_id : règle introuvable ($fichier_regle), ignoré");
+        }
+    }
+
     // Réindexation complète du document dans Meilisearch.
     reindex_document($table, $row_id, $verbose);
 }
