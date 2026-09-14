@@ -289,6 +289,21 @@ class ImportController extends ActionController{
 		$keys = json_decode($keys, true);
 		if(!$keys) $keys = [];
 
+		// 14/09/2026 GM : l'import avance une ligne par requete HTTP. La liste des lignes en
+		// echec doit donc voyager de requete en requete, comme $keys, sans quoi le bilan final
+		// ne montrerait que la derniere.
+		//
+		// Transport en base64 et non en JSON nu : getParameter(pString) fait un rawurldecode(),
+		// qui mangerait un « % » present dans un message d'erreur, et le filtrage des parametres
+		// peut retoucher les chevrons. Un message d'erreur contient n'importe quoi ; on le met
+		// donc a l'abri du transport.
+		$errors = json_decode((string)base64_decode((string)$this->getRequest()->getParameter("errors", pString), true), true);
+		if(!is_array($errors)) $errors = [];
+		$errors_total = (int)$this->getRequest()->getParameter("errors_total", pInteger);
+		// Un import de plusieurs milliers de lignes entierement en echec ferait enfler le champ
+		// cache a chaque requete. On detaille les 200 premieres, on compte toutes les autres.
+		$errors_max = 200;
+
         $length = $this->getRequest()->getParameter("length", pInteger);
 		$start = $this->getRequest()->getParameter("start", pInteger);
 		if(!$start) $start = 0;
@@ -377,21 +392,44 @@ class ImportController extends ActionController{
                     }
                 }
 
-                if ($type == "operation"){
-					//print "import de ".$index." (collection) : ".$data["idno"]."<br>";
-                    $keys = _importCollection($data, $mapping, $keys, $type_id);
-                }else{
-					//print "import de ".$index." (objet) : ".$data["idno"]."<br>";
-					try {
+                // 14/09/2026 GM — UNE LIGNE FAUTIVE NE FAIT PLUS TOMBER L'IMPORT.
+                // L'ancien traitement affichait cinq var_dump() — dont la pile d'appels
+                // complete — puis die(). Pour la gestionnaire : un mur de texte anglais au
+                // milieu d'un import a moitie fait, sans savoir ce qui etait passe ni ou
+                // reprendre. C'est l'un des sens du mot « fatale » dans les tickets 7042,
+                // 7536 et 7947. Et l'import des OPERATIONS n'etait meme pas protege : une
+                // exception y produisait une erreur PHP nue.
+                //
+                // La ligne en echec est desormais mise de cote et l'import continue. Elle est
+                // journalisee, puis listee dans le bilan final avec son numero de ligne dans
+                // le tableur, pour etre reprise a la main.
+                //
+                // RESERVE ASSUMEE : une exception survenue APRES la creation de la fiche peut
+                // laisser un enregistrement incomplet en base. C'etait deja le cas avec die(),
+                // qui abandonnait en outre toutes les lignes suivantes. Le bilan nomme la ligne
+                // concernee precisement pour qu'elle soit verifiee.
+                try {
+                    if ($type == "operation"){
+                        $keys = _importCollection($data, $mapping, $keys, $type_id);
+                    }else{
                         $keys = _importObject($data, $mapping, $keys, $type_id);
-                    } catch (Exception $e) {
-                        var_dump($e->getMessage());
-                        var_dump($e->getFile(), $e->getLine());
-                        var_dump($e->getTrace());
-                        var_dump($e->getPrevious());
-                        var_dump($data);
-                        die();
                     }
+                } catch (\Throwable $e) {
+                    // Ligne du TABLEUR telle que la voit la gestionnaire : $index compte les
+                    // lignes de donnees a partir de 1, l'en-tete occupe la ligne 1 du fichier.
+                    $vn_ligne_tableur = ((int)$index) + 1;
+                    $vs_idno = isset($data["idno"]) ? (string)$data["idno"] : '';
+                    $errors_total++;
+                    if (sizeof($errors) < $errors_max) {
+                        $errors[] = [
+                            'ligne'   => $vn_ligne_tableur,
+                            'idno'    => $vs_idno,
+                            'message' => $e->getMessage(),
+                        ];
+                    }
+                    error_log(sprintf('importInrap : ligne %d du tableur (%s) non importee — %s [%s:%d]',
+                        $vn_ligne_tableur, $vs_idno !== '' ? $vs_idno : 'sans identifiant',
+                        $e->getMessage(), $e->getFile(), $e->getLine()));
                 }
             }
 			// if the number of rows processed has reached the page size, set the start for the next page
@@ -408,6 +446,8 @@ class ImportController extends ActionController{
 		//die();
         
         $this->view->setVar("keys", $keys);
+        $this->view->setVar("errors", $errors);
+        $this->view->setVar("errors_total", $errors_total);
         
 		if($end) {
 			$this->render("imported_html.php");

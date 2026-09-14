@@ -11,6 +11,9 @@
     $allRows = $this->getVar("allRows");
     $idnoPrefix = $this->getVar("idnoPrefix");
     $idnoPrefixScope = $this->getVar("idnoPrefixScope");
+    $errors = $this->getVar("errors");
+    if (!is_array($errors)) { $errors = []; }
+    $errors_total = (int)$this->getVar("errors_total");
     $total = sizeof($json);
 ?>
 <style>
@@ -44,6 +47,9 @@
 </style>
 <div class="container">
      <p>Import en cours...</p>
+     <?php if ($errors_total) { ?>
+     <p style="color:#842029;"><?= $errors_total ?> ligne(s) mise(s) de côté pour le moment — le détail s'affichera à la fin.</p>
+     <?php } ?>
      <div class="progressbar-wrapper">
       <div title="downloading" class="progressbar" style="width:<?= round($start/$total*100) ?>%"><?= round($start/$total*100) ?>%</div>
      </div>
@@ -59,6 +65,9 @@
     <input type="hidden" name="allRows" value="<?php echo htmlspecialchars($allRows); ?>">
     <input type="hidden" name="idno_prefix" value="<?php echo htmlspecialchars($idnoPrefix); ?>">
     <input type="hidden" name="idno_prefix_scope" value="<?php echo htmlspecialchars($idnoPrefixScope); ?>">
+    <!-- 14/09/2026 GM : les lignes mises de cote voyagent avec l'import, comme $keys. -->
+    <input type="hidden" name="errors" value="<?php echo base64_encode(json_encode($errors)); ?>">
+    <input type="hidden" name="errors_total" value="<?php echo (int)$errors_total; ?>">
 
     <!-- Bouton pour soumettre le formulaire -->
     <button type="submit" style="margin-top: 20px;background:white;color:white;border:none;">Continuer</button>
