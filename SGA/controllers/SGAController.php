@@ -318,14 +318,29 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("dir_inrap")) {
 				$value = array("Centre Ile de France" => "DIR CIF", "Grand Ouest" => "DIR GO", "Grand Est" => "DIR GE", "Auvergne-Rhône-Alpes" => "DIR ARA", "Hauts-de-France" => "DIR HDF", "Midi-Méditerranée" => "DIR MIDIMED", "Outre-mer" => "DIR NAOM", "Nouvelle Aquitaine" => "DIR NAOM", "Bourgogne-Franche-Comté" => "DIR BFC");
-				$entity = new EntitySearch();
-				$result = $entity->search("ca_entities:\"" . $value[$qr_result->get("dir_inrap")]);
-				while ($result->nextHit()) {
-					$name = $result->get("ca_entities.preferred_labels.displayname");
-					if ($name == $value[$qr_result->get("dir_inrap")]) {
-						$col->removeRelationships("ca_entities", 236);
-						$col->addRelationship("ca_entities", $result->get("ca_entities.entity_id"), 236);
-						break;
+				// 23/09/2026 GM (ticket 8045) — DEUX DEFAUTS ICI, ET LA DIRECTION NE S'ECRIVAIT JAMAIS.
+				//
+				// 1. Le guillemet ouvrant n'etait pas referme : la requete valait
+				//    `ca_entities:"DIR MIDIMED` et rendait zero. Refermee, elle rend 6 fiches
+				//    dont l'entite 26 « DIR MIDIMED » en tete, que la boucle retient.
+				// 2. La table de correspondance etait interrogee sans verifier la cle. Une
+				//    direction que SGA nomme autrement produisait un avertissement PHP 8 puis
+				//    une recherche sur la chaine vide. On sort maintenant proprement.
+				// Direction inconnue de la table de correspondance : on ne devine pas, on ne
+				// touche a rien. Surtout pas de `break` ici — la boucle englobante est le
+				// `while ($qr_result->nextRow())` ligne 193, en sortir abandonnerait tous les
+				// champs suivants ET tous les enregistrements suivants.
+				$vs_cible = $value[$qr_result->get("dir_inrap")] ?? null;
+				if ($vs_cible !== null) {
+					$entity = new EntitySearch();
+					$result = $entity->search('ca_entities:"' . $vs_cible . '"');
+					while ($result->nextHit()) {
+						$name = $result->get("ca_entities.preferred_labels.displayname");
+						if ($name == $vs_cible) {
+							$col->removeRelationships("ca_entities", 236);
+							$col->addRelationship("ca_entities", $result->get("ca_entities.entity_id"), 236);
+							break;
+						}
 					}
 				}
 			}
