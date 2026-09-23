@@ -48,7 +48,50 @@ Le plugin est **desactive par defaut**. Pour l'activer sur une instance, copier 
 |---|---|---|
 | `enabled` | `0` | `1` pour activer, `0` pour desactiver |
 | `removeSquareBrackets` | `1` | `1` pour retirer les `[ ]` autour des dates incertaines (notices bibliographiques) |
-| `removeKeywords` | `["DL","IMPR","COP",...]` | Liste de prefixes bibliographiques a supprimer avant parsing (DL = depot legal, IMPR = imprime, COP = copyright) |
+| `removeKeywords` | `["DL","IMPR","COP",...]` | Liste de prefixes bibliographiques a supprimer avant parsing (DL = depot legal, IMPR = imprime, COP = copyright). La liste est appliquee du plus long au plus court, pour que `COP.` soit retire avant `COP` et qu'aucun point orphelin ne subsiste |
+| `normalizeUndated` | `0` | `1` pour normaliser les marqueurs d'absence de date (voir ci-dessous) |
+| `undatedMarkers` | `["?","??","???","????","s.d.","sd","sans date","n.d.","nd","nd."]` | Mentions signifiant « objet non date » |
+| `undatedToken` | `undated` | Token substitue au marqueur reconnu |
+
+### Objets non dates (`normalizeUndated`)
+
+Le `TimeExpressionParser` de CollectiveAccess ne sait reconnaitre comme « non date »
+que les mentions declarees dans `undatedDate`, au fichier `.lang` de la locale. En
+francais cette liste se reduit a `[undated, unknown]` : les notations d'usage
+(`?`, `s.d.`, `sans date`, `n.d.`) n'y figurent pas. Pire, `?` est declare dans
+`presentDate` : une photographie non datee se retrouve enregistree comme « presente »,
+avec une plage ouverte jusqu'a aujourd'hui.
+
+Avec `normalizeUndated = 1`, le plugin remplace ces marqueurs par le token
+`undatedToken` (`undated` par defaut), que le `.lang` sait deja lire. Le parsing
+reussit, aucune borne historique n'est produite, rien n'est indexe comme date :
+c'est la definition meme d'un objet non date.
+
+```
+normalizeUndated = 1
+```
+
+Le reglage est **desactive par defaut** : une instance qui met a jour son clone du
+depot ne voit aucun changement de comportement tant qu'elle ne l'active pas
+explicitement dans son `conf/local/`.
+
+Deux precautions :
+
+- La comparaison porte sur **l'expression entiere**, jamais sur une sous-chaine.
+  `1950?` reste donc une date circa, et aucune cote contenant `sd` ou `nd` n'est
+  affectee.
+- Ne pas lister les memes mentions dans `removeKeywords` : elles y seraient
+  supprimees en premier, et l'expression serait vide avant d'avoir pu etre reconnue.
+
+A noter : le token substitue doit figurer dans `undatedDate` du `.lang` de la locale
+utilisee, sans quoi l'expression sera rejetee comme date invalide.
+
+### Affichage
+
+Une valeur non datee se reaffiche **vide** tant que `app/conf/datetime.conf` est en
+`dateFormat = text` (comportement par defaut de CollectiveAccess). Pour que la mention
+saisie par l'utilisateur (`s.d.`) reste visible apres enregistrement, il faut, comme
+pour les dates revolutionnaires, `dateFormat = original`.
 
 ## Fonctionnement technique
 
@@ -57,6 +100,8 @@ Le plugin est **desactive par defaut**. Pour l'activer sur une instance, copier 
 - Conversion : `frenchtojd()` (jour julien) → `jdtogregorian()`
 - Gere les locales avec ordre `JJ/MM/AAAA` ou `MM/JJ/AAAA` via le fichier `.lang` du `TimeExpressionParser`
 - L'expression originale est remplacee par la date gregorienne, puis le `TimeExpressionParser` standard prend le relais
+- Si `normalizeUndated` est actif, la reconnaissance des marqueurs d'absence de date se fait apres le nettoyage (crochets, prefixes) et court-circuite la conversion revolutionnaire
+- Le jour est facultatif dans une date revolutionnaire (`germinal an V`) : a defaut, le 1er du mois est retenu
 
 ## Permissions
 
