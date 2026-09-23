@@ -64,6 +64,7 @@
 				<th>Direction</th>
 				<th>Statut actuel</th>
 				<th>Statut calculé</th>
+				<th>Statut posé par</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -77,6 +78,9 @@
 				<td><?= htmlspecialchars($l['direction'], ENT_QUOTES, 'UTF-8') ?></td>
 				<td><?= htmlspecialchars($l['actuel'], ENT_QUOTES, 'UTF-8') ?></td>
 				<td style="color:#8a6200;"><?= htmlspecialchars($l['calcule'], ENT_QUOTES, 'UTF-8') ?></td>
+				<td style="color:#555e5b;"><?= $l['auteur'] !== ''
+					? htmlspecialchars($l['auteur'], ENT_QUOTES, 'UTF-8')
+					: '<span style="color:#9aa;">non tracé</span>' ?></td>
 			</tr>
 		<?php } ?>
 		</tbody>

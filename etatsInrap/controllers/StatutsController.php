@@ -65,7 +65,9 @@ class StatutsController extends ActionController {
 			$vr = @fopen($vs_fichier, 'r');
 			if ($vr) {
 				while (($va_c = fgetcsv($vr, 0, ',', '"')) !== false) {
-					// idno, collection_id, statut actuel, statut calculé, commune, direction
+					// idno, collection_id, statut actuel, statut calculé, commune, direction,
+					// auteur du statut actuel (7e colonne, ajoutée le 23/09/2026 — ticket 8000).
+					// Les journaux antérieurs n'en portent pas : la colonne est alors vide.
 					if (!is_array($va_c) || sizeof($va_c) < 4) { continue; }
 					$net = function ($v) { return trim(preg_replace('/\s+/u', ' ', (string)$v)); };
 					if ($net($va_c[0]) === '' && !(int)($va_c[1] ?? 0)) { continue; }
@@ -76,6 +78,7 @@ class StatutsController extends ActionController {
 						'calcule'   => $net($va_c[3] ?? ''),
 						'commune'   => $net($va_c[4] ?? ''),
 						'direction' => $net($va_c[5] ?? ''),
+						'auteur'    => $net($va_c[6] ?? ''),
 					);
 				}
 				fclose($vr);
