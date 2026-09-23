@@ -486,6 +486,27 @@ function getEntityID($ps_forename, $ps_surname, $pn_type_id)
 }
 
 // ----------------------------------------------------------------------	
+/**
+ * Cle de comparaison d'un nom de personne : majuscules, sans accents, sans ponctuation ni
+ * espaces. « SACCHETTI,  Federica » (double espace, tel quel dans le referentiel) et
+ * « SACCHETTI, Federica » donnent la meme cle, donc la meme personne.
+ *
+ * Sert UNIQUEMENT a verifier qu'une fiche trouvee par recherche porte bien le nom cherche.
+ * On ne s'en sert pas pour departager des doublons : quand plusieurs fiches portent le meme
+ * nom — 83 cas dans le parc, les utilisateurs ayant pu en creer a la main — on raccroche a la
+ * premiere rendue, sans arbitrer. Decision GM du 23/09/2026.
+ */
+function sga_cle_de_nom($ps_nom)
+{
+	$vs = trim((string)$ps_nom);
+	if ($vs === '') { return ''; }
+	if (function_exists('iconv')) {
+		$vs_sans_accents = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $vs);
+		if ($vs_sans_accents !== false) { $vs = $vs_sans_accents; }
+	}
+	return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $vs));
+}
+
 function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entity_type_id)
 {
 	global $pn_locale_id;
@@ -498,14 +519,51 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 	// « Musee Louvre-Lens ». Ce musee s'est ainsi retrouve rattache a des operations de toute la
 	// France, sans que rien ne le signale — 9 liens encore crees le 09/09/2026 par cinq agents.
 	// Le creer serait pire : on fabriquerait une 95e fiche sans identifiant.
-	if (trim((string)$ps_entity_idno) === '') {
-		if ($VERBOSE) { print "\tIdentifiant vide, entite non resolue : {$ps_surname},{$ps_forename}\n"; }
-		return null;
-	}
+	// 23/09/2026 GM (ticket 8045) — ON NE RENONCE PLUS, ON CHERCHE PAR LE NOM.
+	// SGA transmet un identifiant pour le responsable d'operation, jamais pour le prescripteur
+	// ni pour le DAST : ces deux-la ne pouvaient donc pas etre crees, et l'import laissait le
+	// champ vide sans rien dire (Nathalie Molina, operations 60840 et 60841).
+	//
+	// L'ORDRE COMPTE, et c'est tout l'enjeu. Chercher par le NOM avant de creer evite de
+	// fabriquer un second exemplaire d'une personne deja presente sous un autre identifiant :
+	// « CHADEFAUX, Xavier » porte le matricule 06339. Le parc y a deja perdu — 83 noms sont
+	// portes par plusieurs fiches, dont Magali Rolland par CINQ : le matricule 01718, puis
+	// « magali rolland », « rolland magali »… chaque graphie ayant cree une fiche de plus.
+	$vs_idno    = trim((string)$ps_entity_idno);
+	$vs_libelle = trim((string)$ps_surname) . ', ' . trim((string)$ps_forename);
 
 	$t_entity = new ca_entities();
 	$t_label = $t_entity->getLabelTableInstance();
-	if (!$t_entity->load(array('idno' => $ps_entity_idno, 'deleted' => 0))) {
+
+	// 1. Par l'identifiant quand SGA en fournit un : c'est lui qui fait foi.
+	//    Un identifiant VIDE n'est jamais un critere — load(['idno' => '']) rend la premiere
+	//    fiche a identifiant vide. Il y en avait 94, la plus basse etant « Musee Louvre-Lens »,
+	//    rattache de la sorte a des operations de toute la France (ticket 7988, 10/09/2026).
+	$vb_trouve = ($vs_idno !== '') && $t_entity->load(array('idno' => $vs_idno, 'deleted' => 0));
+
+	// 2. Sinon par le nom : la fiche existe peut-etre sous un autre identifiant.
+	if (!$vb_trouve) {
+		$vn_par_nom = getEntityID($ps_forename, $ps_surname, $pn_entity_type_id);
+		if ($vn_par_nom && $t_entity->load(array('entity_id' => (int)$vn_par_nom, 'deleted' => 0))) {
+			// La recherche est tolerante : on verifie que le libelle correspond vraiment.
+			// Rendre une homonymie approchante serait pire que ne rien rendre.
+			if (sga_cle_de_nom($t_entity->get('ca_entities.preferred_labels.displayname'))
+			    === sga_cle_de_nom($vs_libelle)) {
+				$vb_trouve = true;
+			} else {
+				$t_entity = new ca_entities();
+			}
+		}
+	}
+
+	// 3. A defaut, creation — le libelle sert d'identifiant SEULEMENT si SGA n'en donne pas.
+	$ps_entity_idno = ($vs_idno !== '') ? $vs_idno : $vs_libelle;
+	if (trim((string)$ps_entity_idno) === '') {
+		if ($VERBOSE) { print "\tNi identifiant ni libelle, entite non resolue\n"; }
+		return null;
+	}
+
+	if (!$vb_trouve) {
 		if ($VERBOSE) print "CREATING ENTITIY {$ps_surname},{$ps_forename}\n";
 		// insert occurrence
 		$t_entity->setMode(ACCESS_WRITE);

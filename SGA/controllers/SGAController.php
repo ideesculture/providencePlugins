@@ -293,7 +293,12 @@ class SGAController extends ActionController
 				// c'est un ArgumentCountError fatal — l'import SGA mourait donc entièrement dès
 				// qu'une opération portait un prescripteur, sans que la direction soit écrite.
 				// Constaté deux fois le 01/09 à 09:07 au journal, sur /SGA/SGA/Compare/id/298606.
-				$entity_id = getEntityID($name_info[1], $name_info[0], 1665);
+				// 23/09/2026 GM (ticket 8045) : getEntityIDByIdno() et non getEntityID().
+				// La premiere cherche par identifiant PUIS par nom, et cree la fiche absente ;
+				// la seconde se contente de chercher. SGA ne transmet pas d'identifiant pour le
+				// prescripteur ni pour le DAST — d'ou la chaine vide, qui fait prendre le libelle
+				// comme identifiant a la creation. Decision GM du 23/09/2026.
+				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
 				if ($entity_id != false){
 					$col->removeRelationships("ca_entities", 122);
 					$col->addRelationship("ca_entities", $entity_id, 122);
@@ -347,7 +352,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("dir_adj_st")) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
-				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
+				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -578,7 +583,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("prescripteur") && isset($_POST["prescripteur"])) {
 				$name_info = explode(',', $qr_result->get("prescripteur"));
-				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
+				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -643,7 +648,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("dir_adj_st")  && isset($_POST["dir_adj_st"])) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
-				$entity_id = getEntityID($name_info[1], $name_info[0], 1665, null);
+				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
