@@ -155,7 +155,7 @@
 						$data_to_compare = $value[$t_item->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='DIR'>^ca_entities.preferred_labels.displayname</unit>")];
 					}
 					if ($metadata == "prescripteur") {
-						$data_to_compare = $t_item->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='suivi_par'>^ca_entities.preferred_labels.displayname</unit>");
+						$data_to_compare = $t_item->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='suivi_par' restrictToTypes='ind'>^ca_entities.preferred_labels.displayname</unit>");
 					}
 					if ($metadata == "autorisation_fouille") {
 						$data_to_compare = $t_item->getWithTemplate("^ca_collections.autorisation_fouille.autorisation_num");
@@ -165,7 +165,7 @@
 					}
 		
 					if ($metadata == "dir_adj_st") {
-						$data_to_compare = $t_item->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='dast'>^ca_entities.preferred_labels.displayname</unit>");
+						$data_to_compare = $t_item->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='dast' restrictToTypes='ind'>^ca_entities.preferred_labels.displayname</unit>");
 					}
 					if ($metadata == "commune") {
 						$data_to_compare = $t_item->getWithTemplate("<unit relativeTo='ca_places'>^ca_places.preferred_labels.name</unit>");
