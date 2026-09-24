@@ -67,6 +67,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                     if (!$place_id) {
                         global $VERBOSE;
                         if ($VERBOSE) { print "\tLieu non resolu, relation ignoree : \"{$data}\"\n"; }
+                        inrap_avertir_ligne("lieu « ".$data." » introuvable : relation non créée");
                         break;
                     }
                     $vt_col->addRelationship("ca_places", $place_id, $map["relation_type"]);
@@ -86,6 +87,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                     // manquant, que l'agent verra, qu'un rattachement faux qu'il ne verra pas.
                     if (!$entity_id) {
                         if ($VERBOSE) { print "\tNom non resolu, relation ignoree : \"{$data}\"\n"; }
+                        inrap_avertir_ligne("personne ou organisme « ".$data." » introuvable : relation non créée");
                         break;
                     }
                     $vt_col->addRelationship("ca_entities", $entity_id, $map["relation_type"]);
@@ -103,7 +105,12 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                         if ($vt_loc_ref->getPrimaryKey() && ((int)$vt_loc_ref->get('deleted') !== 1)) {
                             $vt_col->addRelationship("ca_storage_locations", $vn_loc_id, $map["relation_type"]);
                             $vt_col->update();
+                            _inrapSignalerValeursRefusees($vt_col);
+                        } else {
+                            inrap_avertir_ligne("emplacement n° ".$data." inconnu : relation non créée");
                         }
+                    } else {
+                        inrap_avertir_ligne("emplacement « ".$data." » : identifiant numérique attendu, relation non créée");
                     }
                     break;
 
@@ -113,7 +120,16 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
                     $vt_mouv = new ca_movements();
                     $vt_mouv->load(["idno" => inrap_normaliser_idno($data), "deleted" => 0]);
                     if ($vt_mouv->getPrimaryKey()){
+                        // 23/09/2026 GM (ticket 8047) : ne pas imputer au rattachement des erreurs
+                        // d'attributs restées sur le modèle.
+                        $vt_col->clearErrors();
                         $vt_col->addRelationship("ca_movements", $vt_mouv->getPrimaryKey(), $map["relation_type"]);
+                        if ($vt_col->numErrors()){
+                            inrap_echec_ligne("rattachement au mouvement « ".$data." »", $vt_col);
+                        }
+                    } else {
+                        // 23/09/2026 GM (ticket 8047) : abandon silencieux jusqu'ici.
+                        inrap_avertir_ligne("mouvement « ".$data." » introuvable : l'opération n'y a pas été rattachée");
                     }
                     break;
                 default:
@@ -123,6 +139,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
         }
         $metadata = explode(".",$map["metadata"])[1];
         $vt_col->removeAttributes($metadata);
+        _inrapSignalerValeursRefusees($vt_col);   // voir _importObject.php
         $vt_col->addAttribute(array($metadata => $data), $metadata);
     }
     $vt_col->update();
@@ -134,6 +151,7 @@ function _importCollection($data_to_map, $mapping, $keys, $type_id){
     foreach ($containers as $metadata => $container){
         if (!$metadata) continue;
         $vt_col->removeAttributes($metadata);
+        _inrapSignalerValeursRefusees($vt_col);
         $vt_col->update();
     }
     foreach ($containers as $metadata => $container){

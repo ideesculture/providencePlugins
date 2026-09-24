@@ -69,11 +69,18 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     $vt_occ->load(["idno" => inrap_normaliser_idno($data), "deleted" =>0]);
                     $primKey = $vt_occ->getPrimaryKey();
                     if ($primKey){
+                        // 23/09/2026 GM (ticket 8047) : la pile d'erreurs du modèle garde celles des
+                        // attributs validés plus haut (removeAttributes() déclenche un update()) ;
+                        // sans ce nettoyage, le contrôle ci-dessous les imputait au rattachement.
+                        $vt_object->clearErrors();
                         $vt_object->addRelationship("ca_collections", $primKey, $map["relation_type"]);
                         if ($vt_object->numErrors()){
                             inrap_echec_ligne("rattachement a l'operation « ".$data." »", $vt_object);
                         }
 
+                    } else {
+                        // 23/09/2026 GM (ticket 8047) : abandon silencieux jusqu'ici.
+                        inrap_avertir_ligne("opération « ".$data." » introuvable : la fiche n'y a pas été rattachée");
                     }
                     break;
                 case "ca_entities":
@@ -83,6 +90,8 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if ($entity_id){
                         $vt_object->removeRelationships("ca_entities", $map["relation_type"]);
                         $vt_object->addRelationship("ca_entities", $entity_id, $map["relation_type"]);
+                    } else {
+                        inrap_avertir_ligne("personne ou organisme « ".$data." » introuvable : relation non créée");
                     }
                     break;
                 case "ca_places":
@@ -98,6 +107,8 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if ($vt_rel_place){
                         $vt_object->removeRelationships("ca_places", $map["relation_type"]);
                         $vt_object->addRelationship("ca_places", $vt_rel_place,$map["relation_type"]);
+                    } else {
+                        inrap_avertir_ligne("lieu « ".$data." » introuvable : relation non créée");
                     }
                     break;
                 case "ca_objects":
@@ -157,12 +168,14 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if (!$vt_rel_obj) {
                         global $VERBOSE;
                         if ($VERBOSE) { print "\tContenant non resolu, relations ignorees : \"{$data}\"\n"; }
+                        inrap_avertir_ligne("contenant « ".$data." » non résolu : la fiche n'y a pas été rattachée");
                         break;
                     }
                     $vt_object->addRelationship("ca_objects", $vt_rel_obj, 177);
                     $vt_rel_op->addRelationship("ca_objects", $vt_rel_obj, 152);
                     $vt_rel_op->update();
                     $vt_object->update();
+                    _inrapSignalerValeursRefusees($vt_object);   // l'update() valide aussi les attributs en attente
                     break;
                 case "ca_storage_locations":
                     if (!$data) continue;
@@ -179,6 +192,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                         } else {
                             global $VERBOSE;
                             if ($VERBOSE) { print "\tEmplacement {$data} inconnu, relation ignoree\n"; }
+                            inrap_avertir_ligne("emplacement n° ".$data." inconnu : la fiche n'y a pas été rangée");
                         }
                         continue;
                     }
@@ -187,6 +201,8 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     if ($vt_rel_storage){
                         $vt_object->removeRelationships("ca_storage_locations", $map["relation_type"]);
                         $vt_object->addRelationship("ca_storage_locations", $vt_rel_storage, $map["relation_type"]);
+                    } else {
+                        inrap_avertir_ligne("emplacement « ".$data." » introuvable : la fiche n'y a pas été rangée");
                     }
                     break;
                 case "ca_movements":
@@ -195,7 +211,16 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
                     $vt_mouv = new ca_movements();
                     $vt_mouv->load(["idno" => inrap_normaliser_idno($data), "deleted" => 0]);
                     if ($vt_mouv->getPrimaryKey()){
+                        $vt_object->clearErrors();   // voir le rattachement à l'opération, plus haut
                         $vt_object->addRelationship("ca_movements", $vt_mouv->getPrimaryKey(), $map["relation_type"]);
+                        if ($vt_object->numErrors()){
+                            inrap_echec_ligne("rattachement au mouvement « ".$data." »", $vt_object);
+                        }
+                    } else {
+                        // 23/09/2026 GM (ticket 8047) : le rattachement au mouvement — souvent la raison
+                        // d'être du fichier — était abandonné sans un mot quand l'identifiant ne
+                        // correspondait à aucun mouvement.
+                        inrap_avertir_ligne("mouvement « ".$data." » introuvable : la fiche n'y a pas été rattachée");
                     }
                     break;
                 default:
@@ -205,6 +230,12 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
         }
         $metadata = explode(".",$map["metadata"])[1];
         $vt_object->removeAttributes($metadata);
+        // 23/09/2026 GM (ticket 8047) : removeAttributes() enregistre les attributs en attente
+        // (update()) ; une valeur refusée par Comodo (format invalide, valeur obligatoire, etc.) y
+        // laisse une erreur que l'enregistrement suivant effaçait sans trace. On la signale. NB : un
+        // élément de liste inconnu est, le plus souvent, ignoré sans erreur par le cœur de
+        // CollectiveAccess (ListAttributeValue, requireValue = 0) : il n'est alors pas signalé.
+        _inrapSignalerValeursRefusees($vt_object);
 
         // Corrigé le 23/03/2026 (#8176 bugs 1+2) : si la valeur est au format "Label (idno)",
         // extraire l'idno pour le matching sur liste d'autorité
@@ -237,6 +268,7 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
     foreach ($containers as $metadata => $container){
         if (!$metadata) continue;
         $vt_object->removeAttributes($metadata);
+        _inrapSignalerValeursRefusees($vt_object);
         $vt_object->update();
     }
 	
@@ -259,5 +291,65 @@ function _importObject($data_to_map, $mapping, $keys, $type_id){
         )
     );
 
+    return $keys;
+}
+/**
+ * 23/09/2026 GM (ticket 8047) — RATTACHEMENT SEUL d'une fiche existante au(x) mouvement(s) de la ligne.
+ *
+ * Utilisé quand la gestionnaire a choisi de NE PAS MODIFIER les fiches existantes (« Exclure les
+ * doublons ») : jusqu'ici, ces lignes étaient purement et simplement écartées, rattachement au
+ * mouvement compris. Or c'est souvent la raison d'être du fichier — un bordereau de mouvement.
+ * C'est ainsi que 29 objets préexistants n'ont jamais rejoint le mouvement 22095775.
+ *
+ * Désormais la fiche existante n'est pas touchée — aucun champ, aucun libellé, aucune autre
+ * relation — mais elle est rattachée au mouvement demandé par la ligne, si elle ne l'est pas déjà.
+ *
+ * On N'APPELLE PAS les crochets d'enregistrement (hookSaveItem) : celui de prepopulateInrap met la
+ * fiche en file de recalcul complet, qui recompose son titre d'après le gabarit — vérifié sur la
+ * preprod, « Alliage cuivreux » y devient « alliage cuivreux ». addRelationship() n'insère que la
+ * ligne de relation, sans réenregistrer la fiche. Pour que le moteur de recherche en tienne compte
+ * (facette « mouvement »), on met seulement la fiche en file de RÉINDEXATION, qui ne modifie rien.
+ *
+ * @param string $ps_table ca_objects ou ca_collections
+ * @param bool $pb_rattache mis à true si au moins un rattachement a réellement été posé
+ * @return array $keys complété de [idno => pk]
+ * @throws Exception (via inrap_echec_ligne) si la fiche est introuvable ou si le rattachement échoue
+ */
+function _rattacherAuMouvementSeulement($ps_table, $data_to_map, $mapping, $keys, &$pb_rattache = null) {
+    $pb_rattache = false;
+    $vs_idno = inrap_normaliser_idno($data_to_map["idno"] ?? '');
+    $vt_fiche = ($ps_table === 'ca_collections') ? new ca_collections() : new ca_objects();
+    if ($vs_idno === '' || !$vt_fiche->load(["idno" => $vs_idno, "deleted" => 0])) {
+        inrap_echec_ligne("rattachement seul : aucune fiche « ".$vs_idno." » dans Comodo");
+    }
+    $vn_pk = (int)$vt_fiche->getPrimaryKey();
+    $keys[$vs_idno] = $vn_pk;
+    $vt_fiche->setMode(ACCESS_WRITE);
+
+    $vs_rel_table = ($ps_table === 'ca_collections') ? 'ca_movements_x_collections' : 'ca_movements_x_objects';
+    $vs_pk = ($ps_table === 'ca_collections') ? 'collection_id' : 'object_id';
+    foreach ($data_to_map as $mk => $data) {
+        $map = $mapping[$mk] ?? null;
+        if (!is_array($map) || (($map["relation"] ?? '') !== 'ca_movements')) { continue; }
+        $vs_mvt = inrap_normaliser_idno($data);
+        if ($vs_mvt === '') { continue; }
+        $vt_mouv = new ca_movements();
+        if (!$vt_mouv->load(["idno" => $vs_mvt, "deleted" => 0])) {
+            inrap_avertir_ligne("mouvement « ".$vs_mvt." » introuvable : la fiche n'y a pas été rattachée");
+            continue;
+        }
+        $vn_mid = (int)$vt_mouv->getPrimaryKey();
+        // Déjà rattachée, quel que soit le type de relation : rien à faire.
+        $o_db = new Db();
+        $qr = $o_db->query("SELECT 1 FROM {$vs_rel_table} WHERE movement_id = ? AND {$vs_pk} = ? LIMIT 1", [$vn_mid, $vn_pk]);
+        if ($qr->nextRow()) { continue; }
+        $vt_fiche->clearErrors();
+        $vt_fiche->addRelationship("ca_movements", $vn_mid, $map["relation_type"]);
+        if ($vt_fiche->numErrors()) {
+            inrap_echec_ligne("rattachement de « ".$vs_idno." » au mouvement « ".$vs_mvt." »", $vt_fiche);
+        }
+        $pb_rattache = true;
+    }
+    if ($pb_rattache && function_exists('inrap_import_reindexer_plus_tard')) { inrap_import_reindexer_plus_tard($vt_fiche->tableNum(), $vn_pk); }
     return $keys;
 }

@@ -53,3 +53,5 @@ SGA/views/table_non_importe.html
 # écrit dedans sans le créer.
 importInrap/temp/*
 !importInrap/temp/.gitkeep
+# 23/09/2026 (ticket 8047) : les fichiers de travail ne doivent pas être servis par le web.
+!importInrap/temp/.htaccess

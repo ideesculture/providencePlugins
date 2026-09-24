@@ -59,15 +59,53 @@ Toutes les lignes de données sont lues et mappées. Le système :
 - Extrait les identifiants (idno) pour affichage
 - Sauvegarde les données traitées en **fichier JSON** temporaire
 - Affiche un tableau avec cases à cocher pour chaque ligne
+- **Depuis le 23/09/2026 (ticket 8047)**, donne pour chaque ligne sa situation, relue en base :
+  `nouveau`, `doublon` (fiche existante, fichier sans mouvement), `deja_rattache` (fiche existante déjà
+  rattachée au mouvement de la ligne), `a_rattacher` (fiche existante **non** rattachée au mouvement —
+  en rouge), `mouvement_introuvable`. La correspondance des identifiants est faite par MySQL, avec la
+  collation de la colonne, comme `load()`.
+- Signale un import interrompu du même contenu (même empreinte, même type) et propose de le reprendre.
+- Délivre un **jeton de sélection** (temp/<id>.selection.json : jeton, utilisateur, empreinte, type) ;
+  l'import ne démarre que sur présentation de ce jeton par ce même utilisateur (protection CSRF).
+- Choix pour les fiches existantes : écraser ; créer des fiches préfixées ; **ne pas modifier** — dans ce
+  dernier cas, les fiches `a_rattacher` sont seulement rattachées au mouvement
+  (`_rattacherAuMouvementSeulement()`, sans `hookSaveItem`, donc sans recomposition du titre).
 
-### Étape 5 — Import paginé (Import)
+### Étape 5 — Import (Import)
 
-L'import s'exécute **ligne par ligne** (1 requête HTTP par ligne) avec une barre de progression :
+Depuis le 23/09/2026 (ticket 8047), l'état de l'import est tenu **côté serveur**
+(`lib/inrap_import_suivi.inc.php`, fichier `temp/<id>.etat.json`, écrit de façon atomique sous verrou
+`temp/<id>.verrou`) :
 
-- Charge le JSON temporaire et filtre les lignes autorisées
-- Pour chaque ligne : appelle `_importObject()` ou `_importCollection()` selon le type
-- La page `progress_html.php` s'auto-soumet après 500ms pour la ligne suivante
-- En fin d'import : affiche la page de succès avec liens vers les fiches créées
+- Chaque requête traite **une ligne cochée**, et passe dans la même requête les lignes vides ou non
+  cochées (auparavant : une requête par ligne du tableur, vides comprises).
+- Le pointeur de progression est celui du serveur : une page rejouée, rechargée ou envoyée deux fois
+  ne retraite aucune ligne ; deux requêtes simultanées sur le même import sont sérialisées par le verrou.
+- La décision « fiche existante / identifiant préfixé » est mémorisée avant la première tentative ;
+  une ligne dont le traitement a été interrompu est retentée une fois (avec un avertissement), mise de
+  côté à la seconde.
+- Un import dont l'état n'a pas bougé depuis 2 minutes est **interrompu** : l'accueil le signale et
+  propose de le reprendre (ou de l'abandonner). Un import interrompu est marqué « remplacé » quand un
+  import ultérieur du même contenu a traité toutes les lignes qu'il n'avait pas faites.
+- Les relations dont la cible est introuvable (opération, mouvement, lieu, emplacement, personne,
+  contenant) produisent des **avertissements** (`inrap_avertir_ligne()`), listés en fin d'import ; de
+  même pour une valeur refusée par Comodo (format invalide, valeur obligatoire…), auparavant perdue
+  sans trace (`_inrapSignalerValeursRefusees()`). Limite : un élément de liste inconnu est le plus
+  souvent ignoré sans erreur par le cœur de CollectiveAccess (`requireValue = 0`) et n'est pas signalé.
+  Limites connues (préexistantes) : une valeur refusée annule aussi la suppression des anciennes
+  valeurs de la colonne suivante (transaction du modèle) ; les valeurs refusées dans les champs composés
+  (conteneurs : dimensions, notes…) ne sont pas signalées.
+- Le « rattachement seul » n'appelle pas `hookSaveItem` (la cascade prepopulateInrap recomposerait le
+  titre) ; il met la fiche en file de **réindexation seule** (code 1000 + table dans
+  `_inrap_recalc_queue`), traitée par `recalc_worker.php` sans modifier la fiche.
+- L'écran d'association transmet la liste exacte des indices de colonnes (`colonnes`) : un en-tête vide
+  intercalé faisait perdre la dernière colonne associée.
+- En fin d'import, un **contrôle final** (`inrap_import_bilan()`) relit la base : pour chaque ligne qui
+  demande un rattachement à un mouvement, la fiche y est-elle rattachée ? Les écarts sont nommés, avec
+  leur cause, affichés et journalisés (error_log). Le bilan d'un import terminé reste consultable depuis
+  l'accueil (« Voir le bilan »).
+- Une page de progression de l'ancienne version (import lancé avant la mise à jour) est reprise dans
+  le nouveau moteur.
 
 > **Mémoire et temps :** l'action `Import()` définit `memory_limit = -1` et `max_execution_time = 0` pour les imports volumineux.
 
@@ -203,7 +241,7 @@ importInrap/
     before_import_html.php           # Mapping colonnes ↔ champs
     select_line_html.php             # Sélection des lignes à importer
     progress_html.php                # Barre de progression (auto-submit)
-    imported_html.php                # Page de succès avec liens
+    imported_html.php                # Page de fin : contrôle final, erreurs, avertissements, fiches traitées
   temp/                              # Fichiers temporaires (Excel uploadés, JSON)
   backup/                            # Copies de sauvegarde
 ```

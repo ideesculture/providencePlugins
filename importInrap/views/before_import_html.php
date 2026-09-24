@@ -1,7 +1,10 @@
 <?php
 // 14/09/2026 GM : une cellule dont la formule n'a pas pu etre calculee est reprise en texte
 // brut plutot que de faire echouer tout l'import. C'est un fait a signaler, pas a masquer.
-if (!empty($formules)) { ?>
+// 23/09/2026 GM (ticket 8047) : ce signalement ne s'affichait JAMAIS — $formules n'existe pas
+// dans une vue CollectiveAccess, qui n'extrait pas ses variables. On le lit par getVar().
+$formules = $this->getVar("formules");
+if (!empty($formules) && is_array($formules)) { ?>
 <div class="alert alert-warning">
     <strong><?= sizeof($formules) ?> cellule(s)</strong> commencent par « = » et ont été prises pour des formules par Excel.
     Leur texte a été repris tel quel. Vérifiez ces valeurs :
@@ -24,15 +27,17 @@ if (!empty($formules)) { ?>
 ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
 
-<h1>Importation du fichier : <?= $name ?></h1>
+<h1>Importation du fichier : <?= htmlspecialchars((string)$name, ENT_QUOTES, 'UTF-8') ?></h1>
 
 <form action="/index.php/importInrap/Import/SelectLineBeforeImport" method="POST">
     <input type="hidden" name="length" value="<?= sizeOf($headers)?>"/>
-    <input type="hidden" name="file" value="<?= $file ?>"/>
-    <input type="hidden" name="type" value="<?= $type ?>" />
-    <input type="hidden" name="name" value="<?= $name ?>" />
+    <?php /* 23/09/2026 GM (ticket 8047) : indices exacts des colonnes, voir SelectLineBeforeImport(). */ ?>
+    <input type="hidden" name="colonnes" value="<?= htmlspecialchars(join(',', array_map('intval', array_keys((array)$headers))), ENT_QUOTES, 'UTF-8') ?>"/>
+    <input type="hidden" name="file" value="<?= htmlspecialchars((string)$file, ENT_QUOTES, 'UTF-8') ?>"/>
+    <input type="hidden" name="type" value="<?= htmlspecialchars((string)$type, ENT_QUOTES, 'UTF-8') ?>" />
+    <input type="hidden" name="name" value="<?= htmlspecialchars((string)$name, ENT_QUOTES, 'UTF-8') ?>" />
 
-    <input type="hidden" name="sheet" value="<?= $sheet ?>"/>
+    <input type="hidden" name="sheet" value="<?= (int)$sheet ?>"/>
 
     <table class="table table-hover table-bordered">
         <thead>
@@ -44,8 +49,9 @@ if (!empty($formules)) { ?>
         <tbody>
             <?php foreach ($headers as $key=>$header){
                 print "<tr>";
-                print "<td class='header'>".$header."</td>";
-                print "<input type='hidden' name='column".$key."' value=\"".$header."\" />";
+                // 23/09/2026 GM (ticket 8047) : en-têtes du tableur échappés (ils étaient injectés tels quels).
+                print "<td class='header'>".htmlspecialchars((string)$header, ENT_QUOTES, 'UTF-8')."</td>";
+                print "<input type='hidden' name='column".(int)$key."' value=\"".htmlspecialchars((string)$header, ENT_QUOTES, 'UTF-8')."\" />";
                 print "<td> <select class='form-control' name='data".$key."'><option value='' selected> Ne rien sélectionner</option>";
                 foreach ($mapping[$type] as $key=>$value){
                     print "<option value='".$key."'>".$value["title"]."</option>";

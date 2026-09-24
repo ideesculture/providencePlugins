@@ -49,3 +49,59 @@ if (!function_exists('inrap_echec_ligne')) {
 		throw new Exception($ps_contexte.' — '.$vs_detail);
 	}
 }
+
+/**
+ * 23/09/2026 GM (ticket 8047) — AVERTISSEMENTS NON BLOQUANTS.
+ *
+ * Plusieurs relations d'une ligne étaient abandonnées sans un mot quand leur cible restait
+ * introuvable : opération, mouvement, lieu, emplacement, personne. La fiche était enregistrée,
+ * l'import passait à la suite, et la gestionnaire ne pouvait pas savoir que le rattachement
+ * demandé n'avait pas été fait. C'est le « traitement qui échoue sans rien dire » des tickets
+ * 8045 et 8047.
+ *
+ * Ces cas ne justifient pas d'écarter la ligne — le reste de la fiche est juste. On les consigne
+ * donc comme avertissements : ImportController les rattache au numéro de ligne du tableur et les
+ * affiche dans le bilan de fin d'import.
+ */
+if (!function_exists('inrap_avertir_ligne')) {
+	/**
+	 * @param string $ps_message ce qui n'a pas pu être fait, en français
+	 * @return void
+	 */
+	function inrap_avertir_ligne($ps_message) {
+		if (!isset($GLOBALS['g_inrap_avertissements']) || !is_array($GLOBALS['g_inrap_avertissements'])) {
+			$GLOBALS['g_inrap_avertissements'] = [];
+		}
+		$GLOBALS['g_inrap_avertissements'][] = (string)$ps_message;
+	}
+
+	/**
+	 * Rend les avertissements consignés depuis le dernier appel, et vide la liste.
+	 * @return array
+	 */
+	function inrap_avertissements_prendre() {
+		$va = (isset($GLOBALS['g_inrap_avertissements']) && is_array($GLOBALS['g_inrap_avertissements'])) ? $GLOBALS['g_inrap_avertissements'] : [];
+		$GLOBALS['g_inrap_avertissements'] = [];
+		return $va;
+	}
+}
+
+if (!function_exists('_inrapSignalerValeursRefusees')) {
+	/**
+	 * 23/09/2026 GM (ticket 8047) : publie en avertissements les erreurs de validation d'attributs
+	 * restées sur le modèle — removeAttributes() enregistre les attributs en attente, et une valeur
+	 * refusée par Comodo (format invalide, valeur obligatoire…) y laissait une erreur que
+	 * l'enregistrement suivant effaçait sans trace —, puis les efface. Un élément de liste inconnu
+	 * est le plus souvent ignoré sans erreur par le cœur (requireValue = 0) : rien à signaler alors.
+	 * @param BaseModel $pt_fiche
+	 * @return void
+	 */
+	function _inrapSignalerValeursRefusees($pt_fiche) {
+		if (!$pt_fiche->numErrors()) { return; }
+		foreach ($pt_fiche->getErrors() as $vs_err) {
+			inrap_avertir_ligne("valeur refusée par Comodo, non enregistrée : ".$vs_err);
+		}
+		$pt_fiche->clearErrors();
+	}
+}
+
