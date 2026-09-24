@@ -507,6 +507,116 @@ function sga_cle_de_nom($ps_nom)
 	return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $vs));
 }
 
+/**
+ * 24/09/2026 GM (ticket 8043) — RECHERCHE D'UNE PERSONNE EN BASE, PAR SON NOM.
+ *
+ * Cle de nom a MOTS TRIES : majuscules, sans accents ni ponctuation, mots dans l'ordre
+ * alphabetique. « BESSON, Claire », « Claire besson » et « BESSON,  Claire » donnent la meme cle.
+ * Verifie le 24/09/2026 sur les 7 733 personnes : les 25 cles qui regroupent des ecritures
+ * differentes designent toutes la meme personne (variantes « EXT », ordre prenom/nom).
+ */
+function sga_cle_de_nom_triee($ps_nom)
+{
+	$vs = trim((string)$ps_nom);
+	if ($vs === '') { return ''; }
+	if (function_exists('iconv')) {
+		$vs_t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $vs);
+		if ($vs_t !== false) { $vs = $vs_t; }
+	}
+	$va = preg_split('/[^A-Za-z0-9]+/', strtoupper($vs), -1, PREG_SPLIT_NO_EMPTY);
+	sort($va);
+	return join(' ', $va);
+}
+
+/** Personnes vivantes d'un type, indexees par cle de nom complet et par cle de nom de famille. Lues une fois par requete. */
+function &sga_personnes_par_cle($pn_type_id)
+{
+	static $s_cache = array();
+	$pn_type_id = (int)$pn_type_id;
+	if (!isset($s_cache[$pn_type_id])) {
+		$s_cache[$pn_type_id] = array('complet' => array(), 'nom' => array(), 'personne' => array());
+		$o_db = new Db();
+		// Tous les libelles, preferes ou non : un autre nom pose sur une fiche (« BACH, Sylvie » sur
+		// « BACH FOLTRAN, Sylvie ») suffit a la faire reconnaitre, sans toucher au code.
+		$qr = $o_db->query("SELECT e.entity_id, e.idno, l.surname, l.forename, l.displayname, l.is_preferred
+			FROM ca_entities e INNER JOIN ca_entity_labels l ON l.entity_id = e.entity_id
+			WHERE e.deleted = 0 AND e.type_id = ?", array($pn_type_id));
+		while ($qr && $qr->nextRow()) {
+			$va = array('entity_id' => (int)$qr->get('entity_id'), 'idno' => (string)$qr->get('idno'),
+				'forename' => (string)$qr->get('forename'), 'displayname' => (string)$qr->get('displayname'));
+			$s_cache[$pn_type_id]['complet'][sga_cle_de_nom_triee($va['displayname'])][] = $va;
+			if (($vs_cn = sga_cle_de_nom_triee($qr->get('surname'))) !== '') { $s_cache[$pn_type_id]['nom'][$vs_cn][] = $va; }
+			// La personne d'une fiche = la cle de son libelle PREFERE (une fiche a plusieurs libelles
+			// reste UNE personne pour le repli sur l'initiale).
+			if ((int)$qr->get('is_preferred')) { $s_cache[$pn_type_id]['personne'][$va['entity_id']] = sga_cle_de_nom_triee($va['displayname']); }
+		}
+	}
+	return $s_cache[$pn_type_id];
+}
+
+/** Premiere lettre du prenom tel qu'il s'ecrit (« Jean-Baptiste » -> J), sans accent. */
+function sga_initiale($ps_prenom)
+{
+	$vs = trim((string)$ps_prenom);
+	if (function_exists('iconv')) { $vs_t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $vs); if ($vs_t !== false) { $vs = $vs_t; } }
+	return strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $vs), 0, 1));
+}
+
+/** Une fiche que l'import vient de creer est aussitot trouvable par sga_personne_en_base(). */
+function sga_personne_ajoutee($pn_entity_id, $ps_idno, $ps_surname, $ps_forename, $ps_libelle, $pn_type_id)
+{
+	$va_cache = &sga_personnes_par_cle($pn_type_id);
+	$va = array('entity_id' => (int)$pn_entity_id, 'idno' => (string)$ps_idno, 'forename' => trim((string)$ps_forename), 'displayname' => (string)$ps_libelle);
+	$va_cache['complet'][sga_cle_de_nom_triee($ps_libelle)][] = $va;
+	if (($vs_cn = sga_cle_de_nom_triee($ps_surname)) !== '') { $va_cache['nom'][$vs_cn][] = $va; }
+	$va_cache['personne'][(int)$pn_entity_id] = sga_cle_de_nom_triee($ps_libelle);
+}
+
+/**
+ * Parmi plusieurs fiches de la meme personne : celle qui porte un matricule (identifiant numerique), puis
+ * la plus ancienne. Rend FALSE si les fiches portent au moins deux matricules differents : ce sont des
+ * homonymes (SICARD Sandra 04818 / 09364) et l'on ne choisit pas au hasard.
+ */
+function sga_choisir_fiche(array $pa_fiches)
+{
+	$va_mat = array();
+	foreach ($pa_fiches as $p) { if (preg_match('!^\d{4,6}$!', trim($p['idno']))) { $va_mat[trim($p['idno'])] = true; } }
+	if (count($va_mat) > 1) { return false; }
+	usort($pa_fiches, function ($a, $b) {
+		$ma = (bool)preg_match('!^\d{4,6}$!', trim($a['idno'])); $mb = (bool)preg_match('!^\d{4,6}$!', trim($b['idno']));
+		if ($ma !== $mb) { return $ma ? -1 : 1; }
+		return $a['entity_id'] <=> $b['entity_id'];
+	});
+	return (int)$pa_fiches[0]['entity_id'];
+}
+
+/**
+ * La personne « NOM, Prenom » de SGA, cherchee EN BASE (jamais dans l'index de recherche).
+ * Rend l'entity_id ; null si la personne est absente (elle pourra etre creee) ; FALSE si le nom est
+ * ambigu (homonymes a matricules differents) ou designe un compte technique (rien n'est cree). Un prenom reduit a une initiale (« MARION, S ») est accepte si les
+ * fiches de ce nom de famille dont le prenom commence par cette lettre designent UNE seule personne.
+ */
+function sga_personne_en_base($ps_surname, $ps_forename, $pn_type_id)
+{
+	$va_cache = &sga_personnes_par_cle($pn_type_id);
+	$vs_cle = sga_cle_de_nom_triee(trim((string)$ps_surname) . ' ' . trim((string)$ps_forename));
+	if ($vs_cle === '') { return null; }
+	// Comptes techniques de SGA, pas des personnes : jamais rattaches, jamais crees.
+	if (in_array($vs_cle, array(sga_cle_de_nom_triee('Administrateur ADMSGA'), sga_cle_de_nom_triee('Support SGA')), true)) { return false; }
+	if (!empty($va_cache['complet'][$vs_cle])) { return sga_choisir_fiche($va_cache['complet'][$vs_cle]); }
+
+	$vs_prenom = trim((string)$ps_forename, " \t.");
+	if (preg_match('!^[A-Za-z]$!', $vs_prenom)) {
+		$vs_ini = strtoupper($vs_prenom);
+		$va_f = array_values(array_filter($va_cache['nom'][sga_cle_de_nom_triee($ps_surname)] ?? array(), function ($p) use ($vs_ini) {
+			return sga_initiale($p['forename']) === $vs_ini;
+		}));
+		$va_personnes = array_unique(array_map(function ($p) use ($va_cache) { return $va_cache['personne'][$p['entity_id']] ?? sga_cle_de_nom_triee($p['displayname']); }, $va_f));
+		if (count($va_personnes) === 1) { return sga_choisir_fiche($va_f); }
+	}
+	return null;
+}
+
 function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entity_type_id)
 {
 	global $pn_locale_id;
@@ -530,7 +640,7 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 	// portes par plusieurs fiches, dont Magali Rolland par CINQ : le matricule 01718, puis
 	// « magali rolland », « rolland magali »… chaque graphie ayant cree une fiche de plus.
 	$vs_idno    = trim((string)$ps_entity_idno);
-	$vs_libelle = trim((string)$ps_surname) . ', ' . trim((string)$ps_forename);
+	$vs_libelle = trim((string)$ps_surname) . ((trim((string)$ps_forename) !== '') ? ', ' . trim((string)$ps_forename) : '');
 
 	$t_entity = new ca_entities();
 	$t_label = $t_entity->getLabelTableInstance();
@@ -541,19 +651,29 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 	//    rattache de la sorte a des operations de toute la France (ticket 7988, 10/09/2026).
 	$vb_trouve = ($vs_idno !== '') && $t_entity->load(array('idno' => $vs_idno, 'deleted' => 0));
 
-	// 2. Sinon par le nom : la fiche existe peut-etre sous un autre identifiant.
+	// 2. Sinon par le nom, CHERCHE EN BASE : la fiche existe peut-etre sous un autre identifiant.
+	//    24/09/2026 GM (ticket 8043) : plus par l'index de recherche. getEntityID() passait par
+	//    Meilisearch, qui ne rendait ni certaines fiches presentes (CHADEFAUX, Xavier, matricule
+	//    06339, 211 liens) ni celles que l'import venait de creer : l'etape 3 creait alors une fiche
+	//    de plus a chaque clic — 43 doublons le 24/09 au matin. Voir sga_personne_en_base().
 	if (!$vb_trouve) {
-		$vn_par_nom = getEntityID($ps_forename, $ps_surname, $pn_entity_type_id);
-		if ($vn_par_nom && $t_entity->load(array('entity_id' => (int)$vn_par_nom, 'deleted' => 0))) {
-			// La recherche est tolerante : on verifie que le libelle correspond vraiment.
-			// Rendre une homonymie approchante serait pire que ne rien rendre.
-			if (sga_cle_de_nom($t_entity->get('ca_entities.preferred_labels.displayname'))
-			    === sga_cle_de_nom($vs_libelle)) {
-				$vb_trouve = true;
-			} else {
-				$t_entity = new ca_entities();
-			}
+		$vn_par_nom = sga_personne_en_base($ps_surname, $ps_forename, $pn_entity_type_id);
+		if ($vn_par_nom === false) {
+			@error_log('[SGA] personne non rattachee (homonymes ambigus ou compte technique) : ' . $vs_libelle);
+			return null;
 		}
+		if ($vn_par_nom && $t_entity->load(array('entity_id' => (int)$vn_par_nom, 'deleted' => 0))) {
+			$vb_trouve = true;
+		} else {
+			$t_entity = new ca_entities();
+		}
+	}
+
+	// Un prenom reduit a une initiale (« MARION, S ») qu'on n'a pas su rattacher a une personne
+	// unique ne cree pas de fiche : on fabriquerait une personne « MARION, S » de plus.
+	if (!$vb_trouve && ($vs_idno === '') && preg_match('!^[A-Za-z]\.?$!', trim((string)$ps_forename))) {
+		if ($VERBOSE) { print "\tPrenom reduit a une initiale, entite non resolue : {$vs_libelle}\n"; }
+		return null;
 	}
 
 	// 3. A defaut, creation — le libelle sert d'identifiant SEULEMENT si SGA n'en donne pas.
@@ -578,8 +698,10 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 			print "ERROR INSERTING ENTITY {$ps_surname},{$ps_forename}: " . join('; ', $t_entity->getErrors()) . "\n";
 			return null;
 		}
+		// 24/09/2026 GM (ticket 8043) : noms nettoyes. Le prenom arrivait avec l'espace qui suit la
+		// virgule de SGA (« CHADEFAUX,  Xavier »).
 		$t_entity->addLabel(array(
-			'forename' => $ps_forename, 'surname' => $ps_surname, "displayname" => $ps_surname . ", " . $ps_forename
+			'forename' => trim((string)$ps_forename), 'surname' => trim((string)$ps_surname), "displayname" => $vs_libelle
 		), $pn_locale_id, null, true);
 		if ($t_entity->numErrors()) {
 			print "ERROR ADDING LABEL PLACES {$ps_surname},{$ps_forename}: " . join('; ', $t_entity->getErrors()) . "\n";
@@ -587,6 +709,7 @@ function getEntityIDByIdno($ps_forename, $ps_surname, $ps_entity_idno, $pn_entit
 		}
 
 		$vn_entity_id = $t_entity->getPrimaryKey();
+		sga_personne_ajoutee((int)$vn_entity_id, $ps_entity_idno, $ps_surname, $ps_forename, $vs_libelle, $pn_entity_type_id);
 	} else {
 		if ($VERBOSE) print "\t\t Found places {$ps_surname},{$ps_forename}\n";
 		$vn_entity_id = $t_entity->getPrimaryKey();

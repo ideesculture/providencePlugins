@@ -2,6 +2,10 @@
 $id = $this->getVar("id");
 $values = $this->getVar("value");
 $notInBase = $this->getVar("notInBase");
+// 24/09/2026 GM (ticket 8043) : cases cochees d'office (valeur SGA differente) et avertissements (DAST ancien).
+$a_cocher = $this->getVar("a_cocher") ?: array();
+$avertissements = $this->getVar("avertissements") ?: array();
+$avertissements_multi = $this->getVar("avertissements_multi") ?: array();
 
 $table_variable = array(
     "idno" => "Code Inrap",
@@ -38,6 +42,7 @@ $table_variable = array(
 <h1>Avant Import du SGA</h1>
 <?php if(!$notInBase){?>
 <p> Voici un tableau des données présentes dans Comodo et dans le SGA, veillez à vérifier avant d'importer que ça n'écrasera pas des données importantes</p>
+<p> Les champs dont la valeur diffère entre SGA et Comodo sont cochés d'office : c'est la valeur du SGA qui sera enregistrée. Décochez ceux que vous voulez garder tels quels.</p>
 <form method="POST" action="/index.php/SGA/SGA/Update/id/<?= $id ?>">
 <?php }else{
     print "<p> L'opération n'existe pas dans Comodo et toutes ces données vont être ajoutés à l'opération crée</p>"; 
@@ -53,7 +58,11 @@ $table_variable = array(
     </thead>
     <tbody>
 <?php foreach ($values as $value){
-    print "<tr><td>".$table_variable[$value[0]]."</td> <td>".$value[1]."</td><td>".$value[2]."</td>".((!$notInBase)? "<td><input type='checkbox' class='checkClass' id='".$value[0]."' name='".$value[0]."' value='1'></td>" : "")."</tr>";
+    $protege = isset($avertissements[$value[0]]);
+    $libelle = $table_variable[$value[0]] ?? $value[0];
+    if ($protege) { $libelle .= "<br><small style='color:#8a5d0c'>&#9888; ".htmlspecialchars($avertissements[$value[0]], ENT_QUOTES, 'UTF-8')."</small>"; }
+    if (isset($avertissements_multi[$value[0]])) { $libelle .= "<br><small style='color:#8a5d0c'>&#9888; ".htmlspecialchars($avertissements_multi[$value[0]], ENT_QUOTES, 'UTF-8')."</small>"; }
+    print "<tr><td>".$libelle."</td> <td>".htmlspecialchars((string)$value[1], ENT_QUOTES, 'UTF-8')."</td><td>".htmlspecialchars(strip_tags((string)$value[2]), ENT_QUOTES, 'UTF-8')."</td>".((!$notInBase)? "<td><input type='checkbox' class='checkClass".($protege ? " protege" : "")."' id='".$value[0]."' name='".$value[0]."' value='1'".(isset($a_cocher[$value[0]]) ? " checked" : "")."></td>" : "")."</tr>";
 }?>
     </tbody>
 </table>
@@ -136,8 +145,9 @@ $table_variable = array(
 
         <script>
             $(document).ready(function(){
-                $("#checkAll").click(() => {
-                    $(".checkClass").prop("checked", true);
+                $("#checkAll").click(function () {
+                    // Coche ou decoche tout ; le DAST ancien protege n'est coche qu'a la main (ticket 8043).
+                    $(".checkClass").not(".protege").prop("checked", this.checked);
 
                 })
             })

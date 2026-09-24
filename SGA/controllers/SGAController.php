@@ -59,6 +59,17 @@ class SGAController extends ActionController
 	# Constructor
 	# -------------------------------------------------------
 
+	/**
+	 * Direction Inrap de SGA -> identifiant de l'entite direction dans Comodo. 24/09/2026 GM (ticket 8043) :
+	 * une seule table pour Compare, Importer et Update (Compare portait « Direction régionale
+	 * Auvergne-Rhône-Alpes » alors que SGA ecrit « Auvergne-Rhône-Alpes ») ; ajout de « Nouvelle Aquitaine
+	 * et Outre Mer », libelle SGA de 10 332 operations qui n'etait pas reconnu (direction jamais ecrite).
+	 */
+	const DIRECTIONS = array("Centre Ile de France" => "DIR CIF", "Grand Ouest" => "Inrap DIR GO", "Grand Est" => "DIR GE",
+		"Auvergne-Rhône-Alpes" => "DIR ARA", "Direction régionale Auvergne-Rhône-Alpes" => "DIR ARA", "Hauts-de-France" => "DIR HDF",
+		"Midi-Méditerranée" => "DIR MIDIMED", "Outre-mer" => "DIR NAOM", "Nouvelle Aquitaine" => "DIR NAOM",
+		"Nouvelle Aquitaine et Outre Mer" => "DIR NAOM", "Bourgogne-Franche-Comté" => "DIR BFC");
+
 	public function __construct(&$po_request, &$po_response, $pa_view_paths = null)
 	{
 		global $allowed_universes;
@@ -89,7 +100,7 @@ class SGAController extends ActionController
 	{
 		$o_data = new Db();
 		$notInBase = false;
-		$value = array("Centre Ile de France" => "DIR CIF", "Grand Ouest" => "DIR GO", "Grand Est" => "DIR GE", "Direction régionale Auvergne-Rhône-Alpes" => "DIR ARA", "Hauts-de-France" => "DIR HDF", "Midi-Méditerranée" => "DIR MIDIMED", "Outre-mer" => "DIR NAOM", "Nouvelle Aquitaine" => "DIR NAOM", "Bourgogne-Franche-Comté" => "DIR BFC");
+		$value = self::DIRECTIONS;   // 24/09/2026 (ticket 8043) : table commune a Compare, Importer et Update
 		$different = [];
 		$op_id = $this->getRequest()->getParameter("id", pInteger);
 		$type = $this->getRequest()->getParameter("type", pString);
@@ -98,12 +109,13 @@ class SGAController extends ActionController
 			$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE id = " . $op_id . "");
 			while ($qr_result->nextRow()) {
 				$col = new ca_collections();
-				$col->load(["idno" => $qr_result->get("idno"), "deleted" => 0]);
+				// 24/09/2026 (ticket 8043) : meme recherche que l'Importer (numero sans espaces, type 125 d'abord).
+				if ($vn_ex = $this->_operationPourIdno($o_data, $qr_result->get("idno"))) { $col->load($vn_ex); }
 				break;
 			}
 		} else {
 			$col = new ca_collections($op_id);
-			$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE idno = '" . $col->getWithTemplate("^ca_collections.idno") . "'");
+			$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE idno = ?", array(trim((string)$col->get("ca_collections.idno"))));
 		}
 
 		if (!$col->getPrimaryKey()) {
@@ -170,10 +182,101 @@ class SGAController extends ActionController
 			}
 			array_push($different, [$metadata, $data, $data_to_compare]);
 		}
+
+		// 24/09/2026 GM (ticket 8043) — ON PREFERE LE SGA : les champs dont la valeur SGA differe de
+		// Comodo sont coches d'office. Sauf le DAST d'une operation ancienne qui en a deja un : SGA donne
+		// le DAST ACTUEL de la region, pas celui de l'epoque ; la case reste decochee, avec un
+		// avertissement, et le gestionnaire la coche s'il le veut. « Ancienne » : annee d'intervention
+		// anterieure a l'annee en cours moins 2, ou inconnue (decision GM du 24/09/2026).
+		$va_a_cocher = array(); $va_avertissements = array(); $va_avertissements_multi = array();
+		if (!$notInBase) {
+			// Annee sur 4 chiffres ou qu'elle soit (« 2018 », « 06/03/2018 »…).
+			$vn_annee = preg_match('!(1[89]|20)\d\d!', (string)$col->getWithTemplate("^ca_collections.inrap_annee_inter"), $va_an) ? (int)$va_an[0] : 0;
+			$vb_dast_en_place = (trim((string)$col->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='dast'>^ca_entities.entity_id</unit>")) !== '');
+			$vb_dast_protege = $vb_dast_en_place && (!$vn_annee || ($vn_annee < ((int)date('Y') - 2)));
+			$vs_dir_comodo = trim((string)$col->getWithTemplate("<unit relativeTo='ca_entities' restrictToRelationshipTypes='DIR'>^ca_entities.idno</unit>"));
+			foreach ($different as $va_ligne) {
+				list($vs_m, $vs_sga, $vs_comodo) = $va_ligne;
+				// Direction : identique si la correspondance donne l'entite en place ; sans correspondance,
+				// Update n'ecrirait rien, donc on ne coche pas.
+				if ($vs_m === 'dir_inrap' && (!isset($value[trim((string)$vs_sga)]) || ($value[trim((string)$vs_sga)] === $vs_dir_comodo))) { continue; }
+				if ($this->_valeursIdentiques($vs_m, $vs_sga, $vs_comodo)) { continue; }
+				// Plusieurs valeurs en place (2 communes, 2 responsables…) : SGA n'en donne qu'une et Update
+				// les remplacerait toutes. On ne coche pas d'office ; le gestionnaire decide.
+				if (in_array($vs_m, array('commune', 'CodeINSEE', 'ro', 'prescripteur', 'dir_adj_st'), true)
+				    && (count(array_filter(array_map('trim', explode(';', strip_tags((string)$vs_comodo))), 'strlen')) > 1)) {
+					$va_avertissements_multi[$vs_m] = "Plusieurs valeurs dans Comodo : cocher cette case les remplace toutes par celle du SGA.";
+					continue;
+				}
+				// Lieu-dit qui ne differe que par la casse ou les accents : on garde la graphie de Comodo.
+				if (($vs_m === 'lieudit') && ($this->_sansCasseNiAccents($vs_sga) === $this->_sansCasseNiAccents($vs_comodo))) { continue; }
+				if ($vs_m === 'dir_adj_st' && $vb_dast_protege) {
+					$va_avertissements[$vs_m] = "SGA donne le DAST actuel de la région. L'opération étant ancienne ("
+						. ($vn_annee ? "intervention " . $vn_annee : "année d'intervention inconnue")
+						. "), le DAST de l'époque est conservé, sauf si vous cochez la case.";
+					continue;
+				}
+				$va_a_cocher[$vs_m] = true;
+			}
+		}
+		$this->view->setVar("a_cocher", $va_a_cocher);
+		$this->view->setVar("avertissements", $va_avertissements);
+		$this->view->setVar("avertissements_multi", $va_avertissements_multi);
 		$this->view->setVar("value", $different);
 		$this->view->setVar("notInBase", $notInBase);
 		$this->view->setVar("id", $op_id);
 		$this->render("compare_html.php");
+	}
+
+	/**
+	 * Meme valeur, a la presentation pres : nombres (« 1752.00000000 » = « 1 752 ») ; pour les champs de
+	 * personne SEULEMENT, noms a mots tries (« BESSON, Claire » = « Claire besson »). Pas pour les dates :
+	 * « 01/02/2020 » et « 02/01/2020 » ont les memes mots.
+	 */
+	private function _sansCasseNiAccents($ps)
+	{
+		$vs = trim(strip_tags((string)$ps)); $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $vs); if ($t !== false) { $vs = $t; }
+		return strtolower(preg_replace('/\s+/', ' ', $vs));
+	}
+	private function _valeursIdentiques($ps_champ, $ps_a, $ps_b)
+	{
+		$a = trim(strip_tags((string)$ps_a)); $b = trim(strip_tags((string)$ps_b));
+		if ($a === $b) { return true; }
+		// Comparaison numerique pour les seuls champs numeriques : « 12,30 » et « 12,3 » sont deux parcelles.
+		if (in_array($ps_champ, array('surface_OA', 'AnneeDebutTerrain'), true)) {
+			$na = str_replace(array(' ', "\xc2\xa0", ','), array('', '', '.'), $a);
+			$nb = str_replace(array(' ', "\xc2\xa0", ','), array('', '', '.'), $b);
+			if (is_numeric($na) && is_numeric($nb)) { return (float)$na == (float)$nb; }
+		}
+		if (!in_array($ps_champ, array('ro', 'prescripteur', 'dir_adj_st'), true)) { return false; }
+		return ($a !== '') && ($b !== '') && (sga_cle_de_nom_triee($a) === sga_cle_de_nom_triee($b));
+	}
+
+	/** Verrou MySQL propre a une operation (meme nom pour Importer et Update). Rend son nom, ou null s'il n'est pas obtenu en 30 s. */
+	private function _verrouiller($o_db, $ps_idno)
+	{
+		$vs = 'sga_importer_' . md5(trim((string)$ps_idno));
+		$qr = $o_db->query("SELECT GET_LOCK(?, 30) AS v", array($vs));
+		return ($qr && $qr->nextRow() && ((int)$qr->get('v') === 1)) ? $vs : null;
+	}
+	private function _liberer($o_db, $ps_verrou)
+	{
+		if ($ps_verrou) { $o_db->query("SELECT RELEASE_LOCK(?)", array($ps_verrou)); }
+	}
+	/** Valeur en place d'un sous-element de conteneur, lue AVANT removeAttributes pour ne pas perdre la partie non mise a jour. */
+	private function _valeurEnPlace($t_col, $ps_chemin)
+	{
+		// Premiere valeur non vide, item_id pour une liste : un conteneur en double rendait sinon
+		// « Loi 2003;Loi 2003 », refuse sans message par addAttribute (relecture externe du 24/09/2026).
+		$va = $t_col->get('ca_collections.' . $ps_chemin, array('returnAsArray' => true, 'alwaysReturnItemID' => true));
+		foreach ((is_array($va) ? $va : array($va)) as $v) { $v = trim((string)$v); if ($v !== '') { return $v; } }
+		return '';
+	}
+	/** Operation de Comodo pour un numero SGA : numero sans espaces, type « opération » (125) d'abord. Meme regle que l'Importer. */
+	private function _operationPourIdno($o_db, $ps_idno)
+	{
+		$qr = $o_db->query("SELECT collection_id FROM ca_collections WHERE deleted = 0 AND TRIM(idno) = ? ORDER BY (type_id = 125) DESC, collection_id LIMIT 1", array(trim((string)$ps_idno)));
+		return ($qr && $qr->nextRow()) ? (int)$qr->get('collection_id') : null;
 	}
 
 	public function IndexImporte($type = "")
@@ -185,20 +288,70 @@ class SGAController extends ActionController
 		$this->render('index_non_import_html.php');
 	}
 
+	/**
+	 * 24/09/2026 GM (ticket 8043) — IMPORT SGA SUSPENDU tant que « enabled = 0 » dans conf/sga.conf.
+	 * L'import creait une nouvelle fiche de personne a chaque clic quand la recherche ne trouvait
+	 * pas la personne (44 doublons le 24/09 au matin). Le temps de nettoyer les donnees et de
+	 * corriger l'import, les deux actions qui ecrivent (Importer, Update) refusent d'agir.
+	 * enabled = 0 masque aussi le menu et le lien de la fiche ; mais le routeur de CollectiveAccess
+	 * atteint les controleurs d'un greffon meme desactive (une page deja ouverte, un favori) :
+	 * d'ou ce garde-fou. Le fichier est lu par son vrai chemin : le constructeur cherche
+	 * plugins/sga/ en minuscules et ne le trouve jamais.
+	 * Pour reactiver : enabled = 1 dans conf/sga.conf.
+	 */
+	private function _importSuspendu($ps_retour)
+	{
+		$vs_conf = dirname(__DIR__) . '/conf/sga.conf';
+		if (is_file($vs_conf) && (int)Configuration::load($vs_conf)->get('enabled')) { return false; }
+		$o_n = new NotificationManager($this->getRequest());
+		$o_n->addNotification("L'import depuis SGA est suspendu temporairement pour maintenance. Aucune donnee n'a ete modifiee.", __NOTIFICATION_TYPE_WARNING__);
+		$this->getResponse()->setRedirect($ps_retour);
+		return true;
+	}
+
 	public function Importer()
 	{
 		$op_id = $this->getRequest()->getParameter("id", pInteger);
+		if ($this->_importSuspendu(caNavUrl($this->getRequest(), 'SGA', 'SGA', 'IndexNonImporte'))) { return; }
 		$o_data = new Db();
 		$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE id = " . $op_id . "");
+		$vs_verrou = null;
 		while ($qr_result->nextRow()) {
 
+			// 24/09/2026 GM (ticket 8043) — PAS DE SECONDE OPERATION AU MEME NUMERO. « Importer » est un
+			// simple lien : un double clic, ou un retour arriere suivi d'un rechargement, lancait deux
+			// requetes qui ne trouvaient ni l'une ni l'autre l'operation et la creaient chacune (paires
+			// creees a quelques secondes d'intervalle). Et load(['idno' => …]) ne tolerait pas l'espace
+			// de fin d'un numero (« D110821 »). La recherche se fait desormais sur le numero sans espaces,
+			// l'operation « opération » (125) d'abord, et sous un verrou MySQL propre a ce numero : la
+			// seconde requete attend la premiere et retrouve l'operation qu'elle vient de creer.
+			$vs_idno = trim((string)$qr_result->get("idno"));
+			$vs_verrou = 'sga_importer_' . md5($vs_idno);
+			$qr_v = $o_data->query("SELECT GET_LOCK(?, 30) AS v", array($vs_verrou));
+			if (!$qr_v || !$qr_v->nextRow() || ((int)$qr_v->get('v') !== 1)) {
+				$o_n = new NotificationManager($this->getRequest());
+				$o_n->addNotification("L'import de l'opération " . htmlspecialchars($vs_idno, ENT_QUOTES, 'UTF-8') . " est déjà en cours. Réessayez dans un instant.", __NOTIFICATION_TYPE_WARNING__);
+				$this->getResponse()->setRedirect(caNavUrl($this->getRequest(), 'SGA', 'SGA', 'IndexNonImporte'));
+				return;
+			}
 			$col = new ca_collections();
-			$col->load(["idno" => $qr_result->get("idno"), "deleted" => 0]);
+			$qr_ex = $o_data->query("SELECT collection_id FROM ca_collections WHERE deleted = 0 AND TRIM(idno) = ? ORDER BY (type_id = 125) DESC, collection_id LIMIT 1", array($vs_idno));
+			if ($qr_ex && $qr_ex->nextRow()) {
+				// L'operation existe deja (retour arriere, double clic, idno a espaces…) : on ne reecrit pas tout
+				// sans les cases a cocher ; on renvoie vers l'ecran de comparaison.
+				$o_data->query("SELECT RELEASE_LOCK(?)", array($vs_verrou));
+				$o_n = new NotificationManager($this->getRequest());
+				$o_n->addNotification("L'opération " . htmlspecialchars($vs_idno, ENT_QUOTES, 'UTF-8') . " existe déjà dans Comodo : vérifiez les champs avant de la mettre à jour.", __NOTIFICATION_TYPE_INFO__);
+				$this->getResponse()->setRedirect(caNavUrl($this->getRequest(), 'SGA', 'SGA', 'Compare', array('id' => (int)$qr_ex->get('collection_id'), 'type' => 'edit')));
+				return;
+			}
 			if (!$col->getPrimaryKey()) {
 				$col->setMode(ACCESS_WRITE);
-				$col->set(array('access' => 2, "idno" => $qr_result->get("idno"), "status" => 3, "type_id" => 125));
+				$col->set(array('access' => 2, "idno" => $vs_idno, "status" => 3, "type_id" => 125));
 				$col->insert();
 			}
+			// Le verrou est garde jusqu'a la fin de l'action : deux requetes simultanees ecriraient sinon
+			// les memes liens en meme temps (liens en double, constate en preprod le 24/09/2026).
 			$col->setMode(ACCESS_WRITE);
 			if ($qr_result->get("inrap_ancien_code")) {
 				$col->removeAttributes("inrap_ancien_code");
@@ -227,7 +380,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("ro")) {
 				$name_info = explode(',', $qr_result->get("ro_label"));
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], $qr_result->get("ro"), 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], $qr_result->get("ro"), 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -271,8 +424,14 @@ class SGAController extends ActionController
 				$sra = new ca_entities();
 				$sra->load(["idno" => $qr_result->get("sra"), "deleted" => 0]);
 				$sraID = $sra->getPrimaryKey();
-				$col->removeRelationships("ca_entities", 121);
-				$col->addRelationship("ca_entities", $sraID, 121);
+				// 24/09/2026 (ticket 8043) : ne retirer le SRA en place que si celui de SGA est trouve.
+				if ($sraID) {
+					// Seuls les liens « attribue » vers des SRA sont remplaces : ceux vers des CCE restent.
+					foreach (($col->getRelatedItems('ca_entities', array('restrictToRelationshipTypes' => array('attribue'), 'restrictToTypes' => array('sra'))) ?: array()) as $va_rel) {
+						$col->removeRelationship('ca_entities', $va_rel['relation_id']);
+					}
+					$col->addRelationship("ca_entities", $sraID, 121);
+				}
 			}
 
 			if ($qr_result->get("lieudit")) {
@@ -298,7 +457,7 @@ class SGAController extends ActionController
 				// la seconde se contente de chercher. SGA ne transmet pas d'identifiant pour le
 				// prescripteur ni pour le DAST — d'ou la chaine vide, qui fait prendre le libelle
 				// comme identifiant a la creation. Decision GM du 23/09/2026.
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], '', 1665);
 				if ($entity_id != false){
 					$col->removeRelationships("ca_entities", 122);
 					$col->addRelationship("ca_entities", $entity_id, 122);
@@ -322,7 +481,7 @@ class SGAController extends ActionController
 			}
 
 			if ($qr_result->get("dir_inrap")) {
-				$value = array("Centre Ile de France" => "DIR CIF", "Grand Ouest" => "DIR GO", "Grand Est" => "DIR GE", "Auvergne-Rhône-Alpes" => "DIR ARA", "Hauts-de-France" => "DIR HDF", "Midi-Méditerranée" => "DIR MIDIMED", "Outre-mer" => "DIR NAOM", "Nouvelle Aquitaine" => "DIR NAOM", "Bourgogne-Franche-Comté" => "DIR BFC");
+				$value = self::DIRECTIONS;   // 24/09/2026 (ticket 8043) : table commune a Compare, Importer et Update
 				// 23/09/2026 GM (ticket 8045) — DEUX DEFAUTS ICI, ET LA DIRECTION NE S'ECRIVAIT JAMAIS.
 				//
 				// 1. Le guillemet ouvrant n'etait pas referme : la requete valait
@@ -352,7 +511,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("dir_adj_st")) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -400,6 +559,7 @@ class SGAController extends ActionController
 				}
 				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
 				// ce qui n'était pas mieux que le vidage brut d'avant.
+				if ($vs_verrou) { $o_data->query("SELECT RELEASE_LOCK(?)", array($vs_verrou)); }
 				$this->render("import_html.php");
 				return;
 			}
@@ -482,6 +642,7 @@ class SGAController extends ActionController
 				'instance' => $col
 			)
 		);
+		if ($vs_verrou) { $o_data->query("SELECT RELEASE_LOCK(?)", array($vs_verrou)); }
 		$this->view->setVar("error", $different);
 		$this->view->setVar("id", $col->getPrimaryKey());
 		$this->render("import_html.php");
@@ -490,9 +651,18 @@ class SGAController extends ActionController
 	public function Update()
 	{
 		$op_id = $this->getRequest()->getParameter("id", pInteger);
+		if ($this->_importSuspendu(caNavUrl($this->getRequest(), 'editor/collections', 'CollectionEditor', 'Summary', ['collection_id' => $op_id]))) { return; }
 		$col = new ca_collections($op_id);
 		$o_data = new Db();
-		$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE idno = '" . $col->getWithTemplate("^ca_collections.idno") . "'");
+		// 24/09/2026 (ticket 8043) : meme verrou que l'Importer ; un double envoi creait des liens en double.
+		$vs_verrou = $this->_verrouiller($o_data, $col->get("ca_collections.idno"));
+		if (!$vs_verrou) {
+			$o_n = new NotificationManager($this->getRequest());
+			$o_n->addNotification("La mise à jour de cette opération est déjà en cours. Réessayez dans un instant.", __NOTIFICATION_TYPE_WARNING__);
+			$this->getResponse()->setRedirect(caNavUrl($this->getRequest(), 'editor/collections', 'CollectionEditor', 'Summary', array('collection_id' => $op_id)));
+			return;
+		}
+		$qr_result = $o_data->query("SELECT * FROM _sga_comodo WHERE idno = ?", array(trim((string)$col->get("ca_collections.idno"))));
 		while ($qr_result->nextRow()) {
 			$col->setMode(ACCESS_WRITE);
 			if ($qr_result->get("inrap_ancien_code") && isset($_POST["inrap_ancien_code"])) {
@@ -504,21 +674,25 @@ class SGAController extends ActionController
 				$col->removeAttributes("inrap_annee_inter");
 				$col->addAttribute(["inrap_annee_inter" => $qr_result->get("AnneeDebutTerrain")], "inrap_annee_inter");
 			}
-			if ($qr_result->get("NomOpeRattachement") && isset($_POST["inrap_op_rattachement"])){
+			if ($qr_result->get("NomOpeRattachement") && (isset($_POST["inrap_op_rattachement"]) || isset($_POST["NomOpeRattachement"]))){
+				$vs_abrev = $this->_valeurEnPlace($col, 'inrap_op_rattachement.inrap_op_abreviation_usuelle');   // abreviation gardee (ticket 8043)
 				$col->removeAttributes("inrap_op_rattachement");
-				$col->addAttribute([ "inrap_op_rattachement_txt" =>$qr_result->get("NomOpeRattachement")], "inrap_op_rattachement");
+				$col->addAttribute([ "inrap_op_rattachement_txt" =>$qr_result->get("NomOpeRattachement"), "inrap_op_abreviation_usuelle" => $vs_abrev], "inrap_op_rattachement");
 			}
-			if ($qr_result->get("inrap_type_op.inrap_type_ope") && (isset($_POST["inrap_type_op_inrap_type_ope"]) && !isset($_POST["inrap_type_op_inrap_axe_analytique"]))) {
+			// 24/09/2026 (ticket 8043) — TYPE ET AXE : UNE SEULE ECRITURE. Les trois branches d'avant
+			// s'enchainaient : cocher le seul type ecrivait un conteneur « type seul », puis la branche
+			// suivante voyait son ajout type+axe refuse (un seul conteneur par fiche) : l'axe disparaissait.
+			// On lit les deux valeurs en place, on ne remplace que la partie cochee.
+			$vb_type = isset($_POST["inrap_type_op_inrap_type_ope"]); $vb_axe = isset($_POST["inrap_type_op_inrap_axe_analytique"]);
+			if ($qr_result->get("inrap_type_op.inrap_type_ope") && ($vb_type || $vb_axe)) {
+				$vs_type_en_place = $this->_valeurEnPlace($col, 'inrap_type_op.inrap_type_ope');
+				$vs_axe_en_place = $this->_valeurEnPlace($col, 'inrap_type_op.inrap_axe_analytique');
+				$vs_axe_sga = trim((string)$qr_result->get("inrap_type_op.inrap_axe_analytique"));
 				$col->removeAttributes("inrap_type_op", ["force"=>true]);
-				$col->addAttribute(array("inrap_type_ope" => $qr_result->get("inrap_type_op.inrap_type_ope")), "inrap_type_op");
-			}
-			if ($qr_result->get("inrap_type_op.inrap_type_ope") && (isset($_POST["inrap_type_op_inrap_type_ope"])||isset($_POST["inrap_type_op_inrap_axe_analytique"]))) {
-				$col->removeAttributes("inrap_type_op", ["force"=>true]);
-				$col->addAttribute(array("inrap_type_ope" => $qr_result->get("inrap_type_op.inrap_type_ope"), "inrap_axe_analytique" => $qr_result->get("inrap_type_op.inrap_axe_analytique")), "inrap_type_op");
-			}
-			if ($qr_result->get("inrap_type_op.inrap_type_ope") && (!isset($_POST["inrap_type_op_inrap_type_ope"])&&isset($_POST["inrap_type_op_inrap_axe_analytique"]))) {
-				$col->removeAttributes("inrap_type_op", ["force"=>true]);
-				$col->addAttribute(array("inrap_axe_analytique" => $qr_result->get("inrap_type_op.inrap_axe_analytique")), "inrap_type_op");
+				$col->addAttribute(array(
+					"inrap_type_ope" => ($vb_type || ($vs_type_en_place === '')) ? $qr_result->get("inrap_type_op.inrap_type_ope") : $vs_type_en_place,
+					"inrap_axe_analytique" => ($vb_axe && ($vs_axe_sga !== '')) ? $vs_axe_sga : $vs_axe_en_place
+				), "inrap_type_op");
 			}
 
 			if ($qr_result->get("oa_number") && isset($_POST["oa_number"])) {
@@ -528,7 +702,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("ro") && isset($_POST["ro"])) {
 				$name_info = explode(',', $qr_result->get("ro_label"));
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], $qr_result->get("ro"), 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], $qr_result->get("ro"), 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -538,7 +712,7 @@ class SGAController extends ActionController
 				}
 			}
 
-			if ($qr_result->get("commune") && isset($_POST["commune"])) {
+			if ($qr_result->get("commune") && (isset($_POST["commune"]) || isset($_POST["CodeINSEE"]))) {
 				if (!$qr_result->get("CodeINSEE")) {
 					$commune = new PlaceSearch();
 					$result = $commune->search("ca_places:" . $qr_result->get("commune"));
@@ -567,8 +741,14 @@ class SGAController extends ActionController
 				$sra = new ca_entities();
 				$sra->load(["idno" => $qr_result->get("sra"), "deleted" => 0]);
 				$sraID = $sra->getPrimaryKey();
-				$col->removeRelationships("ca_entities", 121);
-				$col->addRelationship("ca_entities", $sraID, 121);
+				// 24/09/2026 (ticket 8043) : ne retirer le SRA en place que si celui de SGA est trouve.
+				if ($sraID) {
+					// Seuls les liens « attribue » vers des SRA sont remplaces : ceux vers des CCE restent.
+					foreach (($col->getRelatedItems('ca_entities', array('restrictToRelationshipTypes' => array('attribue'), 'restrictToTypes' => array('sra'))) ?: array()) as $va_rel) {
+						$col->removeRelationship('ca_entities', $va_rel['relation_id']);
+					}
+					$col->addRelationship("ca_entities", $sraID, 121);
+				}
 			}
 
 			if ($qr_result->get("lieudit") && isset($_POST["lieudit"])) {
@@ -583,7 +763,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("prescripteur") && isset($_POST["prescripteur"])) {
 				$name_info = explode(',', $qr_result->get("prescripteur"));
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -607,15 +787,17 @@ class SGAController extends ActionController
 				$col->removeAttributes("surface_OA");
 				$col->addAttribute(array("surface_OA" => floatval($qr_result->get("surface_OA"))), "surface_OA");
 			}
-			$value = array("Centre Ile de France" => "DIR CIF", "Grand Ouest" => "DIR GO", "Grand Est" => "DIR GE", "Auvergne-Rhône-Alpes" => "DIR ARA", "Hauts-de-France" => "DIR HDF", "Midi-Méditerranée" => "DIR MIDIMED", "Outre-mer" => "DIR NAOM", "Nouvelle Aquitaine" => "DIR NAOM", "Bourgogne-Franche-Comté" => "DIR BFC");
+			$value = self::DIRECTIONS;   // 24/09/2026 (ticket 8043) : table commune a Compare, Importer et Update
 			if ($qr_result->get("dir_inrap") && isset($_POST["dir_inrap"])) {
 				$entity = new EntitySearch();
 
-				$vs_search = $value[$qr_result->get("dir_inrap")];
+				// 24/09/2026 (ticket 8043) : une direction SGA sans correspondance (« SIEGE », « LGVSEA »…)
+				// n'est pas cherchee, et rien n'est touche.
+				$vs_search = $value[$qr_result->get("dir_inrap")] ?? null;
 
-				$result = $entity->search($vs_search);
+				$result = $vs_search ? $entity->search($vs_search) : null;
 				
-				while ($result->nextHit()) {
+				while ($result && $result->nextHit()) {
 					$name = $result->get("ca_entities.preferred_labels.displayname");
 					$idno = $result->get("ca_entities.idno");
 					// 09/09/2026 (ticket 8008) : deux var_dump de mise au point tournaient ICI, donc à
@@ -623,7 +805,7 @@ class SGAController extends ActionController
 					// « string(n) "..." » en plein milieu de la page de mise à jour SGA — c'est le
 					// « code erreur » que les gestionnaires signalaient, alors que la mise à jour
 					// aboutissait normalement.
-					if ($name == $value[$qr_result->get("dir_inrap")] || trim($idno) == trim($value[$qr_result->get("dir_inrap")])) {
+					if ($name == $vs_search || trim($idno) == trim($vs_search)) {
 						$col->removeRelationships("ca_entities", 236);
 						$rel = $col->addRelationship("ca_entities", $result->get("ca_entities.entity_id"), 236 );
 						
@@ -648,7 +830,7 @@ class SGAController extends ActionController
 
 			if ($qr_result->get("dir_adj_st")  && isset($_POST["dir_adj_st"])) {
 				$name_info = explode(',', $qr_result->get("dir_adj_st"));
-				$entity_id = getEntityIDByIdno($name_info[1], $name_info[0], '', 1665);
+				$entity_id = getEntityIDByIdno($name_info[1] ?? '', $name_info[0], '', 1665);
 				// 10/09/2026 GM (ticket 7988) : ne rien reecrire si le nom n'a pas ete resolu.
 				// Sans cette garde, une entite prise au hasard etait rattachee, et la relation
 				// legitime deja en place etait detruite juste avant par removeRelationships().
@@ -658,14 +840,28 @@ class SGAController extends ActionController
 				}
 			}
 
-			if ($qr_result->get("datesdeterrain.Datedeterrain_date") || isset($_POST["datesdeterrain_datedeterrain_datefin"])) {
+			// 24/09/2026 (ticket 8043) — DATES DE TERRAIN : seulement les cases cochees. La condition d'avant
+			// (« date de debut SGA OU case fin cochee ») reecrivait les dates a chaque mise a jour, case decochee,
+			// et effacait la date de fin quand SGA n'en a pas (280 operations).
+			$vb_deb = isset($_POST["datesdeterrain_Datedeterrain_date"]); $vb_fin = isset($_POST["datesdeterrain_datedeterrain_datefin"]);
+			$vs_deb_sga = trim((string)$qr_result->get("datesdeterrain.Datedeterrain_date")); $vs_fin_sga = trim((string)$qr_result->get("datesdeterrain.datedeterrain_datefin"));
+			if (($vb_deb && ($vs_deb_sga !== '')) || ($vb_fin && ($vs_fin_sga !== ''))) {
+				$vs_deb = ($vb_deb && ($vs_deb_sga !== '')) ? $vs_deb_sga : $this->_valeurEnPlace($col, 'datesdeterrain.Datedeterrain_date');
+				$vs_fin = ($vb_fin && ($vs_fin_sga !== '')) ? $vs_fin_sga : $this->_valeurEnPlace($col, 'datesdeterrain.datedeterrain_datefin');
 				$col->removeAttributes("datesdeterrain");
-				$col->addAttribute(array("Datedeterrain_date" => $qr_result->get("datesdeterrain.Datedeterrain_date"), "datedeterrain_datefin" => $qr_result->get("datesdeterrain.datedeterrain_datefin")), "datesdeterrain");
+				$col->addAttribute(array("Datedeterrain_date" => $vs_deb, "datedeterrain_datefin" => $vs_fin), "datesdeterrain");
 			}
 
-			if (($qr_result->get("autorisation_fouille") || $qr_result->get("autorisation_date") != 0) && (isset($_POST["autorisation_fouille"]) || isset($_POST["autorisation_date"]))) {
+			// 24/09/2026 (ticket 8043) : numero et date d'autorisation, seule la partie cochee et fournie par SGA
+			// est remplacee ; l'autre garde sa valeur (8 numeros et 5 dates auraient ete effaces).
+			$vb_num = isset($_POST["autorisation_fouille"]); $vb_dat = isset($_POST["autorisation_date"]);
+			$vs_num_sga = trim((string)$qr_result->get("autorisation_fouille")); $vs_dat_sga = trim((string)$qr_result->get("autorisation_date"));
+			if ($vs_dat_sga === '0') { $vs_dat_sga = ''; }
+			if (($vb_num && ($vs_num_sga !== '')) || ($vb_dat && ($vs_dat_sga !== ''))) {
+				$vs_num = ($vb_num && ($vs_num_sga !== '')) ? $vs_num_sga : $this->_valeurEnPlace($col, 'autorisation_fouille.autorisation_num');
+				$vs_dat = ($vb_dat && ($vs_dat_sga !== '')) ? $vs_dat_sga : $this->_valeurEnPlace($col, 'autorisation_fouille.autorisation_date');
 				$col->removeAttributes("autorisation_fouille");
-				$col->addAttribute(array("autorisation_num" => $qr_result->get("autorisation_fouille"), "autorisation_date" => $qr_result->get("autorisation_date")), "autorisation_fouille");
+				$col->addAttribute(array("autorisation_num" => $vs_num, "autorisation_date" => $vs_dat), "autorisation_fouille");
 			}
 
 			if ($qr_result->get("inrap_date_planification") && isset($_POST["inrap_date_planification"])) {
@@ -702,6 +898,7 @@ class SGAController extends ActionController
 				}
 				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
 				// ce qui n'était pas mieux que le vidage brut d'avant.
+				$this->_liberer($o_data, $vs_verrou);
 				$this->render("update_html.php");
 				return;
 			}
@@ -720,6 +917,7 @@ class SGAController extends ActionController
 				}
 				// on rend quand même la page : sans cela l'utilisateur reçoit un écran blanc,
 				// ce qui n'était pas mieux que le vidage brut d'avant.
+				$this->_liberer($o_data, $vs_verrou);
 				$this->render("update_html.php");
 				return;
 			}
@@ -804,6 +1002,7 @@ class SGAController extends ActionController
 		);
 		$this->view->setVar("error", $different);
 		$this->view->setVar("id", $col->getPrimaryKey());
+		$this->_liberer($o_data, $vs_verrou);
 		$this->render("update_html.php");
 	}
 }

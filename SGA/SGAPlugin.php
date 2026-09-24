@@ -45,12 +45,15 @@
 		 * Override checkStatus() to return true - the statisticsViewerPlugin always initializes ok... (part to complete)
 		 */
 		public function checkStatus() {
+			// 24/09/2026 GM (ticket 8043) : « enabled = 0 » dans conf/sga.conf n'avait aucun effet, le
+			// greffon se declarant toujours disponible. Il masque desormais le menu et le lien de la fiche ;
+			// les ecritures sont en outre bloquees dans SGAController (_importSuspendu).
 			
 			return array(
 				'description' => $this->getDescription(),
 				'errors' => array(),
 				'warnings' => array(),
-				'available' => true
+				'available' => (bool)(int)$this->opo_config->get('enabled')
 			);
 		}
 		# -------------------------------------------------------
