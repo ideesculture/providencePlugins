@@ -21,37 +21,8 @@ bookCreator/tmp/*
 bookCreator/plan-1-refonte-bookcreator.md
 bookCreator/plan-2-chaine-html-pdf.md
 
-# --- Plugins INRAP (SGA, etatsInrap, exportInrap) ---
-# Binaires phantomjs vendorisés (lourds, plusieurs Mo) : non versionnés.
-# À redéposer au déploiement d'une instance neuve (cf. message de commit d'ajout).
-etatsInrap/lib/phantomjs/
-exportInrap/lib/phantomjs/
-exportInrap/lib/h2p/bin/
-# Sorties etatsInrap générées à l'exécution ; on garde le dossier et son .htaccess.
-etatsInrap/tmp/*
-!etatsInrap/tmp/.gitkeep
-!etatsInrap/tmp/.htaccess
-
-# exportInrap/tmp : oublie a l'import des plugins, d'ou quatre fichiers generes
-# committes par erreur en septembre 2026 sur un depot PUBLIC. Meme regle que les
-# deux autres tmp : on ignore le genere, on garde .gitkeep et surtout .htaccess,
-# qui reautorise les extensions docx/odt/pdf/xlsx refusees par le .htaccess racine.
-exportInrap/tmp/*
-!exportInrap/tmp/.gitkeep
-!exportInrap/tmp/.htaccess
-# Rapports d'import SGA générés par lib/update_table.php (dumps HTML, recréés à chaque import).
-SGA/views/table_importe.html
-SGA/views/table_non_importe.html
 # Sauvegardes locales
 *.bak
 *.bak-*
 *.bak_*
 *.rejete-*
-
-# importInrap : dépôts de classeurs et fichiers de travail des imports, écrits à l'exécution
-# (315 Mo accumulés depuis août 2025). On ignore le contenu, on garde le dossier : le code
-# écrit dedans sans le créer.
-importInrap/temp/*
-!importInrap/temp/.gitkeep
-# 23/09/2026 (ticket 8047) : les fichiers de travail ne doivent pas être servis par le web.
-!importInrap/temp/.htaccess

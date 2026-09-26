@@ -1,3 +1,0 @@
-# 23/09/2026 (ticket 8047) : fichiers de travail de l'import (tableurs, JSON, états),
-# lus côté serveur uniquement ; jamais servis au navigateur.
-Require all denied
