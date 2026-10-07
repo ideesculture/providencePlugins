@@ -27,6 +27,7 @@ class CatalogueController extends ActionController {
 	const LIST_SITE      = 160;  // site_nom1
 	const LIST_BATIMENT  = 164;  // site_batiment1
 	const LIST_ETAGE     = 163;  // site_etage
+	const LIST_ADRESSE   = 165;  // site_adresse1
 	const LIST_CONSTAT   = 114;  // inv_constat (Vu/Non vu/Manquant/Détruit)
 	const LIST_RECOLEMENT = 155; // real_O_N (Oui/Non)
 
@@ -35,11 +36,23 @@ class CatalogueController extends ActionController {
 	const REL_AUTEUR   = 164;
 
 	// Déposant "MTE" : sa sélection affiche les catalogues spécifiques MTE (4 boutons au lieu de 2)
-	const MTE_DEPOSANT_ID = 1394; // Ministère de l'Écologie du Développement Durable
+	// le menu « Déposant » envoie désormais un item_id de la liste
+	// object_types (et non plus un entity_id). Cette constante sert à n'afficher les deux catalogues
+	// MTE que lorsque MTE est sélectionné (vue catalogue_standards_html.php) : elle doit donc
+	// porter le TYPE d'objet MTE, sinon les deux boutons ne s'affichent plus jamais.
+	const MTE_DEPOSANT_ID = 3454; // type d'objet « MTE » (ex-entity_id 2083)
 
 	# -------------------------------------------------------
 	public function __construct(&$po_request, &$po_response, $pa_view_paths=null) {
 		parent::__construct($po_request, $po_response, $pa_view_paths);
+
+		// la generation de catalogues est reservee aux
+		// profils qui portent le droit. Controle place ici, donc valable aussi pour
+		// un acces par URL directe, pas seulement pour l'affichage du menu.
+		if (!$po_request->isLoggedIn() || !$po_request->user->canDoAction('can_use_etatsMTE_catalogues')) {
+			$this->response->setRedirect($po_request->config->get('error_display_url').'/n/3000?r='.urlencode($po_request->getFullUrlPath()));
+			return;
+		}
 
 		$this->ops_plugin_name = "etatsMTE";
 		$this->ops_plugin_path = __CA_APP_DIR__."/plugins/".$this->ops_plugin_name;
@@ -89,6 +102,7 @@ class CatalogueController extends ActionController {
 		$this->view->setVar('sites', $this->_getListItems(self::LIST_SITE));
 		$this->view->setVar('batiments', $this->_getListItems(self::LIST_BATIMENT));
 		$this->view->setVar('etages', $this->_getListItems(self::LIST_ETAGE));
+		$this->view->setVar('adresses', $this->_getListItems(self::LIST_ADRESSE));   // Adresse (remplace Étage au catalogue spécifique)
 		$this->view->setVar('types', $this->_getListItems(self::LIST_DOMAINE));            // Catégorie (domaine_logement)
 		$this->view->setVar('denominations', $this->_getListItems(self::LIST_TYPE));      // Type (denomination)
 		// Constat présence du catalogue spécifique : limité à Vu (545) / Non vu (547) /
@@ -109,6 +123,7 @@ class CatalogueController extends ActionController {
 		$vn_site_id        = $this->getRequest()->getParameter("site", pInteger);
 		$vn_batiment_id    = $this->getRequest()->getParameter("batiment", pInteger);
 		$vn_etage_id       = $this->getRequest()->getParameter("etage", pInteger);
+		$vn_adresse_id     = $this->getRequest()->getParameter("adresse", pInteger);
 		$vn_type_id        = $this->getRequest()->getParameter("type_domaine", pInteger);
 		$vn_denomination_id = $this->getRequest()->getParameter("denomination", pInteger);
 		$vn_constat_id     = $this->getRequest()->getParameter("constat", pInteger);
@@ -138,6 +153,7 @@ class CatalogueController extends ActionController {
 			'site'           => $vn_site_id,
 			'batiment'       => $vn_batiment_id,
 			'etage'          => $vn_etage_id,
+			'adresse'        => $vn_adresse_id,
 			'type_domaine'   => $vn_type_id,
 			'denomination'   => $vn_denomination_id,
 			'constat'        => $vn_constat_id,
@@ -446,20 +462,24 @@ class CatalogueController extends ActionController {
 	# Private helpers
 	# -------------------------------------------------------
 	private function _getDeposants() {
+		// on souhaite que la liste du menu « Nouveau » soit
+		// appliquée aussi aux catalogues. Elle s'appuyait ici sur les ENTITÉS liées par la relation
+		// déposant (libellés « Ministère de la Transition écologique », « Fonds National d'Art
+		// Contemporain »…), différents de ceux du menu. On lit désormais la même source que la
+		// recherche avancée : la liste object_types, filtrée sur deleted = 0.
+		// Effectifs mesurés identiques par les deux voies (1010 / 356 / 51 / 39 / 5 / 2) : le
+		// changement porte sur les libellés proposés, pas sur les résultats.
 		$o_db = new Db();
 		$qr = $o_db->query(
-			"SELECT DISTINCT e.entity_id, el.displayname
-			 FROM ca_objects_x_entities oxe
-			 JOIN ca_entities e ON oxe.entity_id = e.entity_id
-			 JOIN ca_entity_labels el ON e.entity_id = el.entity_id
-			 WHERE oxe.type_id = ? AND el.is_preferred = 1 AND e.deleted = 0
-			 ORDER BY el.displayname",
-			self::REL_DEPOSANT
+			"SELECT li.item_id, ll.name_singular
+			 FROM ca_list_items li
+			 JOIN ca_lists l ON li.list_id = l.list_id AND l.list_code = 'object_types'
+			 JOIN ca_list_item_labels ll ON li.item_id = ll.item_id AND ll.is_preferred = 1
+			 WHERE li.parent_id IS NOT NULL AND li.is_enabled = 1 AND li.deleted = 0
+			 ORDER BY ll.name_singular"
 		);
 		$va_items = [];
-		while($qr->nextRow()) {
-			$va_items[$qr->get("entity_id")] = $qr->get("displayname");
-		}
+		while($qr->nextRow()) { $va_items[$qr->get("item_id")] = $qr->get("name_singular"); }
 		return $va_items;
 	}
 

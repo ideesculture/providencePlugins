@@ -43,6 +43,10 @@ require_once(__CA_LIB_DIR__ . '/Configuration.php');
 require_once(__CA_MODELS_DIR__ . '/ca_objects.php');
 require_once(__CA_MODELS_DIR__ . '/ca_entities.php');
 require_once(__CA_MODELS_DIR__ . '/ca_lists.php');
+
+// la collecte, la feuille de style et le rendu
+// d'une fiche sont partagés avec le gabarit d'export PDF des résultats.
+require_once(__DIR__ . '/lib/fiche_catalogue.php');
 require_once(__CA_MODELS_DIR__ . '/ca_object_representations.php');
 require_once(__CA_MODELS_DIR__ . '/ca_locales.php');
 require_once(__CA_LIB_DIR__ . '/Print/PDFRenderer.php');
@@ -69,6 +73,7 @@ try {
 	$site_id        = (int)($job['site'] ?? 0);
 	$batiment_id    = (int)($job['batiment'] ?? 0);
 	$etage_id       = (int)($job['etage'] ?? 0);
+	$adresse_id     = (int)($job['adresse'] ?? 0);   // Adresse (site_adresse1) — catalogue spécifique
 	$type_id        = (int)($job['type_domaine'] ?? 0);   // Catégorie (domaine_logement)
 	$denomination_id = (int)($job['denomination'] ?? 0);  // Type (denomination)
 	$constat_id     = (int)($job['constat'] ?? 0);
@@ -92,13 +97,13 @@ try {
 	$titre = "Catalogue";
 	$group_by_deposant = false;
 	$group_by_site = false;
+	$group_by_batiment = false;
 
 	switch ($catalogue_type) {
 		case 'deposant_tous_sites':
 			$titre = "Catalogue par déposant – tous sites";
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			} else {
 				$group_by_deposant = true;
@@ -110,16 +115,27 @@ try {
 		case 'deposant_par_site':
 			$titre = "Catalogue par déposant par site";
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			}
 			if ($site_id) {
-				$joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-				$wheres[] = "av_site.item_id = ?";
+				// RÈGLE DE REPLI (règle retenue, reprise de la règle retenue
+				// en spécification fonctionnelle) : localisation d'INVENTAIRE ; à défaut de
+				// tout relevé d'inventaire, localisation de DÉPÔT (709). Mesuré : le site concerné
+				// élargit le résultat biens. Sous-requêtes corrélées : pas de jointure, donc
+				// aucune multiplication de lignes.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xa JOIN ca_attribute_values xav ON xav.attribute_id = xa.attribute_id AND xav.element_id = 777 WHERE xa.table_num = 57 AND xa.row_id = o.object_id AND xav.item_id = ? AND xa.attribute_id = (SELECT MAX(la.attribute_id) FROM ca_attributes la JOIN ca_attribute_values lav ON lav.attribute_id = la.attribute_id AND lav.element_id = 777 WHERE la.table_num = 57 AND la.row_id = o.object_id AND la.element_id = 736 AND lav.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes ya JOIN ca_attribute_values yav ON yav.attribute_id = ya.attribute_id AND yav.element_id = 806 WHERE ya.table_num = 57 AND ya.row_id = o.object_id AND yav.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes za JOIN ca_attribute_values zav ON zav.attribute_id = za.attribute_id AND zav.element_id = 709 WHERE za.table_num = 57 AND za.row_id = o.object_id AND zav.item_id = ?)))";
+				$params[] = $site_id;
 				$params[] = $site_id;
 			}
+			// Recette 07/10/2026 (besoin exprimé) : chapitrage « site puis batiment »,
+			// a l'identique du catalogue specifique (ex. « Varennes, 5 objets »).
+			// On ne regroupe jamais sur une dimension deja filtree : le chapitre
+			// contredirait la couverture (cf. commentaire du cas 'specifique').
+			$group_by_site     = !$site_id;
+			$group_by_batiment = !$batiment_id;
 			break;
 
 		case 'biens_disparus':
@@ -132,10 +148,15 @@ try {
 			$joins[] = "LEFT JOIN ca_attribute_values av_disp ON a_disp.attribute_id = av_disp.attribute_id AND av_disp.element_id = 785";
 			$wheres[] = "(av_inv.item_id IN (548, 549) OR (av_disp.value_longtext1 IS NOT NULL AND av_disp.value_longtext1 != '' AND av_disp.value_longtext1 != 'sans date'))";
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			}
+			// Recette 07/10/2026 (besoin exprimé) : chapitrage « site puis batiment »,
+			// a l'identique du catalogue specifique (ex. « Varennes, 5 objets »).
+			// On ne regroupe jamais sur une dimension deja filtree : le chapitre
+			// contredirait la couverture (cf. commentaire du cas 'specifique').
+			$group_by_site     = !$site_id;
+			$group_by_batiment = !$batiment_id;
 			break;
 
 		case 'mte_objets_par_site':
@@ -145,13 +166,24 @@ try {
 			// ... et de classe "objet" (métadonnée calculée calc_objet_mobilier)
 			$om_item = (int)$o_conf_mte->get('om_item_objet');
 			if ($site_id) {
-				$joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-				$wheres[] = "av_site.item_id = ?";
+				// RÈGLE DE REPLI (règle retenue, reprise de la règle retenue
+				// en spécification fonctionnelle) : localisation d'INVENTAIRE ; à défaut de
+				// tout relevé d'inventaire, localisation de DÉPÔT (709). Mesuré : le site concerné
+				// élargit le résultat biens. Sous-requêtes corrélées : pas de jointure, donc
+				// aucune multiplication de lignes.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xa JOIN ca_attribute_values xav ON xav.attribute_id = xa.attribute_id AND xav.element_id = 777 WHERE xa.table_num = 57 AND xa.row_id = o.object_id AND xav.item_id = ? AND xa.attribute_id = (SELECT MAX(la.attribute_id) FROM ca_attributes la JOIN ca_attribute_values lav ON lav.attribute_id = la.attribute_id AND lav.element_id = 777 WHERE la.table_num = 57 AND la.row_id = o.object_id AND la.element_id = 736 AND lav.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes ya JOIN ca_attribute_values yav ON yav.attribute_id = ya.attribute_id AND yav.element_id = 806 WHERE ya.table_num = 57 AND ya.row_id = o.object_id AND yav.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes za JOIN ca_attribute_values zav ON zav.attribute_id = za.attribute_id AND zav.element_id = 709 WHERE za.table_num = 57 AND za.row_id = o.object_id AND zav.item_id = ?)))";
+				$params[] = $site_id;
 				$params[] = $site_id;
 			} else {
 				$group_by_site = true; // Site "Tous" : regrouper par site
 			}
+			// Recette 07/10/2026 (besoin exprimé) : chapitrage « site puis batiment »,
+			// a l'identique du catalogue specifique (ex. « Varennes, 5 objets »).
+			// On ne regroupe jamais sur une dimension deja filtree : le chapitre
+			// contredirait la couverture (cf. commentaire du cas 'specifique').
+			$group_by_batiment = !$batiment_id;
 			break;
 
 		case 'mte_mobiliers_par_site':
@@ -161,32 +193,51 @@ try {
 			// ... et de classe "mobilier" (métadonnée calculée calc_objet_mobilier)
 			$om_item = (int)$o_conf_mte->get('om_item_mobilier');
 			if ($site_id) {
-				$joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-				$wheres[] = "av_site.item_id = ?";
+				// RÈGLE DE REPLI (règle retenue, reprise de la règle retenue
+				// en spécification fonctionnelle) : localisation d'INVENTAIRE ; à défaut de
+				// tout relevé d'inventaire, localisation de DÉPÔT (709). Mesuré : le site concerné
+				// élargit le résultat biens. Sous-requêtes corrélées : pas de jointure, donc
+				// aucune multiplication de lignes.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xa JOIN ca_attribute_values xav ON xav.attribute_id = xa.attribute_id AND xav.element_id = 777 WHERE xa.table_num = 57 AND xa.row_id = o.object_id AND xav.item_id = ? AND xa.attribute_id = (SELECT MAX(la.attribute_id) FROM ca_attributes la JOIN ca_attribute_values lav ON lav.attribute_id = la.attribute_id AND lav.element_id = 777 WHERE la.table_num = 57 AND la.row_id = o.object_id AND la.element_id = 736 AND lav.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes ya JOIN ca_attribute_values yav ON yav.attribute_id = ya.attribute_id AND yav.element_id = 806 WHERE ya.table_num = 57 AND ya.row_id = o.object_id AND yav.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes za JOIN ca_attribute_values zav ON zav.attribute_id = za.attribute_id AND zav.element_id = 709 WHERE za.table_num = 57 AND za.row_id = o.object_id AND zav.item_id = ?)))";
+				$params[] = $site_id;
 				$params[] = $site_id;
 			} else {
 				$group_by_site = true; // Site "Tous" : regrouper par site
 			}
+			// Recette 07/10/2026 (besoin exprimé) : chapitrage « site puis batiment »,
+			// a l'identique du catalogue specifique (ex. « Varennes, 5 objets »).
+			// On ne regroupe jamais sur une dimension deja filtree : le chapitre
+			// contredirait la couverture (cf. commentaire du cas 'specifique').
+			$group_by_batiment = !$batiment_id;
 			break;
 
 		case 'specifique_deposant_site_batiment_etage':
 			$titre = "Catalogue par déposant + site + bâtiment + étage";
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			}
 			if ($site_id) {
-				$joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-				$wheres[] = "av_site.item_id = ?";
+				// RÈGLE DE REPLI (règle retenue, reprise de la règle retenue
+				// en spécification fonctionnelle) : localisation d'INVENTAIRE ; à défaut de
+				// tout relevé d'inventaire, localisation de DÉPÔT (709). Mesuré : le site concerné
+				// élargit le résultat biens. Sous-requêtes corrélées : pas de jointure, donc
+				// aucune multiplication de lignes.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xa JOIN ca_attribute_values xav ON xav.attribute_id = xa.attribute_id AND xav.element_id = 777 WHERE xa.table_num = 57 AND xa.row_id = o.object_id AND xav.item_id = ? AND xa.attribute_id = (SELECT MAX(la.attribute_id) FROM ca_attributes la JOIN ca_attribute_values lav ON lav.attribute_id = la.attribute_id AND lav.element_id = 777 WHERE la.table_num = 57 AND la.row_id = o.object_id AND la.element_id = 736 AND lav.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes ya JOIN ca_attribute_values yav ON yav.attribute_id = ya.attribute_id AND yav.element_id = 806 WHERE ya.table_num = 57 AND ya.row_id = o.object_id AND yav.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes za JOIN ca_attribute_values zav ON zav.attribute_id = za.attribute_id AND zav.element_id = 709 WHERE za.table_num = 57 AND za.row_id = o.object_id AND zav.item_id = ?)))";
+				$params[] = $site_id;
 				$params[] = $site_id;
 			}
 			if ($batiment_id) {
-				$joins[] = "JOIN ca_attributes a_bat ON o.object_id = a_bat.row_id AND a_bat.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_bat ON a_bat.attribute_id = av_bat.attribute_id AND av_bat.element_id = 800";
-				$wheres[] = "av_bat.item_id = ?";
+				// Même règle de repli pour le bâtiment : bâtiment d'INVENTAIRE (796), à défaut de
+				// tout relevé d'inventaire, bâtiment de DÉPÔT (800). « Bâtiment 5 » reste à 70.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xb JOIN ca_attribute_values xbv ON xbv.attribute_id = xb.attribute_id AND xbv.element_id = 796 WHERE xb.table_num = 57 AND xb.row_id = o.object_id AND xbv.item_id = ? AND xb.attribute_id = (SELECT MAX(lb.attribute_id) FROM ca_attributes lb JOIN ca_attribute_values lbv ON lbv.attribute_id = lb.attribute_id AND lbv.element_id = 796 WHERE lb.table_num = 57 AND lb.row_id = o.object_id AND lb.element_id = 736 AND lbv.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes yb JOIN ca_attribute_values ybv ON ybv.attribute_id = yb.attribute_id AND ybv.element_id = 806 WHERE yb.table_num = 57 AND yb.row_id = o.object_id AND ybv.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes zb JOIN ca_attribute_values zbv ON zbv.attribute_id = zb.attribute_id AND zbv.element_id = 800 WHERE zb.table_num = 57 AND zb.row_id = o.object_id AND zbv.item_id = ?)))";
+				$params[] = $batiment_id;
 				$params[] = $batiment_id;
 			}
 			if ($etage_id) {
@@ -234,8 +285,7 @@ try {
 				$params[] = dateToJulian($date_fin);
 			}
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			} else {
 				$group_by_deposant = true;
@@ -256,8 +306,7 @@ try {
 				$params[] = dateToJulian($date_fin);
 			}
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			} else {
 				$group_by_deposant = true;
@@ -269,29 +318,38 @@ try {
 			// Catalogue spécifique unifié : piloté par les filtres actifs (plus de boutons radio).
 			$titre = "Catalogue spécifique";
 			if ($deposant_id) {
-				$joins[] = "JOIN ca_objects_x_entities oxe ON o.object_id = oxe.object_id AND oxe.type_id = " . REL_DEPOSANT;
-				$wheres[] = "oxe.entity_id = ?";
+								$wheres[] = "o.type_id = ?";   // la spécification (06/10/2026) : filtrage par TYPE, comme en recherche avancée
 				$params[] = $deposant_id;
 			} else {
 				$group_by_deposant = true;
 			}
 			if ($site_id) {
-				$joins[] = "JOIN ca_attributes a_site ON o.object_id = a_site.row_id AND a_site.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_site ON a_site.attribute_id = av_site.attribute_id AND av_site.element_id = 709";
-				$wheres[] = "av_site.item_id = ?";
+				// RÈGLE DE REPLI (règle retenue, reprise de la règle retenue
+				// en spécification fonctionnelle) : localisation d'INVENTAIRE ; à défaut de
+				// tout relevé d'inventaire, localisation de DÉPÔT (709). Mesuré : le site concerné
+				// élargit le résultat biens. Sous-requêtes corrélées : pas de jointure, donc
+				// aucune multiplication de lignes.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xa JOIN ca_attribute_values xav ON xav.attribute_id = xa.attribute_id AND xav.element_id = 777 WHERE xa.table_num = 57 AND xa.row_id = o.object_id AND xav.item_id = ? AND xa.attribute_id = (SELECT MAX(la.attribute_id) FROM ca_attributes la JOIN ca_attribute_values lav ON lav.attribute_id = la.attribute_id AND lav.element_id = 777 WHERE la.table_num = 57 AND la.row_id = o.object_id AND la.element_id = 736 AND lav.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes ya JOIN ca_attribute_values yav ON yav.attribute_id = ya.attribute_id AND yav.element_id = 806 WHERE ya.table_num = 57 AND ya.row_id = o.object_id AND yav.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes za JOIN ca_attribute_values zav ON zav.attribute_id = za.attribute_id AND zav.element_id = 709 WHERE za.table_num = 57 AND za.row_id = o.object_id AND zav.item_id = ?)))";
+				$params[] = $site_id;
 				$params[] = $site_id;
 			}
 			if ($batiment_id) {
-				$joins[] = "JOIN ca_attributes a_bat ON o.object_id = a_bat.row_id AND a_bat.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_bat ON a_bat.attribute_id = av_bat.attribute_id AND av_bat.element_id = 800";
-				$wheres[] = "av_bat.item_id = ?";
+				// Même règle de repli pour le bâtiment : bâtiment d'INVENTAIRE (796), à défaut de
+				// tout relevé d'inventaire, bâtiment de DÉPÔT (800). « Bâtiment 5 » reste à 70.
+				$wheres[] = "(EXISTS (SELECT 1 FROM ca_attributes xb JOIN ca_attribute_values xbv ON xbv.attribute_id = xb.attribute_id AND xbv.element_id = 796 WHERE xb.table_num = 57 AND xb.row_id = o.object_id AND xbv.item_id = ? AND xb.attribute_id = (SELECT MAX(lb.attribute_id) FROM ca_attributes lb JOIN ca_attribute_values lbv ON lbv.attribute_id = lb.attribute_id AND lbv.element_id = 796 WHERE lb.table_num = 57 AND lb.row_id = o.object_id AND lb.element_id = 736 AND lbv.item_id IS NOT NULL))"
+					. " OR (EXISTS (SELECT 1 FROM ca_attributes yb JOIN ca_attribute_values ybv ON ybv.attribute_id = yb.attribute_id AND ybv.element_id = 806 WHERE yb.table_num = 57 AND yb.row_id = o.object_id AND ybv.item_id = 3656)"
+					. " AND EXISTS (SELECT 1 FROM ca_attributes zb JOIN ca_attribute_values zbv ON zbv.attribute_id = zb.attribute_id AND zbv.element_id = 800 WHERE zb.table_num = 57 AND zb.row_id = o.object_id AND zbv.item_id = ?)))";
+				$params[] = $batiment_id;
 				$params[] = $batiment_id;
 			}
-			if ($etage_id) {
-				$joins[] = "JOIN ca_attributes a_et ON o.object_id = a_et.row_id AND a_et.table_num = 57";
-				$joins[] = "JOIN ca_attribute_values av_et ON a_et.attribute_id = av_et.attribute_id AND av_et.element_id = 712";
-				$wheres[] = "av_et.item_id = ?";
-				$params[] = $etage_id;
+			// Critère Adresse (site_adresse1, liste 165) — remplace Étage au catalogue spécifique
+			if ($adresse_id) {
+				$joins[] = "JOIN ca_attributes a_adr ON o.object_id = a_adr.row_id AND a_adr.table_num = 57";
+				$joins[] = "JOIN ca_attribute_values av_adr ON a_adr.attribute_id = av_adr.attribute_id AND av_adr.element_id = 799";
+				$wheres[] = "av_adr.item_id = ?";
+				$params[] = $adresse_id;
 			}
 			// Critère Catégorie (domaine_logement, liste 157)
 			if ($type_id) {
@@ -327,7 +385,15 @@ try {
 					if ($date_fin)   { $wheres[] = "av_invent.value_decimal1 <= ?"; $params[] = dateToJulian($date_fin); }
 				}
 			}
-			$group_by_site = true;
+			// les filtres Site et Bâtiment portent
+			// désormais sur la localisation d'INVENTAIRE, alors que le chapitrage regroupe
+			// sur le site de DÉPÔT ($fiche['site'], cf. plus bas). Regrouper un catalogue
+			// déjà restreint à une localisation produisait un sommaire contredisant sa
+			// couverture : « Saint-Germain / Bâtiment 5 » s'ouvrait sur un chapitre
+			// « LA DEFENSE ». On ne regroupe donc que si aucune localisation n'est filtrée
+			// — c'est la règle que les cas mte_objets_par_site / mte_mobiliers_par_site
+			// appliquent déjà plus haut.
+			$group_by_site = !$site_id && !$batiment_id;
 			break;
 
 		default:
@@ -378,12 +444,15 @@ try {
 	};
 	$filter_parts = [];
 	if ($deposant_id) {
-		$q = $o_db_n->query("SELECT displayname FROM ca_entity_labels WHERE entity_id = ? AND is_preferred = 1", [(int)$deposant_id]);
-		if ($q->nextRow()) { $filter_parts[] = $q->get('displayname'); }
+		// $deposant_id est un item_id de object_types, plus un
+		// entity_id. Résoudre dans ca_entity_labels renvoyait 0 ligne et faisait disparaître le nom
+		// du déposant du titre ET du nom de fichier du PDF, sans aucune erreur.
+		$filter_parts[] = $resolveListItem($deposant_id);
 	}
 	if ($site_id)     { $filter_parts[] = $resolveListItem($site_id); }
 	if ($batiment_id) { $filter_parts[] = $resolveListItem($batiment_id); }
 	if ($etage_id)    { $filter_parts[] = $resolveListItem($etage_id); }
+	if ($adresse_id)  { $filter_parts[] = $resolveListItem($adresse_id); }
 	if ($type_id)     { $filter_parts[] = $resolveListItem($type_id); }
 	if ($denomination_id) { $filter_parts[] = $resolveListItem($denomination_id); }
 	if ($constat_id)  { $filter_parts[] = $resolveListItem($constat_id); }
@@ -428,17 +497,35 @@ try {
 	// 4. Group if needed
 	// -------------------------------------------------------
 	$fiches_grouped = null;
-	if ($group_by_site || $group_by_deposant) {
+	if ($group_by_site || $group_by_batiment || $group_by_deposant) {
 		$fiches_grouped = [];
 		foreach ($fiches as $fiche) {
 			$gk = "";
 			if ($group_by_site) {
 				$gk .= ($fiche['site'] ?: 'Sans site');
 			}
+			if ($group_by_batiment) {
+				$gk .= ($gk ? ' — ' : '') . ($fiche['batiment'] ?: 'Sans bâtiment');
+			}
 			if ($group_by_deposant) {
 				$gk .= ($gk ? ' — ' : '') . ($fiche['deposant'] ?: 'Sans déposant');
 			}
 			$fiches_grouped[$gk][] = $fiche;
+		}
+		// Les fiches arrivent triees par idno : sans tri des cles, les chapitres
+		// sortaient dans l'ordre de premiere rencontre, donc un site pouvait
+		// reapparaitre plus loin. On ordonne site puis batiment, « Sans ... » en fin.
+		// Le tri ne s'applique qu'au chapitrage par batiment, c'est-a-dire aux
+		// seuls catalogues de l'onglet standard, objet de la demande du 07/10.
+		// Les catalogues 'specifique' n'activent pas ce drapeau : leur ordre de
+		// chapitres reste donc exactement celui d'avant.
+		if ($group_by_batiment) {
+			uksort($fiches_grouped, function($a, $b) {
+				$ra = (strpos($a, 'Sans ') === 0) ? 1 : 0;
+				$rb = (strpos($b, 'Sans ') === 0) ? 1 : 0;
+				if ($ra !== $rb) { return $ra - $rb; }
+				return strnatcasecmp($a, $b);
+			});
 		}
 	}
 
@@ -507,71 +594,15 @@ try {
 // Helper functions
 // ===================================================================
 
-function buildFicheObjet($pn_object_id) {
-	$obj = new ca_objects($pn_object_id);
-
-	$vs_dim = $obj->getWithTemplate(
-		"^ca_objects.dimensions.dimensions_height" .
-		"<ifdef code='ca_objects.dimensions.dimensions_height'> (h) x </ifdef>" .
-		"^ca_objects.dimensions.dimensions_width" .
-		"<ifdef code='ca_objects.dimensions.dimensions_width'> (l) x </ifdef>" .
-		"^ca_objects.dimensions.dimensions_depth" .
-		"<ifdef code='ca_objects.dimensions.dimensions_depth'> (p)</ifdef>" .
-		" ^ca_objects.dimensions.type_dimensions"
-	);
-
-	$va_reps = $obj->getRepresentations(['medium', 'thumbnail']);
-	$vs_photo_path = '';
-	if (!empty($va_reps)) {
-		$rep = reset($va_reps);
-		if (isset($rep['paths']['medium'])) {
-			$vs_photo_path = $rep['paths']['medium'];
-		}
-	}
-
-	return [
-		'object_id'      => $pn_object_id,
-		'idno'           => $obj->get('ca_objects.idno'),
-		'photo_path'     => $vs_photo_path,
-		'deposant'       => $obj->getWithTemplate('<unit relativeTo="ca_entities" restrictToRelationshipTypes="depositaire">^ca_entities.preferred_labels.displayname</unit>'),
-		'numero_depot'   => $obj->getWithTemplate('^ca_objects.numero_depot'),
-		'date_depot'     => $obj->getWithTemplate('^ca_objects.date_depot', ['dateFormat' => 'delimited']),
-		'categorie'      => $obj->getWithTemplate('^ca_objects.domaine_logement'),
-		'type'           => $obj->getWithTemplate('^ca_objects.denomination'),
-		'titre'          => $obj->get('ca_objects.preferred_labels.name'),
-		'auteur'         => $obj->getWithTemplate('<unit relativeTo="ca_entities" restrictToRelationshipTypes="creation_auteur">^ca_entities.preferred_labels.displayname</unit>'),
-		'style'          => $obj->getWithTemplate('^ca_objects.style'),
-		'dimensions'     => $vs_dim,
-		'quantite'       => $obj->getWithTemplate('^ca_objects.appartenances_lot.lot_quantite'),
-		'valeur_assurance' => '',
-		'site'           => $obj->getWithTemplate('^ca_objects.site.site_nom1'),
-		'adresse'        => $obj->getWithTemplate('^ca_objects.site.site_adresse1'),
-		'batiment'       => $obj->getWithTemplate('^ca_objects.site.site_batiment1'),
-		'etage'          => $obj->getWithTemplate('^ca_objects.site.site_etage'),
-		'piece'          => $obj->getWithTemplate('^ca_objects.site.site_piece'),
-		'situation'      => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_site > ^ca_objects.inventaire_cont.inv_etage > ^ca_objects.inventaire_cont.inv_piece'),
-		// C4 (recette 22/04) : ne garder que la DERNIERE situation d'inventaire (derniere occurrence du conteneur)
-		'inv_date'       => caCatLastValue($obj->get('ca_objects.inventaire_cont.inv_date', ['returnAsArray' => true, 'dateFormat' => 'delimited'])),
-		'inv_constat'    => caCatLastValue($obj->get('ca_objects.inventaire_cont.inv_constat', ['returnAsArray' => true, 'convertCodesToDisplayText' => true])),
-		'inv_observations' => $obj->getWithTemplate('^ca_objects.inventaire_cont.inv_comm_disparition'),
-		'recol_date'     => $obj->getWithTemplate('^ca_objects.recolement_inv.der_date_reco', ['dateFormat' => 'delimited']),
-		'recol_fait'     => $obj->getWithTemplate('^ca_objects.recolement_inv.real_O_N'),
-	];
-}
-
-
-function caCatLastValue($va) {
-	if (!is_array($va) || !count($va)) return '';
-	$v = end($va);
-	return is_string($v) ? $v : '';
-}
-
 function dateToJulian($ps_date) {
+	// Les dates CA (value_decimal1) sont stockées au format historique décimal YYYY.MMDDHHMMSS,
+	// PAS en jour julien. gregoriantojd() renvoyait ~2,45 M -> comparaisons value_decimal1>=/<=
+	// toujours fausses/vraies -> filtres de période cassés. Corrigé 26/07/2026 : format CA YYYY.MMDD.
 	if (preg_match('!^(\d{1,2})/(\d{1,2})/(\d{4})$!', $ps_date, $m)) {
-		return gregoriantojd((int)$m[2], (int)$m[1], (int)$m[3]);
+		return (int)$m[3] + (int)$m[2]/100.0 + (int)$m[1]/10000.0;
 	}
 	if (preg_match('!^(\d{4})-(\d{1,2})-(\d{1,2})$!', $ps_date, $m)) {
-		return gregoriantojd((int)$m[2], (int)$m[3], (int)$m[1]);
+		return (int)$m[1] + (int)$m[2]/100.0 + (int)$m[3]/10000.0;
 	}
 	return 0;
 }
@@ -582,104 +613,7 @@ function renderPDFHTML($fiches, $fiches_grouped, $titre, $group_by_site, $group_
 <html>
 <head>
 <style>
-	body { font-family: Marianne, 'Marianne-Light', DejaVu Sans, sans-serif; font-size: 20px; color: #333; }
-	.page { page-break-after: always; }
-	.page:last-child { page-break-after: auto; }
-	.main-title {
-		background: #2c3e50;
-		color: white;
-		padding: 10px 14px;
-		font-weight: bold;
-		font-size: 26px;
-		margin-bottom: 10px;
-		text-align: center;
-	}
-	.section-header {
-		background: #ecf0f1;
-		padding: 6px 10px;
-		font-weight: bold;
-		font-size: 20px;
-		color: #2c3e50;
-		text-transform: uppercase;
-		margin: 10px 0 6px 0;
-		border-left: 4px solid #1ab3c8;
-	}
-	.situation-sub-header {
-		font-weight: bold;
-		font-size: 18px;
-		color: #555;
-		margin: 6px 0 4px 10px;
-		font-style: italic;
-	}
-	.fields {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: 18px;
-	}
-	.fields td {
-		padding: 4px 6px;
-		border-bottom: 1px solid #eee;
-		vertical-align: top;
-	}
-	.field-label {
-		font-weight: bold;
-		color: #555;
-		white-space: nowrap;
-		width: 140px;
-	}
-	.field-value { color: #333; }
-	.bloc-photo-empty {
-		width: 160px;
-		height: 120px;
-		border: 1px dashed #ccc;
-		text-align: center;
-		line-height: 120px;
-		color: #999;
-		font-size: 22px;
-	}
-	.constats-box {
-		border: 1px solid #ccc;
-		padding: 6px 10px;
-		margin: 6px 0;
-		min-height: 40px;
-		font-size: 18px;
-	}
-	.constats-label {
-		font-weight: bold;
-		font-size: 18px;
-		color: #555;
-		margin-bottom: 4px;
-	}
-	.group-title-page {
-		page-break-after: always;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		min-height: 800px;
-		text-align: center;
-	}
-	.group-title-inner {
-		padding: 40px 60px;
-	}
-	.group-title-inner h1 {
-		font-size: 36px;
-		color: #2c3e50;
-		margin: 0 0 20px 0;
-		text-transform: uppercase;
-		border-bottom: 4px solid #1ab3c8;
-		padding-bottom: 16px;
-	}
-	.group-title-inner .group-count {
-		font-size: 22px;
-		color: #666;
-		margin-top: 10px;
-	}
-	.group-title-inner .group-catalogue-type {
-		font-size: 18px;
-		color: #999;
-		margin-top: 30px;
-	}
+<?= caFicheCatalogueStyles() ?>
 </style>
 </head>
 <body>
@@ -687,7 +621,7 @@ function renderPDFHTML($fiches, $fiches_grouped, $titre, $group_by_site, $group_
 	$GLOBALS['_chapter_meta'] = [];
 	$GLOBALS['_page_counter'] = 0;
 
-	if (($group_by_site || $group_by_deposant) && is_array($fiches_grouped)) {
+	if (is_array($fiches_grouped) && sizeof($fiches_grouped)) {
 		foreach ($fiches_grouped as $group_label => $group_fiches) {
 			// Title page for this chapter
 			$GLOBALS['_page_counter']++;
@@ -742,88 +676,3 @@ function renderPDFHTML($fiches, $fiches_grouped, $titre, $group_by_site, $group_
 	return ob_get_clean();
 }
 
-function renderFichePDF($f) {
-?>
-<div class="page">
-	<div class="main-title">
-		FICHE ŒUVRE N° <?= htmlspecialchars($f['idno']) ?>
-	</div>
-	<div class="section-header">Identification du bien</div>
-	<table style="width:100%; border-collapse:collapse; margin-bottom:4px;">
-		<tr>
-			<?php if (!empty($f['photo_path']) && file_exists($f['photo_path'])): ?>
-			<td style="width:215px; vertical-align:top; padding-right:8px;">
-				<img src="<?= $f['photo_path'] ?>" width="200" />
-			</td>
-			<?php endif; ?>
-			<td style="vertical-align:top;">
-				<table class="fields" style="width:100%;">
-					<tr><td class="field-label">Déposant</td><td class="field-value"><?= htmlspecialchars($f['deposant']) ?></td></tr>
-					<tr><td class="field-label">N° de dépôt</td><td class="field-value"><?= htmlspecialchars($f['numero_depot']) ?></td></tr>
-					<tr><td class="field-label">Date de dépôt</td><td class="field-value"><?= htmlspecialchars($f['date_depot']) ?></td></tr>
-				</table>
-			</td>
-		</tr>
-	</table>
-	<div class="section-header">Désignation du bien</div>
-	<table class="fields">
-		<col style="width:140px;"><col style="width:calc(62% - 140px);"><col style="width:100px;"><col style="width:calc(38% - 100px);">
-		<tr>
-			<td class="field-label">Catégorie</td>
-			<td class="field-value"><?= htmlspecialchars($f['categorie']) ?></td>
-			<td class="field-label">Type</td>
-			<td class="field-value"><?= htmlspecialchars($f['type']) ?></td>
-		</tr>
-		<tr><td class="field-label">Titre</td><td class="field-value" colspan="3"><?= htmlspecialchars($f['titre']) ?></td></tr>
-		<tr>
-			<td class="field-label">Auteur</td>
-			<td class="field-value"><?= htmlspecialchars($f['auteur']) ?></td>
-			<td class="field-label">Style</td>
-			<td class="field-value"><?= htmlspecialchars($f['style']) ?></td>
-		</tr>
-		<tr>
-			<td class="field-label">Dimensions</td>
-			<td class="field-value" style="white-space:nowrap;"><?= htmlspecialchars($f['dimensions']) ?></td>
-			<td class="field-label">Quantité</td>
-			<td class="field-value"><?= htmlspecialchars($f['quantite']) ?></td>
-		</tr>
-		<tr>
-			<td class="field-label">N° inv. déposant</td>
-			<td class="field-value"><?= htmlspecialchars($f['idno']) ?></td>
-			<td class="field-label">Valeur assurance (€)</td>
-			<td class="field-value"><?= htmlspecialchars($f['valeur_assurance']) ?></td>
-		</tr>
-	</table>
-	<div class="section-header">Dernière localisation du bien</div>
-	<table class="fields">
-		<tr>
-			<td class="field-label">Site</td>
-			<td class="field-value" style="width:25%;"><?= htmlspecialchars($f['site']) ?></td>
-			<td class="field-label" style="width:55px;">Adresse</td>
-			<td class="field-value" style="width:25%;"><?= htmlspecialchars($f['adresse']) ?></td>
-			<td class="field-label" style="width:60px;">Bâtiment</td>
-			<td class="field-value"><?= htmlspecialchars($f['batiment']) ?></td>
-		</tr>
-		<tr>
-			<td class="field-label">Étage</td>
-			<td class="field-value"><?= htmlspecialchars($f['etage']) ?></td>
-			<td class="field-label">Pièce</td>
-			<td class="field-value" colspan="3"><?= htmlspecialchars($f['piece']) ?></td>
-		</tr>
-	</table>
-	<div class="section-header">Situation</div>
-	<table class="fields">
-		<tr><td class="field-label">Date d'inventaire</td><td class="field-value" colspan="3"><?= htmlspecialchars($f['inv_date']) ?></td></tr>
-		<tr><td class="field-label">Constat présence</td><td class="field-value" colspan="3"><?= htmlspecialchars($f['inv_constat']) ?></td></tr>
-	</table>
-	<div class="constats-box">
-		<div class="constats-label">Constat / Observations – Description de l'état</div>
-		<?= htmlspecialchars($f['inv_observations']) ?>
-	</div>
-	<table class="fields">
-		<tr><td class="field-label">Récolement</td><td class="field-value"><?= htmlspecialchars($f['recol_fait']) ?></td></tr>
-		<tr><td class="field-label">Date récolement</td><td class="field-value"><?= htmlspecialchars($f['recol_date']) ?></td></tr>
-	</table>
-</div>
-<?php
-}

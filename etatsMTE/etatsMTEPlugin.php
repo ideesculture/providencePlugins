@@ -43,10 +43,11 @@
 			$t_item = $va_params["t_item"] ?? null;
 			if ($t_item && $t_item->tableName() === "ca_objects" && $t_item->getPrimaryKey()) {
 				$vs_loc = trim((string)$t_item->get('ca_objects.calc_derniere_localisation'));
-				if ($vs_loc !== '') {
-					$vs_buf = "<div id='last_loc_mte' style='display:none;'><span>".htmlspecialchars($vs_loc, ENT_QUOTES, 'UTF-8')."</span></div>";
-					$va_params["caEditorInspectorAppend"] = ($va_params["caEditorInspectorAppend"] ?? '') . $vs_buf;
-				}
+				// le bloc est désormais injecté même lorsque la
+				// localisation est vide (fiche nouvellement créée), afin que le script de la page
+				// remplace toujours le contenu de la zone au lieu de laisser l'affichage précédent.
+				$vs_buf = "<div id='last_loc_mte' style='display:none;'><span>".htmlspecialchars($vs_loc, ENT_QUOTES, 'UTF-8')."</span></div>";
+				$va_params["caEditorInspectorAppend"] = ($va_params["caEditorInspectorAppend"] ?? '') . $vs_buf;
 			}
 			return $va_params;
 		}
@@ -64,9 +65,21 @@
 			static $vb_in_calc = false;
 			if (!$vb_in_calc) {
 				$vb_in_calc = true;
-				$this->updateCalcFields($t_item);
-				$this->updateObjetMobilier($t_item);
-				$this->updateDerniereLocalisation($t_item);
+				// correction du 18/09/2026 (contrôle indépendant) :
+				// à la CRÉATION, l'instance transmise par l'éditeur ne porte pas encore les valeurs
+				// qui viennent d'être écrites (localisation, date de dépôt), si bien que la dernière
+				// localisation était calculée à vide : la zone du menu de gauche restait alors vide et
+				// l'utilisateur lisait le titre juste en dessous. Il fallait un second enregistrement.
+				// On recharge donc l'objet depuis la base avant de calculer.
+				$vn_oid = (int)$t_item->getPrimaryKey();
+				$t_calc = $t_item;
+				if ($vn_oid) {
+					$t_frais = new ca_objects($vn_oid);
+					if ($t_frais->getPrimaryKey()) { $t_calc = $t_frais; }
+				}
+				$this->updateCalcFields($t_calc);
+				$this->updateObjetMobilier($t_calc);
+				$this->updateDerniereLocalisation($t_calc);
 				$vb_in_calc = false;
 			}
 
@@ -80,25 +93,30 @@
 					$vb_in_numinv = true;
 					$t_item->setMode(ACCESS_WRITE);
 					$t_item->replaceAttribute(['numinv_deposant' => $this->nextDeposantNum('MTE')], 'numinv_deposant');
-					$t_item->update();
+					// Champ CALCULÉ par le serveur : voir ecrireSansControleConcurrence().
+					$this->ecrireSansControleConcurrence($t_item);
 					$vb_in_numinv = false;
 				}
 			}
 
-			// Mapping type_id => entity_id (deposant)
-			$va_type_to_deposant = [
-				3454 => 1394, // MTE => Ministère de l'Écologie du Développement Durable
-				3581 => 1391, // Mobilier National => Mobilier National
-				3582 => 1396, // CNAP => Fonds National d'Art Contemporain
-				3651 => 1465, // Gobelins => Manufacture des gobelins
-				3650 => 1509, // MM => Musée National de la Marine
-				3649 => 1454, // MNAC => Musée National d'Art Contemporain
-				3652 => 1706, // Orsay => Etablissement public du Musée d'Orsay
-				3647 => 1392, // Sèvres => Manufacture Nationale de Sèvres
-				3648 => 1806, // Versailles => Musée du Château de Versailles
+			// Mapping type_id => NOM du déposant (la spécification, 16/09/2026).
+			// Les entity_id étaient écrits en dur ; la migration du 25/07/2026 a recréé les entités
+			// sous de nouveaux identifiants, donc plus aucune création d'œuvre ne recevait son déposant.
+			// On résout désormais l'entity_id à l'exécution, par le nom, qui lui est stable.
+			$va_type_to_deposant_name = [
+				3454 => 'Ministère de la Transition écologique', // MTE
+				3581 => 'Mobilier National',
+				3582 => 'Fonds National d\'Art Contemporain',    // CNAP
+				3647 => 'Manufacture Nationale de Sèvres',       // Sèvres
+				3648 => 'Musée du Château de Versailles',        // Versailles
+				3650 => 'Musée National de la Marine',           // MM
 			];
 
 			$vn_type_id = (int)$t_item->getTypeID();
+			if (!isset($va_type_to_deposant_name[$vn_type_id])) return $va_params;
+
+			$va_type_to_deposant = $this->deposantEntityIds($va_type_to_deposant_name);
+			// Déposant absent de la base : on ne crée pas de relation vers le vide
 			if (!isset($va_type_to_deposant[$vn_type_id])) return $va_params;
 
 			$vn_expected_entity_id = $va_type_to_deposant[$vn_type_id];
@@ -125,6 +143,29 @@
 			$t_item->addRelationship('ca_entities', $vn_expected_entity_id, 172);
 
 			return $va_params;
+		}
+
+		# -------------------------------------------------------
+		/**
+		 * Résout les entités déposantes par leur NOM et renvoie [type_id => entity_id].
+		 * Les types dont le déposant n'existe pas en base sont simplement absents du résultat.
+		 * Résultat mis en cache pour la durée de la requête.
+		 */
+		private function deposantEntityIds($pa_type_to_name) {
+			static $va_cache = null;
+			if (is_array($va_cache)) { return $va_cache; }
+			$va_cache = [];
+			$o_db = new Db();
+			foreach ($pa_type_to_name as $vn_type_id => $vs_name) {
+				$qr = $o_db->query(
+					"SELECT l.entity_id FROM ca_entity_labels l
+					 JOIN ca_entities e ON e.entity_id = l.entity_id AND e.deleted = 0
+					 WHERE l.is_preferred = 1 AND l.displayname = ? LIMIT 1",
+					[$vs_name]
+				);
+				if ($qr->nextRow()) { $va_cache[(int)$vn_type_id] = (int)$qr->get('entity_id'); }
+			}
+			return $va_cache;
 		}
 
 		# -------------------------------------------------------
@@ -163,7 +204,8 @@
 			}
 			if ($vb_changed) {
 				$t_item->setMode(ACCESS_WRITE);
-				$t_item->update();
+				// Champ CALCULÉ par le serveur : voir ecrireSansControleConcurrence().
+				$this->ecrireSansControleConcurrence($t_item);
 			}
 		}
 
@@ -191,7 +233,8 @@
 			if ($vn_current !== $vn_target) {
 				$t_item->setMode(ACCESS_WRITE);
 				$t_item->replaceAttribute(['calc_objet_mobilier' => $vn_target], 'calc_objet_mobilier');
-				$t_item->update();
+				// Champ CALCULÉ par le serveur : voir ecrireSansControleConcurrence().
+				$this->ecrireSansControleConcurrence($t_item);
 			}
 		}
 
@@ -232,8 +275,10 @@
 			};
 
 			// 1. Dépôt : date_depot (haut niveau) rattaché au conteneur site (unique)
+			// la spécification (16/09/2026) : format attendu Site › Adresse › Bâtiment › Étage › Pièce
 			$site_loc = $mkLoc([
 				$t_item->get('ca_objects.site.site_nom1', $DT),
+				$t_item->get('ca_objects.site.site_adresse1', $DT),
 				$t_item->get('ca_objects.site.site_batiment1', $DT),
 				$t_item->get('ca_objects.site.site_etage', $DT),
 				$t_item->get('ca_objects.site.site_piece', $DT),
@@ -248,6 +293,7 @@
 				$t_item->get('ca_objects.inventaire_cont.inv_date', $DD),
 				[
 					$t_item->get('ca_objects.inventaire_cont.inv_site', $DT),
+					$t_item->get('ca_objects.inventaire_cont.inv_site_adresse', $DT),
 					$t_item->get('ca_objects.inventaire_cont.inv_site_bat', $DT),
 					$t_item->get('ca_objects.inventaire_cont.inv_etage', $DT),
 					$t_item->get('ca_objects.inventaire_cont.inv_piece', $DT),
@@ -259,18 +305,90 @@
 				$t_item->get('ca_objects.restitution_cont2.restitution_date', $DD),
 				[
 					$t_item->get('ca_objects.restitution_cont2.der_loc_cont.restauration_site', $DT),
+					$t_item->get('ca_objects.restitution_cont2.der_loc_cont.rest_adresse', $DT),
 					$t_item->get('ca_objects.restitution_cont2.der_loc_cont.rest_batiment', $DT),
 					$t_item->get('ca_objects.restitution_cont2.der_loc_cont.restauration_etage', $DT),
 					$t_item->get('ca_objects.restitution_cont2.der_loc_cont.restauration_piece', $DT),
 				]
 			);
 
-			$vs_new = $best_loc;
+			// la colonne « Dernière localisation »
+			// doit suivre EXACTEMENT la même règle que les filtres Site et Bâtiment, sinon elle les
+			// contredit à l'écran. Mesuré avant alignement : 108 œuvres dont le dernier relevé par
+			// RANG est plus ancien qu'un relevé précédent (ex. MTE_1006, relevé Saint-Germain/Bât 5
+			// daté 01/07/2024 au rang 1, La Défense daté 07/02/2022 au rang 2) : le filtre les
+			// classait à La Défense pendant que cette colonne affichait Saint-Germain.
+			// Règle commune : DERNIER relevé d'inventaire par rang d'occurrence ; à défaut de tout
+			// relevé, localisation de DÉPÔT. La restitution n'entre plus dans ce calcul.
+			$va_inv811 = $t_item->getAttributesByElement(736);
+			$vs_rang = '';
+			if (is_array($va_inv811)) {
+				foreach ($va_inv811 as $o_a811) {                  // ordre = attribute_id croissant
+					$va_v811 = [];
+					foreach ($o_a811->getValues() as $o_v811) {
+						$va_v811[(int)$o_v811->getElementID()] = trim((string)$o_v811->getDisplayValue(['output' => 'text']));
+					}
+					if (empty($va_v811[777])) { continue; }        // occurrence sans site : ignorée
+					$va_p = [];
+					foreach ([777, 795, 796, 778, 779] as $vn_e) { // site > adresse > bâtiment > étage > pièce
+						if (!empty($va_v811[$vn_e])) { $va_p[] = $va_v811[$vn_e]; }
+					}
+					$vs_rang = join(' › ', $va_p);
+				}
+			}
+			if ($vs_rang === '') {                                  // aucun relevé : repli sur le DÉPÔT
+				$va_p = [];
+				foreach (['site_nom1','site_adresse1','site_batiment1','site_etage','site_piece'] as $vs_f) {
+					$vs_v = trim((string)$t_item->getWithTemplate('^ca_objects.site.'.$vs_f));
+					if ($vs_v !== '') { $va_p[] = $vs_v; }
+				}
+				$vs_rang = join(' › ', $va_p);
+			}
+			$vs_new = $vs_rang;
 			$vs_cur = trim((string)$t_item->get('ca_objects.calc_derniere_localisation'));
 			if ($vs_cur !== $vs_new) {
 				$t_item->setMode(ACCESS_WRITE);
 				$t_item->replaceAttribute(['calc_derniere_localisation' => $vs_new], 'calc_derniere_localisation');
-				$t_item->update();
+				// Champ CALCULÉ par le serveur : voir ecrireSansControleConcurrence().
+				$this->ecrireSansControleConcurrence($t_item);
+			}
+
+			// -------------------------------------------------------------------------------
+			// calc_derniere_loc_codes (812).
+			// Champ TECHNIQUE, non affiché : il porte « S<item_id> B<item_id> » du DERNIER relevé
+			// d'inventaire, ou ceux du DÉPÔT lorsque le bien n'a jamais fait l'objet d'un relevé.
+			// Il existe parce que SqlSearch2 ne sait pas exprimer « dernière occurrence » : sans
+			// lui, la recherche avancée retenait n'importe quel relevé et MTE_729 ressortait sur
+			// Saint-Germain alors que son dernier relevé est aux Réserves de Nanterre.
+			// NE PAS confondre avec calc_derniere_localisation (811), calculé par DATE et incluant
+			// la restitution : les deux n'ont ni la même règle ni le même usage.
+			// Des codes et non des libellés : un filtrage par libellé produit des faux positifs
+			// (mesuré : 3 sur « Fontenoy », dont le nom apparaît dans d'autres niveaux).
+			$vn_site_code = null; $vn_bat_code = null;
+			$va_inv = $t_item->getAttributesByElement(736);
+			if (is_array($va_inv)) {
+				foreach ($va_inv as $o_att) {                       // ordre = attribute_id croissant
+					$vn_s = null; $vn_b = null;
+					foreach ($o_att->getValues() as $o_val) {
+						$vn_eid = (int)$o_val->getElementID();
+						if ($vn_eid === 777) { $vn_s = (int)$o_val->getItemID(); }
+						if ($vn_eid === 796) { $vn_b = (int)$o_val->getItemID(); }
+					}
+					// une occurrence ne compte que si elle porte un SITE : c'est le critère du filtre
+					if ($vn_s) { $vn_site_code = $vn_s; $vn_bat_code = $vn_b ?: null; }
+				}
+			}
+			if (!$vn_site_code) {                                    // aucun relevé : repli sur le DÉPÔT
+				$vn_site_code = (int)$t_item->get('ca_objects.site.site_nom1', ['returnIdno' => false, 'returnAsArray' => false, 'idsOnly' => true]) ?: null;
+				$vn_bat_code  = (int)$t_item->get('ca_objects.site.site_batiment1', ['returnIdno' => false, 'returnAsArray' => false, 'idsOnly' => true]) ?: null;
+			}
+			$vs_codes = trim(($vn_site_code ? 'S'.$vn_site_code : '').' '.($vn_bat_code ? 'B'.$vn_bat_code : ''));
+			$vs_codes_cur = trim((string)$t_item->get('ca_objects.calc_derniere_loc_codes'));
+			if ($vs_codes_cur !== $vs_codes) {
+				$t_item->setMode(ACCESS_WRITE);
+				if ($vs_codes_cur === '') { $t_item->addAttribute(['calc_derniere_loc_codes' => $vs_codes], 'calc_derniere_loc_codes'); }
+				else { $t_item->replaceAttribute(['calc_derniere_loc_codes' => $vs_codes], 'calc_derniere_loc_codes'); }
+				$this->ecrireSansControleConcurrence($t_item);
 			}
 		}
 
@@ -280,6 +398,35 @@
 		 * numinv_deposant existants de forme <PREFIX>_<n>. Même logique que
 		 * CatalogueController::NextDeposantNum (utilisée côté JS pour le pré-remplissage).
 		 */
+		# -------------------------------------------------------
+		/**
+		 * Écrit un champ CALCULÉ par le serveur en désarmant le contrôle d'édition
+		 * concurrente du noyau, qui ne s'applique pas à une valeur dérivée.
+		 *
+		 * Deux garde-fous doivent être levés :
+		 *  - ['force' => true] désarme le contrôle sur ca_objects (BaseModel ~2929) ;
+		 *  - mais _commitAttributes() écrit ca_attributes via ca_attributes::editAttribute(),
+		 *    qui reçoit $pa_options et appelle update() SANS les transmettre (ca_attributes.php:363).
+		 *    Le contrôle s'y rearme et fait échouer l'écriture EN SILENCE (update() renvoie
+		 *    false, sans exception ni journal). Or il ne s'arme que si $_REQUEST['form_timestamp']
+		 *    existe : on le retire le temps de l'appel.
+		 *
+		 * Le rétablissement est garanti par finally, y compris si update() lève une exception.
+		 * Même procédé que le noyau lui-même (cf. ElementsController).
+		 *
+		 * @param BaseModelWithAttributes $pt_item objet à enregistrer
+		 * @return bool valeur de retour de update()
+		 */
+		private function ecrireSansControleConcurrence($pt_item) {
+			$vs_ft = $_REQUEST['form_timestamp'] ?? null;
+			unset($_REQUEST['form_timestamp']);
+			try {
+				return $pt_item->update(['force' => true]);
+			} finally {
+				if ($vs_ft !== null) { $_REQUEST['form_timestamp'] = $vs_ft; }
+			}
+		}
+
 		private function nextDeposantNum($prefix = 'MTE') {
 			$prefix = preg_replace('/[^A-Za-z0-9]/', '', $prefix);
 			$o_db = new Db();
@@ -315,6 +462,11 @@
 		 */
 		public function hookRenderMenuBar($pa_menu_bar) {
 			if ($o_req = $this->getRequest()) {
+				// menu reserve aux profils autorises.
+				if (!$o_req->isLoggedIn() || !$o_req->user->canDoAction('can_use_etatsMTE_catalogues')) {
+					return $pa_menu_bar;
+				}
+
 				$va_menu_items = array();
 
 				$va_menu_items['catalogues_standards'] = array(
@@ -350,6 +502,28 @@
 				);
 			}
 
+			// écran d'enrôlement en double
+			// authentification, accessible à tout utilisateur connecté pour son
+			// propre compte. Aucun droit particulier n'est exigé : chacun doit
+			// pouvoir protéger son accès.
+			if ($o_req = $this->getRequest()) {
+				if ($o_req->isLoggedIn()) {
+					$pa_menu_bar['etatsMTE_securite'] = array(
+						'displayName' => _t('My account'),
+						'navigation' => array(
+							'otp' => array(
+								'displayName' => _t('Two-factor authentication'),
+								'default' => array(
+									'module'     => 'etatsMTE',
+									'controller' => 'Securite',
+									'action'     => 'Index'
+								)
+							)
+						)
+					);
+				}
+			}
+
 			return $pa_menu_bar;
 		}
 
@@ -358,6 +532,14 @@
 		 * Add plugin user actions
 		 */
 		static function getRoleActionList() {
-			return array();
+			// le profil « consultant » ne doit pas generer
+			// de catalogue. Le plugin declare donc son propre droit, pour que le menu
+			// ET les controleurs puissent etre conditionnes profil par profil.
+			return array(
+				'can_use_etatsMTE_catalogues' => array(
+					'label' => _t('Peut générer les catalogues MTE'),
+					'description' => _t("L'utilisateur voit le menu « Catalogue » et peut générer les catalogues standards et spécifiques.")
+				)
+			);
 		}
 	}

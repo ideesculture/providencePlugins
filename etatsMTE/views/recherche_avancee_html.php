@@ -6,6 +6,8 @@ $sites      = $this->getVar('sites');
 $batiments  = $this->getVar('batiments');
 $etages     = $this->getVar('etages');
 $constats   = $this->getVar('constats');
+$natures_retrait = $this->getVar('natures_retrait');
+$erreur     = $this->getVar('erreur');
 $traitement_url = $this->getVar('traitement_url');
 
 function raOptions($items) {
@@ -20,6 +22,9 @@ function raOptions($items) {
 ?>
 <div class="ra-wrap">
 	<h1>Recherche avancée</h1>
+<?php if (!empty($erreur)) { ?>
+	<div class="ra-erreur" style="color:#a8322a;font-weight:bold;margin-bottom:14px;"><?= htmlspecialchars($erreur) ?></div>
+<?php } ?>
 
 	<form id="raForm" method="post" action="<?= $traitement_url ?>">
 		<div class="ra-grid">
@@ -61,6 +66,10 @@ function raOptions($items) {
 				<label>Étage</label>
 				<select name="etage"><?= raOptions($etages) ?></select>
 			</div>
+			<div class="ra-field">
+				<label>Nature du retrait</label>
+				<select name="nature_retrait"><?= raOptions($natures_retrait) ?></select>
+			</div>
 		</div>
 
 		<div class="ra-checks">
@@ -68,6 +77,8 @@ function raOptions($items) {
 			<label><input type="checkbox" name="f_recole" value="1" /> Bien récolé</label>
 			<label><input type="checkbox" name="f_restaure" value="1" /> Bien restauré</label>
 			<label><input type="checkbox" name="f_restitue" value="1" /> Bien restitué</label>
+			<label><input type="checkbox" name="f_retire" value="1" /> Bien retiré</label>
+			<label><input type="checkbox" name="f_disparu" value="1" /> Bien disparu</label>
 		</div>
 
 		<div class="ra-dates">
@@ -86,6 +97,45 @@ function raOptions($items) {
 		</div>
 	</form>
 </div>
+
+<script>
+/* la date de fin doit être postérieure ou égale à la date de début. */
+(function () {
+	var form = document.getElementById('raForm');
+	if (!form) { return; }
+	var debut = form.querySelector('input[name="date_debut"]');
+	var fin   = form.querySelector('input[name="date_fin"]');
+	if (!debut || !fin) { return; }
+
+	function message(texte) {
+		if (fin.setCustomValidity) { fin.setCustomValidity(texte); }
+		var zone = document.getElementById('raErreurDates');
+		if (!zone) {
+			zone = document.createElement('div');
+			zone.id = 'raErreurDates';
+			zone.style.cssText = 'color:#a8322a;font-size:13px;font-weight:bold;margin-top:6px;';
+			fin.parentNode.appendChild(zone);
+		}
+		zone.textContent = texte;
+	}
+
+	function controler() {
+		if (debut.value) { fin.setAttribute('min', debut.value); } else { fin.removeAttribute('min'); }
+		if (debut.value && fin.value && fin.value < debut.value) {
+			message('La date de fin doit être postérieure ou égale à la date de début.');
+			return false;
+		}
+		message('');
+		return true;
+	}
+
+	debut.addEventListener('change', controler);
+	fin.addEventListener('change', controler);
+	form.addEventListener('submit', function (e) {
+		if (!controler()) { e.preventDefault(); fin.focus(); }
+	});
+})();
+</script>
 
 <style>
 .ra-wrap { background:#fff; border:1px solid #ddd; padding:22px 28px 40px; margin-top:-10px; }

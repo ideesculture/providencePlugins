@@ -2,7 +2,7 @@
 $deposants = $this->getVar('deposants');
 $sites     = $this->getVar('sites');
 $batiments = $this->getVar('batiments');
-$etages    = $this->getVar('etages');
+$adresses  = $this->getVar('adresses');
 $types     = $this->getVar('types');          // Catégorie (domaine_logement)
 $denominations = $this->getVar('denominations'); // Type (denomination)
 $constats  = $this->getVar('constats');
@@ -44,19 +44,19 @@ $telechargements_url = caNavUrl($this->request, "etatsMTE", "Catalogue", "Telech
 			</select>
 		</div>
 		<div class="filtre">
-			<label>Bâtiment :</label>
-			<select id="filtre-batiment">
-				<option value="">-- Tous --</option>
-				<?php foreach($batiments as $id => $name): ?>
+			<label>Adresse :</label>
+			<select id="filtre-adresse">
+				<option value="">-- Toutes --</option>
+				<?php foreach($adresses as $id => $name): ?>
 				<option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
 				<?php endforeach; ?>
 			</select>
 		</div>
 		<div class="filtre">
-			<label>Étage :</label>
-			<select id="filtre-etage">
+			<label>Bâtiment :</label>
+			<select id="filtre-batiment">
 				<option value="">-- Tous --</option>
-				<?php foreach($etages as $id => $name): ?>
+				<?php foreach($batiments as $id => $name): ?>
 				<option value="<?= $id ?>"><?= htmlspecialchars($name) ?></option>
 				<?php endforeach; ?>
 			</select>
@@ -281,7 +281,7 @@ function lancerCatalogue(catalogueType) {
 		+ '&deposant=' + encodeURIComponent(jQuery('#filtre-deposant').val() || '')
 		+ '&site=' + encodeURIComponent(jQuery('#filtre-site').val() || '')
 		+ '&batiment=' + encodeURIComponent(jQuery('#filtre-batiment').val() || '')
-		+ '&etage=' + encodeURIComponent(jQuery('#filtre-etage').val() || '')
+		+ '&adresse=' + encodeURIComponent(jQuery('#filtre-adresse').val() || '')
 		+ '&type_domaine=' + encodeURIComponent(jQuery('#filtre-type').val() || '')
 		+ '&denomination=' + encodeURIComponent(jQuery('#filtre-denomination').val() || '')
 		+ '&objet_mobilier=' + encodeURIComponent(jQuery('#filtre-objet-mobilier').val() || '')

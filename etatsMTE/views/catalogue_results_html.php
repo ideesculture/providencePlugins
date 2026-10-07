@@ -105,7 +105,10 @@ function _renderFicheHTML($f) {
 			<td class="fl">Pièce</td><td class="fv" colspan="3"><?= htmlspecialchars($f['piece']) ?></td>
 		</tr>
 		<tr>
-			<td class="fl">Situation</td><td class="fv" colspan="5"><?= htmlspecialchars($f['situation']) ?></td>
+			<?php /* 21/09/2026 : 'situation' est désormais un TABLEAU (une entrée par relevé
+			         d'inventaire, cf. caCatLocalisationsInventaire() dans generate_pdf.php).
+			         Rendu défensif : inchangé si une chaîne est reçue. */ ?>
+			<td class="fl">Situation</td><td class="fv" colspan="5"><?= is_array($f['situation'] ?? null) ? join(' | ', array_map('htmlspecialchars', $f['situation'])) : htmlspecialchars((string)($f['situation'] ?? '')) ?></td>
 		</tr>
 	</table>
 
