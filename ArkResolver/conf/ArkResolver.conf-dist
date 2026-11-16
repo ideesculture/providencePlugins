@@ -1,0 +1,19 @@
+# Résolveur ARK : modèle de configuration.
+# Copier ce fichier en conf/ArkResolver.conf (ignoré par git), puis renseigner
+# les valeurs ci-dessous. Tant que enabled = 0, ou si conf/ArkResolver.conf est
+# absent, le point d'entrée répond 404 à toutes les demandes.
+
+# Mettre à 1 pour activer le résolveur, une fois naan et element_code renseignés.
+enabled = 0
+
+# NAAN de l'institution : partie numérique de ark:/<NAAN>/<nom>.
+# Exemple : naan = 12345
+naan =
+
+# Code de l'élément de métadonnée qui contient l'ARK (forme complète
+# ark:/<NAAN>/<nom> conseillée ; le nom seul est aussi reconnu).
+# Exemple : element_code = ark_id
+element_code =
+
+# Table des fiches à résoudre (doit avoir les champs access et deleted).
+table = ca_objects
