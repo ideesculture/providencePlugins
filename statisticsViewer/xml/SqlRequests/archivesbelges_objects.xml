@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<statistics>
+	<universe>archivesbelges_objects</universe>
+	<statistics_group>
+		<title>Types</title>
+		<statistic>
+			<id>1</id>
+			<title>Objets : répartition par type</title>
+			<comment>Cet état affiche le nombre d'enregistrements pour chacun des types définis dans la base de données. Les types d'objets non utilisés ne sont pas affichés.</comment>	
+			<sql>select ca_l_i.idno as "Type", count(*) as "Nombre" from ca_objects ca_o left join ca_list_items ca_l_i on ca_o.type_id=ca_l_i.item_id and ca_l_i.parent_id is not null left join ca_lists ca_l on ca_l.list_id=ca_l_i.list_id where ca_o.deleted = 0 group by ca_l_i.item_id order by 2 desc</sql>
+			<columns>Type,Nombre</columns>
+			<total_columns>Nombre</total_columns>
+			<charting>pie</charting>
+			<charting_columns>Type,Nombre</charting_columns>
+		</statistic>
+	</statistics_group>
+	<statistics_group>
+		<title>Créations</title>
+		<statistic>
+			<id>2</id>
+			<title>Objets créés par mois cette année</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année,monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as opération FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,opération</columns>
+			<total_columns>operation</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,opération</charting_columns>
+		</statistic>
+		<statistic>
+			<id>3</id>
+			<title>Objets créés par mois - année précédente</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as création FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) - 1 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,création</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,création</charting_columns>
+		</statistic>
+		<statistic>
+			<id>7</id>
+			<title>Objets créés par mois - deux années en arrière</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as création FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) - 2 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,création</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,création</charting_columns>
+		</statistic>
+		<statistic>
+			<id>8</id>
+			<title>Objets créés par mois - trois années en arrière</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as création FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) - 3 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,création</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,création</charting_columns>
+		</statistic>
+		<statistic>
+			<id>9</id>
+			<title>Objets créés par mois - quatre années en arrière</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as création FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) - 4 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,création</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,création</charting_columns>
+		</statistic>
+		<statistic>
+			<id>10</id>
+			<title>Objets créés par mois - cinq années en arrière</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id))+0 as création FROM `ca_change_log` cal where cal.logged_table_num=57 and changetype="I" and year(NOW()) - 5 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,création</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,création</charting_columns>
+		</statistic>
+	</statistics_group>
+	<statistics_group>
+		<title>Accès et statuts</title>
+		<statistic>
+			<id>4</id>
+			<title>Objets par statut</title>	
+			<comment></comment>	
+			<sql>SELECT ca_li.idno as Statut, count(ca_o.object_id) as Nombre FROM ca_objects ca_o LEFT JOIN ca_list_items ca_li ON ca_li.item_value = ca_o.status LEFT JOIN ca_lists ca_l ON ca_li.list_id=ca_l.list_id WHERE ca_l.list_code='workflow_statuses' and ca_li.item_value!="Root" and ca_o.deleted = 0 group by ca_li.item_value</sql>
+			<columns>Statut,Nombre</columns>
+			<total_columns>Nombre</total_columns>			
+			<charting>column</charting>
+			<charting_columns>Statut,Nombre</charting_columns>
+		</statistic>
+		<statistic>
+			<id>5</id>
+			<title>Objets par droit d'accès</title>	
+			<comment></comment>	
+			<sql>SELECT ca_li.idno as Access, count(ca_o.object_id) as Number FROM ca_objects ca_o LEFT JOIN ca_list_items ca_li ON ca_li.item_value = ca_o.access LEFT JOIN ca_lists ca_l ON ca_li.list_id=ca_l.list_id WHERE ca_l.list_code='access_statuses' and ca_li.item_value!="Root" and ca_o.deleted = 0 group by ca_li.item_value</sql>
+			<columns>Accès,Nombre</columns>
+			<total_columns>Nombre</total_columns>			
+			<charting>column</charting>
+			<charting_columns>Accès,Nombre</charting_columns>
+		</statistic>
+	</statistics_group>
+	<statistics_group>
+		<title>Objets supprimés</title>
+		<statistic>
+			<id>6</id>
+			<title>Objets supprimés</title>	
+			<comment></comment>	
+			<sql>SELECT IF(deleted>0,"yes","no") as "Supprimés", count(object_id) as Nombre FROM ca_objects GROUP BY deleted</sql>
+			<columns>Supprimés,Nombre</columns>
+			<total_columns>Nombre</total_columns>			
+			<charting>column</charting>
+			<charting_columns>Supprimés,Nombre</charting_columns>
+		</statistic>
+	</statistics_group>
+</statistics>

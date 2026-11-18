@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<statistics>
+	<universe>archivesbelges_representations</universe>
+	<statistics_group>
+		<title>Créations</title>
+		<statistic>
+			<id>2</id>
+			<title>Nombre de médias importés par mois cette année</title>	
+			<comment></comment>	
+<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id)) as creation FROM `ca_change_log` cal where cal.logged_table_num=56 and changetype="I" and year(NOW()) = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,creation</columns>
+			<total_columns>création</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,creation</charting_columns>
+		</statistic>
+		<statistic>
+			<id>3</id>
+			<title>Nom de médias importés par mois - année dernière</title>	
+			<comment></comment>	
+			<sql>SELECT year(FROM_UNIXTIME(cal.log_datetime)) AS année, monthname(FROM_UNIXTIME(cal.log_datetime)) as mois, concat(count(DISTINCT logged_row_id)) as creation FROM `ca_change_log` cal where cal.logged_table_num=56 and changetype="I" and year(NOW()) - 1 = year(FROM_UNIXTIME(cal.log_datetime)) GROUP BY année,mois ORDER BY année,month(FROM_UNIXTIME(cal.log_datetime))</sql>
+			<columns>année,mois,creation</columns>
+			<total_columns>creation</total_columns>			
+			<charting>column</charting>
+			<charting_columns>mois,creation</charting_columns>
+		</statistic>
+	</statistics_group>	
+</statistics>
